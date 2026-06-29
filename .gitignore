@@ -1,0 +1,70 @@
+# === Node / TypeScript / React ===
+node_modules/
+.pnpm-store/
+dist/
+build/
+out/
+.cache/
+*.tsbuildinfo
+coverage/
+.eslintcache
+
+# Package manager logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# === Rust / Tauri ===
+# Cargo build output (apps/desktop/src-tauri/target etc.)
+target/
+**/*.rs.bk
+*.pdb
+
+# Tauri generated bundles
+apps/desktop/src-tauri/gen/
+apps/desktop/src-tauri/WixTools/
+
+# === React Native / mobile ===
+# iOS
+ios/Pods/
+ios/build/
+*.xcworkspace/xcuserdata/
+# Android
+android/.gradle/
+android/app/build/
+android/build/
+android/local.properties
+*.keystore
+!debug.keystore
+.expo/
+
+# === Cloudflare Workers (relay) ===
+.wrangler/
+relay/dist/
+
+# === Local data / secrets (NEVER commit keys or local DB) ===
+# Nostr Buddy stores private keys and SQLite locally — keep them out of git.
+*.sqlite
+*.sqlite3
+*.db
+*.db-journal
+*.key
+*.pem
+secrets/
+.dev.vars
+
+# === Environment ===
+.env
+.env.*
+!.env.example
+
+# === Editor / OS ===
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+desktop.ini
