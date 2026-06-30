@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useI18n } from "../i18n.js";
 import type { ChatMessage, Contact, Self } from "../backend/types.js";
+import { renderMarkdown } from "./markdown.js";
 import { avatarColor, emoticonize, EMOTICONS, initial } from "./util.js";
 
 export interface ConversationProps {
@@ -67,7 +68,7 @@ export function ConversationWindow(props: ConversationProps): JSX.Element {
             <div key={m.id} className={`line ${m.outgoing ? "out" : "in"}`}>
               <span className="who">{m.outgoing ? self.name : contact.name}</span>
               <span className="time">{new Date(m.at).toLocaleTimeString()}</span>
-              <span className="text">{emoticonize(m.text)}</span>
+              <span className="text">{renderMarkdown(emoticonize(m.text))}</span>
             </div>
           ))}
         </div>

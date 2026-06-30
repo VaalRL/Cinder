@@ -1,7 +1,7 @@
 import type { MessageKey } from "@nostr-buddy/i18n";
 import { useI18n } from "../i18n.js";
 import type { Contact, Self, Status } from "../backend/types.js";
-import { LanguageSwitcher } from "./LanguageSwitcher.js";
+import { TitleControls } from "./TitleControls.js";
 import { avatarColor, initial } from "./util.js";
 
 const STATUS_KEY: Record<Status, MessageKey> = {
@@ -30,7 +30,7 @@ export function ContactListWindow(props: ContactListProps): JSX.Element {
       <div className="win__title">
         <span>{t("appName")}</span>
         <span className="spacer" />
-        <LanguageSwitcher />
+        <TitleControls />
       </div>
 
       <div className="me">

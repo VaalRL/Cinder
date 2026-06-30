@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useI18n } from "../i18n.js";
-import { LanguageSwitcher } from "./LanguageSwitcher.js";
+import { TitleControls } from "./TitleControls.js";
 
 export function SignIn({ onSignIn }: { onSignIn: (name: string) => void }): JSX.Element {
   const { t } = useI18n();
@@ -15,7 +15,7 @@ export function SignIn({ onSignIn }: { onSignIn: (name: string) => void }): JSX.
         <div className="win__title">
           <span>{t("appName")}</span>
           <span className="spacer" />
-          <LanguageSwitcher />
+          <TitleControls />
         </div>
         <div className="signin__body">
           <div className="signin__logo">🐱</div>

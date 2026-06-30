@@ -37,6 +37,7 @@ export interface Messages {
   convo_send: string;
   convo_close: string;
   lang_label: string;
+  theme_toggle: string;
 }
 
 const zhHant: Messages = {
@@ -64,6 +65,7 @@ const zhHant: Messages = {
   convo_send: "送出",
   convo_close: "關閉",
   lang_label: "語言",
+  theme_toggle: "深色 / 淺色模式",
 };
 
 const en: Messages = {
@@ -91,6 +93,7 @@ const en: Messages = {
   convo_send: "Send",
   convo_close: "Close",
   lang_label: "Language",
+  theme_toggle: "Toggle dark mode",
 };
 
 export const catalog: Record<Locale, Messages> = { "zh-Hant": zhHant, en };
