@@ -10,4 +10,5 @@ export * from "./giftwrap.js";
 export * from "./signaling.js";
 export * from "./datachannel.js";
 export * from "./connection.js";
+export * from "./pairing.js";
 export * from "./relay-client.js";
