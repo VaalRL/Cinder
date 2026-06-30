@@ -4,3 +4,4 @@ export * from "./event.js";
 export * from "./sign.js";
 export * from "./heartbeat.js";
 export * from "./presence.js";
+export * from "./nip44.js";
