@@ -1,7 +1,7 @@
 import { KIND } from "./constants.js";
+import { createEphemeralEvent } from "./ephemeral.js";
 import type { NostrEvent } from "./event.js";
 import type { PubkeyHex, SecretKey } from "./keys.js";
-import { finalizeEvent } from "./sign.js";
 import { LatestPerKey } from "./tracker.js";
 
 /**
@@ -13,15 +13,10 @@ export function createMusicStatus(
   status: string,
   opts: { created_at?: number } = {},
 ): NostrEvent {
-  return finalizeEvent(
-    {
-      kind: KIND.MUSIC,
-      created_at: opts.created_at ?? Math.floor(Date.now() / 1000),
-      tags: [],
-      content: status,
-    },
-    sk,
-  );
+  return createEphemeralEvent(sk, KIND.MUSIC, {
+    created_at: opts.created_at,
+    content: status,
+  });
 }
 
 /** 讀取音樂狀態事件的狀態字串。 */

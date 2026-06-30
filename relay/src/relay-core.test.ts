@@ -6,7 +6,7 @@ import {
   type NostrEvent,
 } from "@nostr-buddy/core";
 import { MessageStore } from "./message-store.js";
-import { RelayCore } from "./relay-core.js";
+import { leadingZeroBits, RelayCore } from "./relay-core.js";
 
 function heartbeat(): NostrEvent {
   return finalizeEvent(
@@ -113,5 +113,70 @@ describe("RelayCore — 訂閱與 Ephemeral 轉發", () => {
     core.disconnect("watcher");
     const out = core.handle("sender", EVENT(heartbeat()));
     expect(out.some((o) => o.to === "watcher")).toBe(false);
+  });
+});
+
+describe("leadingZeroBits（NIP-13）", () => {
+  it("計算 hex 開頭零位元數", () => {
+    expect(leadingZeroBits("ffff")).toBe(0);
+    expect(leadingZeroBits("0fff")).toBe(4);
+    expect(leadingZeroBits("00ff")).toBe(8);
+    expect(leadingZeroBits("1fff")).toBe(3);
+    expect(leadingZeroBits("002f")).toBe(10);
+  });
+});
+
+describe("RelayCore — 防濫用（C1）", () => {
+  function dmEvent(target: string, createdAt: number) {
+    return finalizeEvent(
+      { kind: 1059, created_at: createdAt, tags: [["p", target]], content: "x" },
+      generateSecretKey(),
+    );
+  }
+  function mine(target: string, difficulty: number) {
+    const sk = generateSecretKey();
+    for (let t = 0; ; t++) {
+      const e = finalizeEvent({ kind: 1059, created_at: t, tags: [["p", target]], content: "" }, sk);
+      if (leadingZeroBits(e.id) >= difficulty) return e;
+    }
+  }
+
+  it("超過每連線訂閱數上限時拒絕新訂閱，替換既有 subId 仍可", () => {
+    const core = new RelayCore({ maxSubscriptions: 1 });
+    core.connect("c");
+    expect(core.handle("c", REQ("s1", { kinds: [20000] }))).toContainEqual({
+      to: "c",
+      message: ["EOSE", "s1"],
+    });
+    const rejected = core.handle("c", REQ("s2", { kinds: [20000] }));
+    expect(rejected[0]?.message[0]).toBe("CLOSED");
+    expect(String(rejected[0]?.message[2])).toContain("上限");
+    // 替換同一 subId 不算新增
+    expect(core.handle("c", REQ("s1", { kinds: [1] }))).toContainEqual({
+      to: "c",
+      message: ["EOSE", "s1"],
+    });
+  });
+
+  it("PoW 難度不足的持久化事件被拒", () => {
+    const core = new RelayCore({ minPowDifficulty: 20 });
+    const pk = getPublicKey(generateSecretKey());
+    const out = core.handle("c", EVENT(dmEvent(pk, 1)));
+    expect(out[0]?.message[0]).toBe("OK");
+    expect(out[0]?.message[2]).toBe(false);
+    expect(String(out[0]?.message[3])).toContain("pow");
+  });
+
+  it("PoW 達標的持久化事件被接受", () => {
+    const core = new RelayCore({ minPowDifficulty: 8 });
+    const pk = getPublicKey(generateSecretKey());
+    const out = core.handle("c", EVENT(mine(pk, 8)));
+    expect(out[0]?.message[2]).toBe(true);
+  });
+
+  it("Ephemeral 事件不受 PoW 限制", () => {
+    const core = new RelayCore({ minPowDifficulty: 20 });
+    const out = core.handle("c", EVENT(heartbeat()));
+    expect(out[0]?.message[2]).toBe(true);
   });
 });

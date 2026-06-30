@@ -1,7 +1,7 @@
 import { KIND, TYPING_TIMEOUT_MS } from "./constants.js";
+import { createEphemeralEvent } from "./ephemeral.js";
 import type { NostrEvent } from "./event.js";
 import type { PubkeyHex, SecretKey } from "./keys.js";
-import { finalizeEvent } from "./sign.js";
 import { LatestPerKey } from "./tracker.js";
 
 /** 建立一筆指向對話對象的「正在輸入中」事件（Kind 20001，Ephemeral）。 */
@@ -10,15 +10,10 @@ export function createTyping(
   recipientPk: PubkeyHex,
   opts: { created_at?: number } = {},
 ): NostrEvent {
-  return finalizeEvent(
-    {
-      kind: KIND.TYPING,
-      created_at: opts.created_at ?? Math.floor(Date.now() / 1000),
-      tags: [["p", recipientPk]],
-      content: "",
-    },
-    sk,
-  );
+  return createEphemeralEvent(sk, KIND.TYPING, {
+    created_at: opts.created_at,
+    tags: [["p", recipientPk]],
+  });
 }
 
 /**

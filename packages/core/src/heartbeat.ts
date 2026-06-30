@@ -1,7 +1,7 @@
 import { KIND } from "./constants.js";
+import { createEphemeralEvent } from "./ephemeral.js";
 import type { NostrEvent } from "./event.js";
 import type { SecretKey } from "./keys.js";
-import { finalizeEvent } from "./sign.js";
 
 export interface HeartbeatOptions {
   /** Unix 秒；省略時填入現在。 */
@@ -12,13 +12,8 @@ export interface HeartbeatOptions {
 
 /** 建立一筆已簽章的 Kind 20000 心跳事件（Ephemeral）。 */
 export function createHeartbeat(sk: SecretKey, opts: HeartbeatOptions = {}): NostrEvent {
-  return finalizeEvent(
-    {
-      kind: KIND.HEARTBEAT,
-      created_at: opts.created_at ?? Math.floor(Date.now() / 1000),
-      tags: [],
-      content: opts.status ?? "",
-    },
-    sk,
-  );
+  return createEphemeralEvent(sk, KIND.HEARTBEAT, {
+    created_at: opts.created_at,
+    content: opts.status ?? "",
+  });
 }
