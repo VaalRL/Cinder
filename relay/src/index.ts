@@ -5,3 +5,4 @@ export * from "./protocol.js";
 export * from "./filters.js";
 export * from "./message-store.js";
 export * from "./relay-core.js";
+export * from "./in-memory-network.js";

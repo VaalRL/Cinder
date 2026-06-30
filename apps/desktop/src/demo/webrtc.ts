@@ -6,15 +6,15 @@ import {
   generateSecretKey,
   getPublicKey,
   readSignal,
-  RelayClient,
   SDP_SIGNAL_KIND,
   type NostrEvent,
   type PubkeyHex,
   type ReceivedFile,
+  type RelayClient,
   type SecretKey,
   type Signal,
 } from "@nostr-buddy/core";
-import { RelayCore } from "@nostr-buddy/relay";
+import { createInMemoryRelayNetwork } from "@nostr-buddy/relay";
 
 export interface WebRtcResult {
   connected: boolean;
@@ -43,11 +43,7 @@ export async function runWebRtcScenario(): Promise<WebRtcResult> {
     log.push(s);
   };
 
-  const core = new RelayCore({ now: nowSec });
-  const clients = new Map<string, RelayClient>();
-  const route = (outbound: ReturnType<RelayCore["handle"]>) => {
-    for (const { to, message } of outbound) clients.get(to)?.receive(JSON.stringify(message));
-  };
+  const net = createInMemoryRelayNetwork({ now: nowSec });
 
   const aSk = generateSecretKey();
   const aPk = getPublicKey(aSk);
@@ -89,19 +85,13 @@ export async function runWebRtcScenario(): Promise<WebRtcResult> {
     peerPublish: () => RelayClient,
     peerPk: () => PubkeyHex,
   ): RelayClient {
-    core.connect(id);
-    const client = new RelayClient(
-      { send: (data) => route(core.handle(id, data)) },
-      {
-        onEvent: (_sub, event: NostrEvent) => {
-          if (event.kind !== SDP_SIGNAL_KIND) return;
-          const { signal } = readSignal(event, ownSk);
-          void applySignal(pc, signal, ownSk, peerPublish(), peerPk());
-        },
+    return net.connect(id, {
+      onEvent: (_sub, event: NostrEvent) => {
+        if (event.kind !== SDP_SIGNAL_KIND) return;
+        const { signal } = readSignal(event, ownSk);
+        void applySignal(pc, signal, ownSk, peerPublish(), peerPk());
       },
-    );
-    clients.set(id, client);
-    return client;
+    });
   }
 
   async function applySignal(

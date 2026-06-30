@@ -8,15 +8,15 @@ import {
   KIND,
   NowPlayingStore,
   PresenceTracker,
-  RelayClient,
   TypingTracker,
   unwrapMessage,
   wrapMessage,
   type NostrEvent,
   type PubkeyHex,
+  type RelayClient,
   type SecretKey,
 } from "@nostr-buddy/core";
-import { MessageStore, RelayCore } from "@nostr-buddy/relay";
+import { createInMemoryRelayNetwork, MessageStore } from "@nostr-buddy/relay";
 
 const NUDGE_KIND = 20100;
 const DEMO_PRESENCE_TIMEOUT_MS = 5_000;
@@ -25,13 +25,7 @@ const nowSec = () => Math.floor(Date.now() / 1000);
 const short = (pk: PubkeyHex) => pk.slice(0, 8);
 
 // ── 記憶體中的 relay（真實 RelayCore + 離線留言儲存）──
-const core = new RelayCore({ store: new MessageStore(), now: nowSec });
-const clients = new Map<string, RelayClient>();
-function route(outbound: ReturnType<RelayCore["handle"]>): void {
-  for (const { to, message } of outbound) {
-    clients.get(to)?.receive(JSON.stringify(message));
-  }
-}
+const net = createInMemoryRelayNetwork({ store: new MessageStore(), now: nowSec });
 
 interface PeerDom {
   panel: HTMLElement;
@@ -63,12 +57,7 @@ class DemoPeer {
     private readonly dom: PeerDom,
   ) {
     this.pk = getPublicKey(sk);
-    core.connect(connId);
-    this.client = new RelayClient(
-      { send: (data) => route(core.handle(connId, data)) },
-      { onEvent: (_sub, event) => this.onEvent(event) },
-    );
-    clients.set(connId, this.client);
+    this.client = net.connect(connId, { onEvent: (_sub, event) => this.onEvent(event) });
     this.wireControls();
   }
 

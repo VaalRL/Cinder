@@ -6,37 +6,17 @@ import {
   getPublicKey,
   PresenceTracker,
   readSignal,
-  RelayClient,
   SDP_SIGNAL_KIND,
   type NostrEvent,
-  type RelayClientHandlers,
   unwrapMessage,
   wrapMessage,
 } from "@nostr-buddy/core";
+import { createInMemoryRelayNetwork } from "./in-memory-network.js";
 import { MessageStore } from "./message-store.js";
-import { RelayCore } from "./relay-core.js";
 
 /** 以 RelayCore 為中心，在記憶體中串接多個 RelayClient（無真實網路）。 */
 function makeNetwork(nowSec: number) {
-  const core = new RelayCore({ store: new MessageStore(), now: () => nowSec });
-  const clients = new Map<string, RelayClient>();
-  return {
-    connect(connId: string, handlers: RelayClientHandlers = {}): RelayClient {
-      core.connect(connId);
-      const client = new RelayClient(
-        {
-          send: (data) => {
-            for (const out of core.handle(connId, data)) {
-              clients.get(out.to)?.receive(JSON.stringify(out.message));
-            }
-          },
-        },
-        handlers,
-      );
-      clients.set(connId, client);
-      return client;
-    },
-  };
+  return createInMemoryRelayNetwork({ store: new MessageStore(), now: () => nowSec });
 }
 
 describe("端到端：上線心跳", () => {
