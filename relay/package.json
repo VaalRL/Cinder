@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "description": "Nostr Buddy 中繼站：自建最小 Cloudflare Worker relay（Ephemeral 純轉發）",
+  "license": "AGPL-3.0-only",
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "exports": {

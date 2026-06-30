@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "description": "Nostr Buddy 共用核心：Nostr 事件、secp256k1 簽章、NIP-44 加密、型別與常數（SSOT）",
+  "license": "AGPL-3.0-only",
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "exports": {

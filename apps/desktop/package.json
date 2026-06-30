@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "description": "Nostr Buddy 桌面前端（Tauri + React/TS）",
+  "license": "AGPL-3.0-only",
   "scripts": {
     "dev": "vite",
     "build": "tsc -p tsconfig.json && vite build",
