@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { generateSecretKey, getPublicKey } from "./keys.js";
-import { createSignal, readSignal, SDP_SIGNAL_KIND, type Signal } from "./signaling.js";
+import { sealAndWrap } from "./nip59.js";
+import { createSignal, parseSignal, readSignal, SDP_SIGNAL_KIND, type Signal } from "./signaling.js";
 
 const aliceSk = generateSecretKey();
 const alicePk = getPublicKey(aliceSk);
@@ -41,5 +42,32 @@ describe("WebRTC SDP 信令（NIP-59 包封 ephemeral）", () => {
   it("第三者無法讀取信令", () => {
     const evt = createSignal({ type: "offer", sdp: "x" }, aliceSk, bobPk);
     expect(() => readSignal(evt, generateSecretKey())).toThrow();
+  });
+});
+
+describe("信令結構驗證（C5）", () => {
+  it("合法 offer/candidate 通過", () => {
+    expect(parseSignal(JSON.stringify({ type: "offer", sdp: "x" }))).toEqual({ type: "offer", sdp: "x" });
+    expect(parseSignal(JSON.stringify({ type: "candidate", candidate: "c" }))).toEqual({
+      type: "candidate",
+      candidate: "c",
+    });
+  });
+
+  it("缺欄位或未知類型拋錯", () => {
+    expect(() => parseSignal(JSON.stringify({ type: "offer" }))).toThrow();
+    expect(() => parseSignal(JSON.stringify({ type: "candidate" }))).toThrow();
+    expect(() => parseSignal(JSON.stringify({ type: "bogus" }))).toThrow();
+    expect(() => parseSignal("123")).toThrow();
+  });
+
+  it("readSignal 對結構非法的內層內容拋錯", () => {
+    const bad = sealAndWrap(
+      { kind: SDP_SIGNAL_KIND, created_at: 1, tags: [], content: JSON.stringify({ type: "bogus" }) },
+      aliceSk,
+      bobPk,
+      { kind: SDP_SIGNAL_KIND, tags: [["p", bobPk]] },
+    );
+    expect(() => readSignal(bad, bobSk)).toThrow();
   });
 });

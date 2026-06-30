@@ -49,6 +49,12 @@ export interface RelayCoreOptions {
   maxSubscriptions?: number;
   /** 持久化事件所需的最小 NIP-13 PoW 難度（0 = 不要求）。 */
   minPowDifficulty?: number;
+  /**
+   * 允許的時鐘偏移（秒）。設定後：拒收 `created_at` 偏離本機時鐘超過此值的
+   * 事件，並在此時間窗內以 event id 去重（防重放偽造上線/重送舊 SDP）。
+   * 未設定時不啟用（維持原行為）。
+   */
+  maxClockSkewSec?: number;
 }
 
 interface SubEntry {
@@ -73,6 +79,8 @@ export class RelayCore {
   private readonly byKind = new Map<number, Set<SubEntry>>();
   /** 未限制 kind（可匹配任何 kind）的訂閱。 */
   private readonly anyKindSubs = new Set<SubEntry>();
+  /** 已處理事件 id → created_at（時鐘窗內去重，防重放）。 */
+  private readonly seenIds = new Map<string, number>();
 
   constructor(private readonly opts: RelayCoreOptions = {}) {}
 
@@ -147,6 +155,20 @@ export class RelayCore {
       return [{ to: connId, message: ["OK", event.id, false, "invalid: 簽章驗證失敗"] }];
     }
 
+    // C2：時鐘偏移與重放防護（啟用時）。
+    const skew = this.opts.maxClockSkewSec;
+    if (skew !== undefined) {
+      const now = this.now();
+      if (Math.abs(event.created_at - now) > skew) {
+        return [{ to: connId, message: ["OK", event.id, false, "invalid: 時間戳超出允許範圍"] }];
+      }
+      if (this.seenIds.has(event.id)) {
+        return [{ to: connId, message: ["OK", event.id, false, "duplicate: 事件重複"] }];
+      }
+      this.seenIds.set(event.id, event.created_at);
+      if (this.seenIds.size > 1024) this.pruneSeen(now - skew);
+    }
+
     // Ephemeral 純轉發、不寫 D1；其餘（持久化）需通過 PoW 並寫入持久層。
     if (!isEphemeral(event.kind)) {
       const minPow = this.opts.minPowDifficulty ?? 0;
@@ -177,6 +199,13 @@ export class RelayCore {
       set.add(entry);
     }
     if (entry.anyKind) this.anyKindSubs.add(entry);
+  }
+
+  /** 移除時鐘窗外、不再可能重放的已見 id，避免無限成長。 */
+  private pruneSeen(cutoffSec: number): void {
+    for (const [id, createdAt] of this.seenIds) {
+      if (createdAt < cutoffSec) this.seenIds.delete(id);
+    }
   }
 
   private unindex(entry: SubEntry): void {

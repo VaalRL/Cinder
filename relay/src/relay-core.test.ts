@@ -180,3 +180,36 @@ describe("RelayCore — 防濫用（C1）", () => {
     expect(out[0]?.message[2]).toBe(true);
   });
 });
+
+describe("RelayCore — 時鐘偏移與重放防護（C2）", () => {
+  const hb = (createdAt: number) =>
+    finalizeEvent({ kind: 20000, created_at: createdAt, tags: [], content: "" }, generateSecretKey());
+
+  it("created_at 偏離本機時鐘過大時拒收", () => {
+    const core = new RelayCore({ maxClockSkewSec: 60, now: () => 1000 });
+    const out = core.handle("c", EVENT(hb(5000)));
+    expect(out[0]?.message[2]).toBe(false);
+    expect(String(out[0]?.message[3])).toContain("時間戳");
+  });
+
+  it("時鐘窗內、唯一事件被接受", () => {
+    const core = new RelayCore({ maxClockSkewSec: 60, now: () => 1000 });
+    expect(core.handle("c", EVENT(hb(1000)))[0]?.message[2]).toBe(true);
+  });
+
+  it("重放相同事件被去重拒絕", () => {
+    const core = new RelayCore({ maxClockSkewSec: 60, now: () => 1000 });
+    const e = hb(1000);
+    expect(core.handle("c", EVENT(e))[0]?.message[2]).toBe(true);
+    const replay = core.handle("c", EVENT(e));
+    expect(replay[0]?.message[2]).toBe(false);
+    expect(String(replay[0]?.message[3])).toContain("duplicate");
+  });
+
+  it("未設定 maxClockSkewSec 時不啟用（維持原行為）", () => {
+    const core = new RelayCore({ now: () => 1000 });
+    const e = hb(99999);
+    expect(core.handle("c", EVENT(e))[0]?.message[2]).toBe(true);
+    expect(core.handle("c", EVENT(e))[0]?.message[2]).toBe(true);
+  });
+});

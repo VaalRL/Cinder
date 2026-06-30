@@ -46,8 +46,29 @@ export function createSignal(
   );
 }
 
-/** 解開並驗證信令事件，回傳寄件人與信令內容。 */
+/** 解開並驗證信令事件，回傳寄件人與信令內容。內容結構非法時拋錯。 */
 export function readSignal(event: NostrEvent, recipientSk: SecretKey): ReceivedSignal {
   const { sender, rumor } = openWrap(event, recipientSk);
-  return { sender, signal: JSON.parse(rumor.content) as Signal };
+  return { sender, signal: parseSignal(rumor.content) };
+}
+
+/** 解析並驗證信令內容結構（信任邊界檢查，避免後續 undefined 連鎖）。 */
+export function parseSignal(content: string): Signal {
+  const value: unknown = JSON.parse(content);
+  if (typeof value !== "object" || value === null) {
+    throw new Error("信令格式錯誤：非物件");
+  }
+  const s = value as Record<string, unknown>;
+  if (s.type === "offer" || s.type === "answer") {
+    if (typeof s.sdp !== "string") throw new Error("信令缺少 sdp");
+    return { type: s.type, sdp: s.sdp };
+  }
+  if (s.type === "candidate") {
+    if (typeof s.candidate !== "string") throw new Error("信令缺少 candidate");
+    const out: CandidateSignal = { type: "candidate", candidate: s.candidate };
+    if (typeof s.sdpMid === "string") out.sdpMid = s.sdpMid;
+    if (typeof s.sdpMLineIndex === "number") out.sdpMLineIndex = s.sdpMLineIndex;
+    return out;
+  }
+  throw new Error(`未知信令類型：${String(s.type)}`);
 }
