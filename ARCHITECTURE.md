@@ -41,7 +41,7 @@
 
 | 模組 | 目錄 | 職責 |
 | --- | --- | --- |
-| 共用核心 | `packages/core/` | Nostr 事件建構/驗證、加密（Ed25519 簽章、AES）、SQLite schema 與型別、事件 Kind 常數。跨平台共用，**SSOT 邏輯所在**。 |
+| 共用核心 | `packages/core/` | Nostr 事件建構/驗證、簽章（secp256k1 Schnorr, BIP-340）、加密（NIP-44）、SQLite schema 與型別、事件 Kind 常數。跨平台共用，**SSOT 邏輯所在**。 |
 | 桌面前端 | `apps/desktop/src/` | React/TS UI：好友列表、對話視窗、狀態列、Nudge 動畫。 |
 | 桌面原生橋 | `apps/desktop/src-tauri/` | Rust：原生 SQLite 讀寫、背景 Nostr WebSocket 長連線、WebRTC 資料通道、金鑰安全儲存、IPC。 |
 | 行動端 | `apps/mobile/`（預留） | React Native + SQLite；Silent Push 喚醒背景同步。 |
@@ -53,7 +53,7 @@
 
 ## 4. 身分與資料模型
 
-- **身分**：首次啟動生成 Ed25519 金鑰對；公鑰 `npub` 為全網唯一 ID。私鑰寫入 OS 安全儲存（Keychain/DPAPI/libsecret/Keystore），**絕不離開裝置、無雲端備份、不提供金鑰輪替/撤銷**（取捨見 PRD §4、§7）。
+- **身分**：首次啟動生成 secp256k1 金鑰對（Nostr/NIP-01，簽章採 BIP-340 Schnorr）；公鑰 `npub` 為全網唯一 ID。私鑰寫入 OS 安全儲存（Keychain/DPAPI/libsecret/Keystore），**絕不離開裝置、無雲端備份、不提供金鑰輪替/撤銷**（取捨見 PRD §4、§7）。
 - **SQLite（SSOT）**：好友（npub、顯示名稱、上線狀態）、對話訊息（明文僅存本機）、金鑰、設定、聯絡人同意/封鎖清單。資料庫以裝置綁定金鑰加密落地（如 SQLCipher）；對外傳輸前一律以 NIP-44 加密。
 - **多設備同步（首次）**：QR Code 僅含「一次性 AES-256-GCM 金鑰 + 內網 IP + WebRTC 房間號」；通道與該 AEAD 金鑰綁定並雙向認證（challenge-response）。手機端以 **Happy Eyeballs（RFC 8305）** 同時發起 LAN 直連與 WAN 打洞，優先連通者整包加密傳輸 SQLite 與私鑰。
 - **多設備同步（持續）**：首次整包同步後，各設備就「新訊息、已讀位置、聯絡人/封鎖變更」持續對帳（自封 NIP-17 同步事件或設備間 P2P）；可變狀態採 LWW/CRDT，定案見 ADR。
@@ -83,7 +83,7 @@
 （每 30 秒一次心跳；連續 60 秒未收到即判定離線）
 ```
 
-**範圍**：relay WebSocket 連線管理、最小 Ed25519 簽章、Kind 20000 心跳發送與訂閱、上線/離線狀態判定與 UI 渲染。
+**範圍**：relay WebSocket 連線管理、最小 secp256k1 Schnorr 簽章、Kind 20000 心跳發送與訂閱、上線/離線狀態判定與 UI 渲染。
 **依賴**：最小金鑰生成（簽章用）。完整身分流程與多設備同步屬後續里程碑。
 
 ## 7. 里程碑

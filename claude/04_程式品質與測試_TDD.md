@@ -10,8 +10,8 @@
 ## 分層測試要求
 
 - **共用核心 / Nostr 與加密邏輯（packages/core）**
-  - 驗證事件建構、簽章與驗章（Ed25519）
-  - 驗證加解密（AES）與 SQLite schema 行為
+  - 驗證事件建構、簽章與驗章（secp256k1 Schnorr / BIP-340）
+  - 驗證加解密（NIP-44；多設備同步 AES-256-GCM）與 SQLite schema 行為
   - 驗證 Kind 對應與心跳/過期（NIP-40）邏輯
 
 - **Rust / Tauri Bridge**

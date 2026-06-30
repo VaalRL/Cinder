@@ -27,7 +27,7 @@ Nostr Buddy 是一款結合 **Nostr 協議**、**WebRTC**、**Rust Tauri** 與 *
 
 ### Implementation directories
 
-- `packages/core/`: 共用 TS — Nostr 事件建構/驗證、加密（Ed25519、AES）、SQLite schema、型別、Kind 常數
+- `packages/core/`: 共用 TS — Nostr 事件建構/驗證、簽章（secp256k1 Schnorr）、加密（NIP-44）、SQLite schema、型別、Kind 常數
 - `apps/desktop/src/`: Tauri 前端 React/TS UI（好友列表、對話視窗、狀態列、Nudge）
 - `apps/desktop/src-tauri/`: Rust bridge — 原生 SQLite、Nostr WebSocket、WebRTC、金鑰儲存、IPC
 - `apps/mobile/`: React Native + SQLite（輔助平台，預留）

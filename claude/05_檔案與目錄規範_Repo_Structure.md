@@ -16,7 +16,7 @@ Nostr Buddy 的 root 允許以下專案入口文件與必要設定：
 
 ## 目錄分工
 
-- `packages/core/`：共用 TS — Nostr 事件、加密（Ed25519、AES）、SQLite schema、型別、Kind 常數（SSOT 邏輯所在）
+- `packages/core/`：共用 TS — Nostr 事件、簽章（secp256k1 Schnorr）、加密（NIP-44）、SQLite schema、型別、Kind 常數（SSOT 邏輯所在）
 - `apps/desktop/src/`：Tauri 前端 React/TS UI 與互動
 - `apps/desktop/src-tauri/`：Rust bridge — 原生 SQLite、Nostr WebSocket、WebRTC、金鑰儲存、IPC
 - `apps/mobile/`：React Native + SQLite（輔助平台，預留）
