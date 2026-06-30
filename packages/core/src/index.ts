@@ -6,3 +6,4 @@ export * from "./heartbeat.js";
 export * from "./presence.js";
 export * from "./nip44.js";
 export * from "./giftwrap.js";
+export * from "./relay-client.js";

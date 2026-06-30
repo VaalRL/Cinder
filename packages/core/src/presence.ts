@@ -1,13 +1,16 @@
 import { KIND, OFFLINE_TIMEOUT_MS } from "./constants.js";
 import type { PubkeyHex } from "./keys.js";
 
-/** Nostr 訂閱 filter（最小子集，足以訂閱心跳）。 */
+/** Nostr 訂閱 filter（NIP-01 子集，含 `#<tag>` 標籤 filter）。 */
 export interface Filter {
+  ids?: string[];
   kinds?: number[];
   authors?: PubkeyHex[];
   since?: number;
   until?: number;
   limit?: number;
+  /** 標籤 filter，如 `#p`（收件人）。 */
+  [tag: `#${string}`]: string[] | undefined;
 }
 
 /** 依好友 pubkey 清單建構心跳（上線狀態）訂閱 filter。 */
