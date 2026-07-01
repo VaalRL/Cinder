@@ -14,6 +14,7 @@ export * from "./giftwrap.js";
 export * from "./reaction.js";
 export * from "./deletion.js";
 export * from "./signaling.js";
+export * from "./call.js";
 export * from "./datachannel.js";
 export * from "./connection.js";
 export * from "./pairing.js";
