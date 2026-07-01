@@ -148,6 +148,20 @@ body { margin: 0; background: var(--bg-b); color: var(--ink); }
 .connbar { padding: 4px 10px; font-size: 11px; text-align: center; color: #fff; }
 .connbar--connecting { background: #d9932b; }
 .connbar--offline { background: #c0392b; }
+
+/* 檔案傳輸 */
+.convo__body { position: relative; }
+.convo__body.dropping { outline: 2px dashed var(--accent); outline-offset: -4px; }
+.dropzone { position: absolute; inset: 0; z-index: 8; display: flex; align-items: center; justify-content: center; background: rgba(80,140,220,.12); color: var(--accent); font-weight: 600; pointer-events: none; }
+.filecard { display: inline-flex; gap: 8px; align-items: center; margin-top: 3px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface2); max-width: 240px; }
+.filecard__ic { font-size: 20px; }
+.filecard__info { min-width: 0; flex: 1; }
+.filecard__name { font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.filecard__meta { font-size: 10px; color: var(--muted); }
+.filecard__bar { height: 5px; border-radius: 3px; background: var(--border); overflow: hidden; margin-top: 4px; }
+.filecard__bar span { display: block; height: 100%; background: var(--accent); transition: width .12s linear; }
+.filecard__dl { font-size: 11px; color: var(--accent); text-decoration: none; }
+.filecard__dl:hover { text-decoration: underline; }
 .me__np { display: flex; align-items: center; gap: 4px; margin-top: 3px; }
 .me__np-ic { color: #9a6cd4; font-size: 12px; }
 .me__np input { flex: 1; min-width: 0; }

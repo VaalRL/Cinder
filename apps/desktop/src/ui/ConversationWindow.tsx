@@ -25,6 +25,8 @@ export interface ConversationProps {
   onReact?: (messageId: string, emoji: string) => void;
   /** 收回自己送出的某訊息（未提供則不顯示收回功能）。 */
   onUnsend?: (messageId: string) => void;
+  /** 以 P2P 傳送檔案（未提供則不顯示檔案功能）。 */
+  onSendFile?: (file: File) => void;
   onClose: () => void;
 }
 
@@ -34,8 +36,15 @@ export function ConversationWindow(props: ConversationProps): JSX.Element {
   const [text, setText] = useState("");
   const [showEmo, setShowEmo] = useState(false);
   const [ttl, setTtl] = useState(0);
+  const [dragging, setDragging] = useState(false);
   const logRef = useRef<HTMLDivElement>(null);
   const rootRef = useRef<HTMLDivElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const dropFiles = (files: FileList | null) => {
+    if (!files || !props.onSendFile) return;
+    for (const f of Array.from(files)) props.onSendFile(f);
+  };
 
   useEffect(() => {
     const el = logRef.current;
@@ -74,7 +83,22 @@ export function ConversationWindow(props: ConversationProps): JSX.Element {
         </div>
       </div>
 
-      <div className="convo__body">
+      <div
+        className={`convo__body ${dragging ? "dropping" : ""}`}
+        onDragOver={(e) => {
+          if (!props.onSendFile) return;
+          e.preventDefault();
+          setDragging(true);
+        }}
+        onDragLeave={() => setDragging(false)}
+        onDrop={(e) => {
+          if (!props.onSendFile) return;
+          e.preventDefault();
+          setDragging(false);
+          dropFiles(e.dataTransfer.files);
+        }}
+      >
+        {dragging ? <div className="dropzone">{t("file_dropHint")}</div> : null}
         <div className="log" ref={logRef} data-testid="log">
           {messages.map((m) => (
             <MessageLine
@@ -102,6 +126,21 @@ export function ConversationWindow(props: ConversationProps): JSX.Element {
       <div className="toolbar">
         <button className="tool" title={t("convo_emojiTitle")} onClick={() => setShowEmo((v) => !v)}>🙂</button>
         <button className="tool" title={t("convo_nudgeTitle")} onClick={props.onNudge}>{t("convo_nudge")}</button>
+        {props.onSendFile ? (
+          <>
+            <button className="tool" title={t("file_attach")} onClick={() => fileRef.current?.click()}>📎</button>
+            <input
+              ref={fileRef}
+              type="file"
+              multiple
+              hidden
+              onChange={(e) => {
+                dropFiles(e.target.files);
+                e.target.value = "";
+              }}
+            />
+          </>
+        ) : null}
         <select
           className="tool tool--timer"
           title={t("convo_timerTitle")}
@@ -179,6 +218,10 @@ function MessageLine({
     );
   }
 
+  if (message.file) {
+    return <FileLine message={message} who={who} />;
+  }
+
   return (
     <div className={`line ${message.outgoing ? "out" : "in"}`}>
       <span className="who">{who}</span>
@@ -215,6 +258,39 @@ function MessageLine({
           ))}
         </span>
       ) : null}
+    </div>
+  );
+}
+
+function formatBytes(n: number): string {
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function FileLine({ message, who }: { message: ChatMessage; who: string }): JSX.Element {
+  const { t } = useI18n();
+  const file = message.file!;
+  const pct = file.size > 0 ? Math.min(100, Math.round((file.sent / file.size) * 100)) : 100;
+  const done = file.url !== undefined || (!file.incoming && file.sent >= file.size);
+  return (
+    <div className={`line ${message.outgoing ? "out" : "in"}`}>
+      <span className="who">{who}</span>
+      <span className="time">{new Date(message.at).toLocaleTimeString()}</span>
+      <div className="filecard" data-testid="filecard">
+        <span className="filecard__ic">📄</span>
+        <div className="filecard__info">
+          <div className="filecard__name">{file.name}</div>
+          <div className="filecard__meta">{formatBytes(file.size)}</div>
+          {!done ? (
+            <div className="filecard__bar" aria-label={t("file_sending")}>
+              <span style={{ width: `${pct}%` }} />
+            </div>
+          ) : file.url ? (
+            <a className="filecard__dl" href={file.url} download={file.name}>⬇ {t("file_download")}</a>
+          ) : null}
+        </div>
+      </div>
     </div>
   );
 }

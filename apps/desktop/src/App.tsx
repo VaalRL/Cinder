@@ -21,6 +21,9 @@ const TYPING_VISIBLE_MS = 6_000;
 const RELAY_URL_KEY = "nb.relayUrl";
 const NOTIFY_KEY = "nb.notify";
 
+let _uid = 0;
+const uid = (prefix: string): string => `${prefix}_${Date.now()}_${_uid++}`;
+
 export function App(): JSX.Element {
   const [backend, setBackend] = useState<ChatBackend | null>(null);
   const [self, setSelf] = useState<Self | null>(null);
@@ -107,6 +110,38 @@ export function App(): JSX.Element {
         }),
       onBlocked: setBlocked,
       onConnection: setConn,
+      onFileProgress: (pk, id, sent) =>
+        setConvos((prev) => {
+          const cur = prev[pk];
+          if (!cur) return prev;
+          let changed = false;
+          const next = cur.map((m) => {
+            if (m.file && m.file.id === id) {
+              changed = true;
+              return { ...m, file: { ...m.file, sent } };
+            }
+            return m;
+          });
+          return changed ? { ...prev, [pk]: next } : prev;
+        }),
+      onFileReceived: (pk, file) => {
+        const blob = new Blob([file.bytes as BlobPart], { type: file.mime || "application/octet-stream" });
+        const url = URL.createObjectURL(blob);
+        const id = uid("rf");
+        const msg: ChatMessage = {
+          id,
+          outgoing: false,
+          text: "",
+          at: Date.now(),
+          file: { id, name: file.name, mime: file.mime, size: file.bytes.length, sent: file.bytes.length, incoming: true, url },
+        };
+        setConvos((prev) => ({ ...prev, [pk]: [...(prev[pk] ?? []), msg] }));
+        setOpen((prev) => (prev.includes(pk) ? prev : [...prev, pk]));
+      },
+      onFileError: (pk, reason) => {
+        const msg: ChatMessage = { id: uid("fe"), outgoing: false, text: `⚠️ ${reason}`, at: Date.now() };
+        setConvos((prev) => ({ ...prev, [pk]: [...(prev[pk] ?? []), msg] }));
+      },
     });
     return () => backend.stop();
   }, [backend]);
@@ -219,6 +254,22 @@ export function App(): JSX.Element {
     forget(pk);
   };
 
+  const sendFile = async (pk: string, f: File) => {
+    if (!activeBackend.sendFile) return;
+    const bytes = new Uint8Array(await f.arrayBuffer());
+    const mime = f.type || "application/octet-stream";
+    const id = activeBackend.sendFile(pk, { name: f.name, mime, bytes });
+    const msg: ChatMessage = {
+      id: uid("of"),
+      outgoing: true,
+      text: "",
+      at: Date.now(),
+      file: { id, name: f.name, mime, size: bytes.length, sent: 0, incoming: false },
+    };
+    setConvos((prev) => ({ ...prev, [pk]: [...(prev[pk] ?? []), msg] }));
+    setOpen((prev) => (prev.includes(pk) ? prev : [...prev, pk]));
+  };
+
   const addContactProps = activeBackend.addContact
     ? { onAddContact: activeBackend.addContact.bind(activeBackend), selfNpub: activeBackend.selfNpub ?? "" }
     : {};
@@ -270,6 +321,7 @@ export function App(): JSX.Element {
         const unsendProps = activeBackend.unsendMessage
           ? { onUnsend: (messageId: string) => activeBackend.unsendMessage!(pk, messageId) }
           : {};
+        const fileProps = activeBackend.sendFile ? { onSendFile: (f: File) => sendFile(pk, f) } : {};
         return (
           <ConversationWindow
             key={pk}
@@ -283,6 +335,7 @@ export function App(): JSX.Element {
             nudgeSignal={nudge[pk] ?? 0}
             {...reactProps}
             {...unsendProps}
+            {...fileProps}
             onSend={(text, ttlSeconds) => activeBackend.sendMessage(pk, text, ttlSeconds)}
             onTyping={() => {
               const now = Date.now();

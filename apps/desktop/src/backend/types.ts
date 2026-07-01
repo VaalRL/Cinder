@@ -1,4 +1,4 @@
-import type { PubkeyHex } from "@nostr-buddy/core";
+import type { OutgoingFile, PubkeyHex, ReceivedFile } from "@nostr-buddy/core";
 
 /** 使用者可見狀態（避開商標，以中文呈現於 UI）。 */
 export type Status = "online" | "away" | "busy" | "offline";
@@ -29,6 +29,22 @@ export interface BlockedContact {
   name: string;
 }
 
+/** 對話中的檔案附件（P2P 傳輸）。 */
+export interface ChatFile {
+  /** 傳輸 id（送出端用來對應進度）。 */
+  id: string;
+  name: string;
+  mime: string;
+  /** 位元組總數。 */
+  size: number;
+  /** 已傳送位元組（送出端進度）；收檔完成後等於 size。 */
+  sent: number;
+  /** 是否為對方傳來。 */
+  incoming: boolean;
+  /** 下載用的物件 URL（收檔完成後才有）。 */
+  url?: string;
+}
+
 export interface ChatMessage {
   id: string;
   /** 是否為自己送出。 */
@@ -38,6 +54,8 @@ export interface ChatMessage {
   at: number;
   /** 限時訊息到期時間（毫秒）；一般訊息省略。 */
   expiresAt?: number;
+  /** 檔案附件（有值時此訊息為檔案而非文字）。 */
+  file?: ChatFile;
 }
 
 export interface ChatBackendEvents {
@@ -57,6 +75,12 @@ export interface ChatBackendEvents {
   onBlocked?(blocked: BlockedContact[]): void;
   /** 與中繼站的連線狀態改變。 */
   onConnection?(state: ConnectionState): void;
+  /** P2P 送檔進度（`id` 對應 sendFile 回傳值；`sent`/`total` 為位元組）。 */
+  onFileProgress?(contact: PubkeyHex, id: string, sent: number, total: number): void;
+  /** 收到一個經 P2P 傳來的完整檔案。 */
+  onFileReceived?(contact: PubkeyHex, file: ReceivedFile): void;
+  /** 檔案傳輸錯誤。 */
+  onFileError?(contact: PubkeyHex, reason: string): void;
 }
 
 /**
@@ -76,6 +100,8 @@ export interface ChatBackend {
   sendReaction?(to: PubkeyHex, messageId: string, emoji: string): void;
   /** 收回（刪除）自己送出的某訊息（NIP-09）。 */
   unsendMessage?(to: PubkeyHex, messageId: string): void;
+  /** 以 WebRTC P2P 傳送檔案（不經中繼），回傳追蹤用的傳輸 id。 */
+  sendFile?(to: PubkeyHex, file: OutgoingFile): string;
   /** 以 NIP-19 `npub` 新增聯絡人（僅真實 relay 後端支援）。 */
   addContact?(npub: string): void;
   /** 移除聯絡人並清除對話。 */

@@ -12,7 +12,7 @@
 ## 0. 現況快照
 
 - **共用協定/邏輯層（`packages/core`、`relay`）**：secp256k1 身分 → NIP-01 事件/簽章 → NIP-44 加密 → NIP-17/59 Gift Wrap → 心跳/輸入中/音樂 → WebRTC 信令/資料通道/降級 → QR 配對/競速/多設備收斂 → RelayClient → 防濫用(PoW/訂閱上限)/時鐘·重放防護。**約 90%，127 測試。** ✅
-- **桌面前端 UX 外殼（`apps/desktop`）**：登入、聯絡人清單、對話視窗、表情、Markdown、Nudge、輸入中、深色/明亮、多語系。**約 80%（外殼）**，但接的是**模擬後端**（記憶體 relay + 機器人好友），無持久化、聯絡人寫死。✅（UX）／🔧（產品化）
+- **桌面前端（`apps/desktop`）**：登入、聯絡人清單、對話視窗、表情、Markdown、Nudge、輸入中、深色/明亮、多語系；**Phase A 產品化完成**——接真實 relay（含自動重連/連線狀態）、本機持久化、聯絡人管理（刪除/封鎖）、設定面板（身分備份/通知）、未讀徽章、音樂狀態、**WebRTC P2P 檔案傳輸**。示範模式（記憶體 relay + 機器人）仍保留供體驗。✅
 - **Demo**：`demo.html`、`webrtc.html`（真實 WebRTC）、主應用 `/`，皆 Playwright 驗證。✅
 - **治理**：pnpm monorepo、TS strict、TDD、CI、10 份 ADR、AGPL-3.0。✅
 
@@ -29,11 +29,13 @@
 | A1 | 前端接真實 relay | 🌐 | ✅ **完成**：`RelayChatBackend` + `webSocketConnector` 連真 relay；`relay/src/dev-server.ts` 本機真實 WebSocket relay；以 npub 加好友。Playwright 兩 context 經真實 relay 對話已驗證。 |
 | A2 | 本機持久化（前端層） | 🌐 | ✅ **完成**：`AppStorage`(localStorage) 存身分/聯絡人/訊息；重整自動登入、身分不再每次重生、歷史保留。Playwright 重整驗證通過。（Tauri 版再換 SQLite/SQLCipher。） |
 | A3 | 聯絡人管理 UI | 🌐 | 🔧 新增（✅ A1）、**刪除／封鎖／解除封鎖**（✅ 本機持久化＋忽略被封鎖者訊息，經真實 relay 驗證，ADR-0014）；**QR 加好友**（`npub` 交換 + 雙向同意）待相機/行動端（M9／Phase D）。 |
-| A4 | 檔案傳輸 UI | 🌐 | 接既有 `datachannel`：拖放/附件、傳送進度、接收下載。 |
+| A4 | 檔案傳輸 UI | 🌐 | ✅ **完成**：`WebRtcTransfer` 每聯絡人一條 P2P 連線，複用 core signaling/datachannel；附件鈕 + 拖放、傳送進度、接收下載。經真實 relay + 真實 WebRTC 兩 context E2E 驗證（50KB 檔案位元組一致，ADR-0017）。 |
 | A5 | 設定與狀態 UI | 🌐 | ✅ **完成**：設定面板（中繼站、身分備份 nsec + 警語、桌面通知）、未讀徽章、音樂狀態輸入口、**連線/重連中狀態**（`webSocketConnector` 指數退避自動重連 + 狀態回報，重連後自動重訂閱）。皆經真實 relay 驗證（ADR-0015、ADR-0016）。 |
 | A6 | 前端技術債收斂 | 🌐 | ✅ 移除孤立的 `presence-store.ts`／`relay-source.ts`（已由 `RelayChatBackend` + core `PresenceTracker` 取代）；對話視窗 `×` 關閉鈕已可用，無殘留裝飾按鈕。 |
 
 **Phase A 完成定義**：桌面前端能連真實 relay、重整不失資料、可自行管理好友並傳檔——不再是純 demo。
+
+> ✅ **Phase A 已完成**（A1 真實 relay、A2 持久化、A3 聯絡人管理、A4 檔案傳輸、A5 設定與狀態、A6 技術債），皆經真實 relay／WebRTC E2E 驗證。剩餘 QR 加好友（相機掃描）併入 M9／Phase D。下一步進 Phase B（Tauri 殼，需環境）或 Phase E 進階功能（M7+ 核心）。
 
 ---
 

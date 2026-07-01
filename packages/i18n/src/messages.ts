@@ -74,6 +74,11 @@ export interface Messages {
   unread_title: string;
   conn_connecting: string;
   conn_offline: string;
+  file_attach: string;
+  file_download: string;
+  file_sending: string;
+  file_dropHint: string;
+  file_error: string;
 }
 
 const zhHant: Messages = {
@@ -138,6 +143,11 @@ const zhHant: Messages = {
   unread_title: "{count} 則未讀",
   conn_connecting: "連線中…",
   conn_offline: "已斷線，重連中…",
+  file_attach: "傳送檔案（P2P）",
+  file_download: "下載",
+  file_sending: "傳送中…",
+  file_dropHint: "放開以傳送檔案",
+  file_error: "檔案傳輸失敗",
 };
 
 const en: Messages = {
@@ -202,6 +212,11 @@ const en: Messages = {
   unread_title: "{count} unread",
   conn_connecting: "Connecting…",
   conn_offline: "Disconnected — reconnecting…",
+  file_attach: "Send a file (P2P)",
+  file_download: "Download",
+  file_sending: "Sending…",
+  file_dropHint: "Drop to send",
+  file_error: "File transfer failed",
 };
 
 export const catalog: Record<Locale, Messages> = { "zh-Hant": zhHant, en };

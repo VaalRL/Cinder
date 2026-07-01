@@ -16,15 +16,18 @@ import {
   PresenceTracker,
   reactionTarget,
   RelayClient,
+  SDP_SIGNAL_KIND,
   unwrapMessage,
   wrapDeletion,
   wrapMessage,
   wrapReaction,
   type NostrEvent,
+  type OutgoingFile,
   type PubkeyHex,
   type RelayClientHandlers,
   type SecretKey,
 } from "@nostr-buddy/core";
+import { WebRtcTransfer } from "./webrtc.js";
 import type { AppStorage } from "../storage/types.js";
 import type {
   ChatBackend,
@@ -138,6 +141,7 @@ export class RelayChatBackend implements ChatBackend {
   private readonly seenMsg = new Set<string>();
   private contacts: { pubkey: PubkeyHex; name: string }[];
   private blocked: { pubkey: PubkeyHex; name: string }[];
+  private readonly transfer: WebRtcTransfer;
   private handlers: ChatBackendEvents | null = null;
   private heartbeatTimer: ReturnType<typeof setInterval> | undefined;
   private renderTimer: ReturnType<typeof setInterval> | undefined;
@@ -167,6 +171,16 @@ export class RelayChatBackend implements ChatBackend {
       { onEvent: (_sub, event) => this.onEvent(event) },
       (state) => this.onConnection(state),
     );
+    this.transfer = new WebRtcTransfer(this.sk, {
+      publishSignal: (evt) => this.client.publish(evt),
+      onOutgoingProgress: (peer, id, sent, total) => this.handlers?.onFileProgress?.(peer, id, sent, total),
+      onIncoming: (peer, file) => {
+        if (this.isBlocked(peer)) return;
+        this.ensureContact(peer);
+        this.handlers?.onFileReceived?.(peer, file);
+      },
+      onError: (peer, reason) => this.handlers?.onFileError?.(peer, reason),
+    });
   }
 
   start(handlers: ChatBackendEvents): void {
@@ -208,6 +222,7 @@ export class RelayChatBackend implements ChatBackend {
     this.client.subscribe("typing", [{ kinds: [KIND.TYPING], authors, "#p": [this.self.pubkey] }]);
     this.client.subscribe("nudge", [{ kinds: [NUDGE_KIND], authors, "#p": [this.self.pubkey] }]);
     this.client.subscribe("dm", [{ kinds: [KIND.OFFLINE_DM_GIFT_WRAP], "#p": [this.self.pubkey] }]);
+    this.client.subscribe("sig", [{ kinds: [SDP_SIGNAL_KIND], "#p": [this.self.pubkey] }]);
   }
 
   private beat(): void {
@@ -234,6 +249,9 @@ export class RelayChatBackend implements ChatBackend {
         return;
       case KIND.OFFLINE_DM_GIFT_WRAP:
         this.receiveDm(event);
+        return;
+      case SDP_SIGNAL_KIND:
+        this.transfer.onSignalEvent(event);
         return;
     }
   }
@@ -390,6 +408,10 @@ export class RelayChatBackend implements ChatBackend {
     this.handlers?.onUnsend?.(messageId);
   }
 
+  sendFile(to: PubkeyHex, file: OutgoingFile): string {
+    return this.transfer.sendFile(to, file);
+  }
+
   sendTyping(to: PubkeyHex): void {
     this.client.publish(createTyping(this.sk, to));
   }
@@ -403,6 +425,7 @@ export class RelayChatBackend implements ChatBackend {
   stop(): void {
     if (this.heartbeatTimer) clearInterval(this.heartbeatTimer);
     if (this.renderTimer) clearInterval(this.renderTimer);
+    this.transfer.close();
     this.handlers = null;
   }
 }
