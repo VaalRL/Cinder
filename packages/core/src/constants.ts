@@ -1,5 +1,9 @@
 /** Nostr 事件 Kind 常數（對應 ARCHITECTURE.md §5 事件契約）。 */
 export const KIND = {
+  /** NIP-25 訊息回應（作為 rumor kind，包進 Gift Wrap）。 */
+  REACTION: 7,
+  /** NIP-17 聊天訊息（rumor kind）。 */
+  CHAT: 14,
   /** 離線留言：NIP-17/59 Gift Wrap。 */
   OFFLINE_DM_GIFT_WRAP: 1059,
   /** 好友上線/離線心跳（Ephemeral）。 */

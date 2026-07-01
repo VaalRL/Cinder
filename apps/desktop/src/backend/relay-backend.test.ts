@@ -33,6 +33,25 @@ describe("RelayChatBackend（真實後端 + 持久化）", () => {
     b.stop();
   });
 
+  it("回應：Bob 對 Alice 的訊息按 emoji，Alice 收到 onReaction", () => {
+    const net = createInMemoryRelayNetwork();
+    const a = new RelayChatBackend(new MemoryStorage(), (h) => net.connect("a", h), "Alice");
+    const b = new RelayChatBackend(new MemoryStorage(), (h) => net.connect("b", h), "Bob");
+    const aReactions: { mid: string; emoji: string; mine: boolean }[] = [];
+    const bIncoming: ChatMessage[] = [];
+    a.start({ ...noop, onReaction: (mid, emoji, mine) => aReactions.push({ mid, emoji, mine }) });
+    b.start({ ...noop, onMessage: (_pk, m) => bIncoming.push(m) });
+
+    a.addContact(b.selfNpub);
+    a.sendMessage(b.self.pubkey, "hi");
+    const mid = bIncoming[0]!.id;
+    b.sendReaction(a.self.pubkey, mid, "👍");
+
+    expect(aReactions).toContainEqual({ mid, emoji: "👍", mine: false });
+    a.stop();
+    b.stop();
+  });
+
   it("身分持久化：以同一儲存重建後端 → npub 不變、歷史保留", () => {
     const net = createInMemoryRelayNetwork();
     const store = new MemoryStorage();

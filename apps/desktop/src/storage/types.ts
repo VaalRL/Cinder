@@ -19,6 +19,14 @@ export interface StoredMessage {
   at: number;
 }
 
+export interface StoredReaction {
+  /** 回應事件自身的 id（去重用）。 */
+  id: string;
+  messageId: string;
+  emoji: string;
+  mine: boolean;
+}
+
 /**
  * 前端本機儲存抽象。目前提供記憶體與 localStorage 實作；
  * Tauri 版之後以相同介面接原生 SQLite（SQLCipher）。
@@ -30,4 +38,6 @@ export interface AppStorage {
   addContact(contact: StoredContact): void;
   loadMessages(contactPubkey: string): StoredMessage[];
   appendMessage(message: StoredMessage): void;
+  loadReactions(): StoredReaction[];
+  addReaction(reaction: StoredReaction): void;
 }

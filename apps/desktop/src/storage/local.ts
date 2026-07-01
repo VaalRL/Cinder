@@ -1,8 +1,15 @@
-import type { AppStorage, StoredContact, StoredIdentity, StoredMessage } from "./types.js";
+import type {
+  AppStorage,
+  StoredContact,
+  StoredIdentity,
+  StoredMessage,
+  StoredReaction,
+} from "./types.js";
 
 const K_IDENTITY = "nb.identity";
 const K_CONTACTS = "nb.contacts";
 const K_MSG_PREFIX = "nb.msgs.";
+const K_REACTIONS = "nb.reactions";
 
 function read<T>(key: string, fallback: T): T {
   try {
@@ -49,5 +56,14 @@ export class LocalStorage implements AppStorage {
     if (list.some((m) => m.id === message.id)) return;
     list.push(message);
     write(K_MSG_PREFIX + message.contact, list);
+  }
+  loadReactions(): StoredReaction[] {
+    return read<StoredReaction[]>(K_REACTIONS, []);
+  }
+  addReaction(reaction: StoredReaction): void {
+    const list = this.loadReactions();
+    if (list.some((r) => r.id === reaction.id)) return;
+    list.push(reaction);
+    write(K_REACTIONS, list);
   }
 }

@@ -12,9 +12,11 @@ import {
   nsecEncode,
   NowPlayingStore,
   PresenceTracker,
+  reactionTarget,
   RelayClient,
   unwrapMessage,
   wrapMessage,
+  wrapReaction,
   type NostrEvent,
   type PubkeyHex,
   type RelayClientHandlers,
@@ -131,6 +133,11 @@ export class RelayChatBackend implements ChatBackend {
         handlers.onMessage(c.pubkey, { id: m.id, outgoing: m.outgoing, text: m.text, at: m.at });
       }
     }
+    // 回放持久化的回應（並標記已見，避免 relay 重送時重複處理）
+    for (const r of this.storage.loadReactions()) {
+      this.seenMsg.add(r.id);
+      handlers.onReaction?.(r.messageId, r.emoji, r.mine);
+    }
   }
 
   private resubscribe(): void {
@@ -173,19 +180,26 @@ export class RelayChatBackend implements ChatBackend {
   private receiveDm(event: NostrEvent): void {
     if (this.seenMsg.has(event.id)) return;
     this.seenMsg.add(event.id);
-    let sender: PubkeyHex;
-    let text: string;
+    let opened;
     try {
-      const opened = unwrapMessage(event, this.sk);
-      sender = opened.sender;
-      text = opened.rumor.content;
+      opened = unwrapMessage(event, this.sk);
     } catch {
       return;
     }
+    const { sender, rumor } = opened;
     this.ensureContact(sender);
-    const message = { id: event.id, contact: sender, outgoing: false, text, at: Date.now() };
+
+    if (rumor.kind === KIND.REACTION) {
+      const target = reactionTarget(rumor);
+      if (!target) return;
+      this.storage.addReaction({ id: event.id, messageId: target, emoji: rumor.content, mine: false });
+      this.handlers?.onReaction?.(target, rumor.content, false);
+      return;
+    }
+
+    const message = { id: event.id, contact: sender, outgoing: false, text: rumor.content, at: Date.now() };
     this.storage.appendMessage(message);
-    this.handlers?.onMessage(sender, { id: message.id, outgoing: false, text, at: message.at });
+    this.handlers?.onMessage(sender, { id: message.id, outgoing: false, text: rumor.content, at: message.at });
   }
 
   private ensureContact(pubkey: PubkeyHex): void {
@@ -241,6 +255,14 @@ export class RelayChatBackend implements ChatBackend {
     this.seenMsg.add(evt.id);
     this.storage.appendMessage(message);
     this.handlers?.onMessage(to, { id: evt.id, outgoing: true, text, at: message.at });
+  }
+
+  sendReaction(to: PubkeyHex, messageId: string, emoji: string): void {
+    const evt = wrapReaction(emoji, this.sk, to, messageId);
+    this.client.publish(evt);
+    this.seenMsg.add(evt.id);
+    this.storage.addReaction({ id: evt.id, messageId, emoji, mine: true });
+    this.handlers?.onReaction?.(messageId, emoji, true);
   }
 
   sendTyping(to: PubkeyHex): void {

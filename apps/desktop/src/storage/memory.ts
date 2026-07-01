@@ -1,10 +1,17 @@
-import type { AppStorage, StoredContact, StoredIdentity, StoredMessage } from "./types.js";
+import type {
+  AppStorage,
+  StoredContact,
+  StoredIdentity,
+  StoredMessage,
+  StoredReaction,
+} from "./types.js";
 
 /** 記憶體儲存（測試用；不持久）。 */
 export class MemoryStorage implements AppStorage {
   private identity: StoredIdentity | null = null;
   private contacts: StoredContact[] = [];
   private readonly messages = new Map<string, StoredMessage[]>();
+  private reactions: StoredReaction[] = [];
 
   loadIdentity(): StoredIdentity | null {
     return this.identity;
@@ -27,5 +34,12 @@ export class MemoryStorage implements AppStorage {
     if (list.some((m) => m.id === message.id)) return;
     list.push(message);
     this.messages.set(message.contact, list);
+  }
+  loadReactions(): StoredReaction[] {
+    return [...this.reactions];
+  }
+  addReaction(reaction: StoredReaction): void {
+    if (this.reactions.some((r) => r.id === reaction.id)) return;
+    this.reactions.push(reaction);
   }
 }

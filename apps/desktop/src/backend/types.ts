@@ -38,6 +38,8 @@ export interface ChatBackendEvents {
   onTyping(contact: PubkeyHex): void;
   /** 被某聯絡人戳了一下（Nudge）。 */
   onNudge(contact: PubkeyHex): void;
+  /** 某訊息收到 emoji 回應（`mine` 表示是否為自己送出）。 */
+  onReaction?(messageId: string, emoji: string, mine: boolean): void;
 }
 
 /**
@@ -52,6 +54,8 @@ export interface ChatBackend {
   sendMessage(to: PubkeyHex, text: string): void;
   sendTyping(to: PubkeyHex): void;
   sendNudge(to: PubkeyHex): void;
+  /** 對某訊息送出 emoji 回應（NIP-25）。 */
+  sendReaction?(to: PubkeyHex, messageId: string, emoji: string): void;
   /** 以 NIP-19 `npub` 新增聯絡人（僅真實 relay 後端支援）。 */
   addContact?(npub: string): void;
   /** 自己的 `npub`（供分享/加好友；僅真實 relay 後端提供）。 */

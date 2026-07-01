@@ -1,3 +1,4 @@
+import { REACTION_EMOJIS } from "@nostr-buddy/core";
 import { useEffect, useRef, useState } from "react";
 import { useI18n } from "../i18n.js";
 import type { ChatMessage, Contact, Self } from "../backend/types.js";
@@ -11,9 +12,13 @@ export interface ConversationProps {
   typing: boolean;
   /** 每次遞增即觸發一次震動動畫。 */
   nudgeSignal: number;
+  /** messageId → 該訊息的回應 emoji 清單。 */
+  reactions?: Record<string, string[]>;
   onSend: (text: string) => void;
   onTyping: () => void;
   onNudge: () => void;
+  /** 對某訊息送出 emoji 回應（未提供則不顯示回應功能）。 */
+  onReact?: (messageId: string, emoji: string) => void;
   onClose: () => void;
 }
 
@@ -65,11 +70,13 @@ export function ConversationWindow(props: ConversationProps): JSX.Element {
       <div className="convo__body">
         <div className="log" ref={logRef} data-testid="log">
           {messages.map((m) => (
-            <div key={m.id} className={`line ${m.outgoing ? "out" : "in"}`}>
-              <span className="who">{m.outgoing ? self.name : contact.name}</span>
-              <span className="time">{new Date(m.at).toLocaleTimeString()}</span>
-              <span className="text">{renderMarkdown(emoticonize(m.text))}</span>
-            </div>
+            <MessageLine
+              key={m.id}
+              message={m}
+              who={m.outgoing ? self.name : contact.name}
+              reactions={props.reactions?.[m.id] ?? []}
+              onReact={props.onReact}
+            />
           ))}
         </div>
         <div className="pics">
@@ -112,6 +119,50 @@ export function ConversationWindow(props: ConversationProps): JSX.Element {
         />
         <button className="composer__send" onClick={send}>{t("convo_send")}</button>
       </div>
+    </div>
+  );
+}
+
+function MessageLine({
+  message,
+  who,
+  reactions,
+  onReact,
+}: {
+  message: ChatMessage;
+  who: string;
+  reactions: string[];
+  onReact?: ((messageId: string, emoji: string) => void) | undefined;
+}): JSX.Element {
+  const [picking, setPicking] = useState(false);
+  const react = (emoji: string) => {
+    onReact?.(message.id, emoji);
+    setPicking(false);
+  };
+  return (
+    <div className={`line ${message.outgoing ? "out" : "in"}`}>
+      <span className="who">{who}</span>
+      <span className="time">{new Date(message.at).toLocaleTimeString()}</span>
+      {onReact ? (
+        <span className="react">
+          <button className="react__btn" title="回應" onClick={() => setPicking((v) => !v)}>＋</button>
+          {picking ? (
+            <span className="react__pick">
+              {REACTION_EMOJIS.map((e) => (
+                <span key={e} role="button" onClick={() => react(e)}>{e}</span>
+              ))}
+            </span>
+          ) : null}
+        </span>
+      ) : null}
+      <span className="text">{renderMarkdown(emoticonize(message.text))}</span>
+      {reactions.length > 0 ? (
+        <span className="reactions">
+          {reactions.map((e) => (
+            <span key={e} className="reaction">{e}</span>
+          ))}
+        </span>
+      ) : null}
     </div>
   );
 }

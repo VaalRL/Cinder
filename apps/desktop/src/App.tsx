@@ -18,6 +18,7 @@ export function App(): JSX.Element {
   const [convos, setConvos] = useState<Record<string, ChatMessage[]>>({});
   const [typingAt, setTypingAt] = useState<Record<string, number>>({});
   const [nudge, setNudge] = useState<Record<string, number>>({});
+  const [reactions, setReactions] = useState<Record<string, string[]>>({});
   const [open, setOpen] = useState<string[]>([]);
   const lastTyping = useRef<Record<string, number>>({});
 
@@ -54,6 +55,12 @@ export function App(): JSX.Element {
         setOpen((prev) => (prev.includes(pk) ? prev : [...prev, pk]));
         setNudge((prev) => ({ ...prev, [pk]: (prev[pk] ?? 0) + 1 }));
       },
+      onReaction: (messageId, emoji) =>
+        setReactions((prev) => {
+          const cur = prev[messageId] ?? [];
+          if (cur.includes(emoji)) return prev;
+          return { ...prev, [messageId]: [...cur, emoji] };
+        }),
     });
     return () => backend.stop();
   }, [backend]);
@@ -100,14 +107,19 @@ export function App(): JSX.Element {
       {open.map((pk) => {
         const contact = contacts.find((c) => c.pubkey === pk);
         if (!contact) return null;
+        const reactProps = activeBackend.sendReaction
+          ? { onReact: (messageId: string, emoji: string) => activeBackend.sendReaction!(pk, messageId, emoji) }
+          : {};
         return (
           <ConversationWindow
             key={pk}
             self={self}
             contact={contact}
             messages={convos[pk] ?? []}
+            reactions={reactions}
             typing={(typingAt[pk] ?? 0) > Date.now() - TYPING_VISIBLE_MS}
             nudgeSignal={nudge[pk] ?? 0}
+            {...reactProps}
             onSend={(text) => activeBackend.sendMessage(pk, text)}
             onTyping={() => {
               const now = Date.now();

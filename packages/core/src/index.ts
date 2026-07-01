@@ -11,6 +11,7 @@ export * from "./music.js";
 export * from "./nip44.js";
 export * from "./nip59.js";
 export * from "./giftwrap.js";
+export * from "./reaction.js";
 export * from "./signaling.js";
 export * from "./datachannel.js";
 export * from "./connection.js";

@@ -158,6 +158,13 @@ body { margin: 0; background: var(--bg-b); color: var(--ink); }
 .line.in .who { color: var(--in-name); }
 .line .time { color: var(--muted); font-size: 10px; margin-left: 6px; }
 .line .text { display: block; margin-top: 1px; white-space: pre-wrap; word-break: break-word; }
+.react { position: relative; margin-left: 4px; }
+.react__btn { border: 1px solid var(--border); background: var(--field); color: var(--muted); border-radius: 10px; width: 18px; height: 16px; line-height: 12px; font-size: 11px; cursor: pointer; padding: 0; }
+.line:hover .react__btn { color: var(--accent); }
+.react__pick { position: absolute; z-index: 5; top: 18px; left: 0; display: flex; gap: 2px; background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 3px 5px; box-shadow: 0 4px 12px rgba(0,0,0,.2); }
+.react__pick span { cursor: pointer; font-size: 16px; }
+.reactions { display: inline-flex; gap: 3px; margin-top: 2px; }
+.reaction { font-size: 12px; background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; padding: 0 5px; }
 .line .text code { background: var(--code-bg); padding: 1px 4px; border-radius: 3px; font-family: "Consolas", monospace; font-size: 12px; }
 .line .text a { color: var(--accent); }
 .line.sys { color: var(--muted); font-size: 11px; text-align: center; }
