@@ -96,7 +96,7 @@
 | M7 | 語音訊息 | ✅ **完成**：`MediaRecorder` 錄音 → 複用 A4 的 WebRTC P2P 檔案通道傳送（audio/* mime）；兩端渲染 `<audio>` 播放器。經真實 relay + 真實 WebRTC 驗證（ADR-0022） | 🌐 |
 | M7 | 相簿 | ✅ **完成**：`image/*` 檔案內嵌縮圖 + 工具列 🖼️ 相簿格狀檢視（帶張數）+ 燈箱放大；由對話訊息即時衍生，複用 A4 P2P 檔案通道。經真實 relay + WebRTC 驗證（ADR-0023） | 🌐 |
 | M7 | 貼圖 Sticker | ✅ **完成**：`nb-sticker:v1:pack/id` 走既有加密訊息通道，客戶端渲染內建原創 SVG 貼圖包（`buddy` 6 款）；選擇器 + 渲染，經真實 relay 驗證（ADR-0021）。持久化/回應/收回/限時自然沿用 | 🌐 |
-| M8 | 語音/視訊通話 | ✅ **信令核心完成**：`call.ts` 通話狀態機（invite/accept/reject/busy/hangup，生命週期）+ kind 21002 加密傳輸；11 測試含兩端加密握手至 active（ADR-0025）。⏳ RTCPeerConnection/媒體執行期 + 通話 UI（需真實 media，可假裝置 E2E） | 🌐 信令 / 需真實 media |
+| M8 | 語音/視訊通話 | ✅ **完成**：信令核心 `call.ts`（狀態機 + kind 21002 加密傳輸，ADR-0025）+ 執行期 `WebRtcCall`（RTCPeerConnection + getUserMedia）+ 通話 UI（撥號/來電/通話中、靜音/掛斷、視訊畫面）。假音源 + 真實 relay + 真實 WebRTC E2E：發起→響鈴→接聽→雙向音訊→掛斷（ADR-0026）。⏳ TURN 保底、來電鈴聲 | 🌐 信令 / ✅ 假裝置 E2E |
 | M9 | QR 加好友 | ✅ **產生完成**：`qr.ts` 以 qrcode-generator 將 `npub` 編為 QR，聯絡人清單 `▦` 顯示 QR 模態框供好友掃描；加入沿用 `addContact`（A3）。E2E 以獨立解碼器 jsQR 驗證 QR 還原 npub（ADR-0024）。相機掃描屬行動端 Phase D | 🌐 產生 / 掃描待 📱 |
 | M9 | 群組聊天 | **需群組加密（MLS vs sender-key），先立 ADR** | 待決策 |
 

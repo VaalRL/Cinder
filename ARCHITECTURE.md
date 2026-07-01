@@ -75,7 +75,7 @@
 | 收回訊息（Unsend，✅ M6） | 1059（內含 kind 5） | 短期 | NIP-09 刪除，`e` tag 指向目標；收件端顯示「訊息已收回」（已實作，見 ADR-0012） |
 | 限時訊息（Disappearing，✅ M6） | 1059（rumor 內帶較短 NIP-40） | D1 至過期 | 送訊即帶較短過期：rumor 內層 `expiration` 供收件端到期隱藏，外層 wrap 同步縮短以利中繼清除；客戶端到期顯示「訊息已到期」（已實作，見 ADR-0013） |
 | 語音訊息／貼圖（規劃 M7） | WebRTC / 1059 | P2P 優先 | 錄音與媒體複用檔案分塊傳輸；貼圖以 `pack/id` 參照客戶端渲染 |
-| 通話信令（✅ M8 核心） | 21002（NIP-59 包封） | 否（Ephemeral） | 通話控制 invite/accept/reject/hangup（`call.ts`）；候選與媒體走既有 SDP(21000) + WebRTC track。狀態機 + 加密傳輸已測（ADR-0025），⏳ RTCPeerConnection/媒體執行期 |
+| 語音/視訊通話（✅ M8） | 21002（NIP-59 包封） | 否（Ephemeral） | 通話控制 invite/accept/reject/hangup/candidate（`call.ts` 狀態機 + `WebRtcCall` 執行期）；媒體全程 P2P WebRTC track（DTLS）。假音源 + 真實 relay/WebRTC E2E 驗證（ADR-0025/0026） |
 | 加好友請求（規劃 M9） | 1059（內含請求 rumor） | D1（NIP-40） | QR/npub 交換後送出，對方核准前不建立聯絡（隱私同意） |
 | 群組訊息（規劃 M9） | 待定（群組加密） | — | 需群組金鑰管理（MLS/sender-key），另立 ADR |
 
@@ -109,7 +109,7 @@
 
 - **M6**：訊息互動——訊息回應（NIP-25）、收回訊息（NIP-09）、限時訊息（NIP-40 較短過期）。📋
 - **M7**：富媒體——語音訊息、圖片/媒體相簿（複用檔案傳輸 + 本機媒體庫）、貼圖包。📋
-- **M8**：語音/視訊通話——WebRTC media track，信令複用 SDP 信令通道。📋
+- **M8**：語音/視訊通話——WebRTC media track（P2P）、通話控制信令（kind 21002）、通話 UI。✅（假音源 + 真實 relay/WebRTC E2E）；⏳ TURN 保底、來電鈴聲。
 - **M9**：聯絡人與群組——QR 加好友（`npub` 交換 + 同意流程）、群組聊天（群組加密待 ADR）。📋
 
 ## 8. 待決議（Open Questions）

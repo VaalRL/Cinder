@@ -93,6 +93,17 @@ export interface Messages {
   qr_title: string;
   qr_hint: string;
   qr_alt: string;
+  call_audio: string;
+  call_video: string;
+  call_incoming: string;
+  call_outgoing: string;
+  call_connecting: string;
+  call_active: string;
+  call_accept: string;
+  call_reject: string;
+  call_hangup: string;
+  call_mute: string;
+  call_unmute: string;
 }
 
 const zhHant: Messages = {
@@ -176,6 +187,17 @@ const zhHant: Messages = {
   qr_title: "我的 QR",
   qr_hint: "請好友掃描以加你為好友",
   qr_alt: "我的 npub QR 碼",
+  call_audio: "語音通話",
+  call_video: "視訊通話",
+  call_incoming: "來電中…",
+  call_outgoing: "撥號中…",
+  call_connecting: "連線中…",
+  call_active: "通話中",
+  call_accept: "接聽",
+  call_reject: "拒接",
+  call_hangup: "掛斷",
+  call_mute: "靜音",
+  call_unmute: "取消靜音",
 };
 
 const en: Messages = {
@@ -259,6 +281,17 @@ const en: Messages = {
   qr_title: "My QR",
   qr_hint: "Have a friend scan this to add you",
   qr_alt: "My npub QR code",
+  call_audio: "Voice call",
+  call_video: "Video call",
+  call_incoming: "Incoming call…",
+  call_outgoing: "Calling…",
+  call_connecting: "Connecting…",
+  call_active: "In call",
+  call_accept: "Accept",
+  call_reject: "Decline",
+  call_hangup: "Hang up",
+  call_mute: "Mute",
+  call_unmute: "Unmute",
 };
 
 export const catalog: Record<Locale, Messages> = { "zh-Hant": zhHant, en };

@@ -1,6 +1,7 @@
 import { REACTION_EMOJIS } from "@nostr-buddy/core";
 import { useEffect, useRef, useState } from "react";
 import { useI18n } from "../i18n.js";
+import type { CallMedia } from "@nostr-buddy/core";
 import type { ChatMessage, Contact, Self } from "../backend/types.js";
 import { formatSticker, parseSticker, STICKER_PACKS, stickerSvg, svgToDataUri } from "../stickers.js";
 import { renderMarkdown } from "./markdown.js";
@@ -28,6 +29,8 @@ export interface ConversationProps {
   onUnsend?: (messageId: string) => void;
   /** 以 P2P 傳送檔案（未提供則不顯示檔案功能）。 */
   onSendFile?: (file: File) => void;
+  /** 發起語音/視訊通話（未提供則不顯示通話按鈕）。 */
+  onStartCall?: (media: CallMedia) => void;
   onClose: () => void;
 }
 
@@ -118,6 +121,28 @@ export function ConversationWindow(props: ConversationProps): JSX.Element {
       <div className="win__title">
         <span>{contact.name}</span>
         <span className="spacer" />
+        {props.onStartCall ? (
+          <>
+            <span
+              className="win__btn"
+              role="button"
+              title={t("call_audio")}
+              data-testid="start-call-audio"
+              onClick={() => props.onStartCall!("audio")}
+            >
+              📞
+            </span>
+            <span
+              className="win__btn"
+              role="button"
+              title={t("call_video")}
+              data-testid="start-call-video"
+              onClick={() => props.onStartCall!("video")}
+            >
+              🎥
+            </span>
+          </>
+        ) : null}
         <span className="win__btn" onClick={props.onClose} role="button" aria-label={t("convo_close")}>×</span>
       </div>
 

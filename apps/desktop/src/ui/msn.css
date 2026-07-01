@@ -198,6 +198,21 @@ body { margin: 0; background: var(--bg-b); color: var(--ink); }
 .album__empty { color: var(--muted); font-size: 12px; padding: 20px; text-align: center; width: 100%; }
 .lightbox { position: fixed; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,.75); cursor: zoom-out; }
 .lightbox img { max-width: 92vw; max-height: 92vh; box-shadow: 0 8px 40px rgba(0,0,0,.5); }
+
+/* 通話視窗 */
+.callwin { position: fixed; inset: 0; z-index: 70; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,.45); }
+.callwin__box { width: 320px; max-width: calc(100vw - 24px); background: var(--panel); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; box-shadow: 0 10px 40px rgba(0,0,0,.4); }
+.callwin__stage { position: relative; background: #1b2733; min-height: 200px; display: flex; align-items: center; justify-content: center; }
+.callwin__remote { width: 100%; max-height: 320px; background: #000; display: block; }
+.callwin__local { position: absolute; right: 8px; bottom: 8px; width: 84px; border: 1px solid rgba(255,255,255,.5); border-radius: 4px; background: #000; }
+.callwin__avatar { width: 84px; height: 84px; border-radius: 50%; color: #fff; font-size: 34px; display: flex; align-items: center; justify-content: center; }
+.callwin__info { text-align: center; padding: 10px; }
+.callwin__status { color: var(--muted); font-size: 12px; margin-top: 2px; }
+.callwin__controls { display: flex; gap: 10px; justify-content: center; padding: 0 12px 14px; }
+.callbtn { flex: 1; max-width: 120px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--field); cursor: pointer; font-size: 13px; }
+.callbtn:hover { background: var(--hover); }
+.callbtn--accept { background: #3fae5a; color: #fff; border-color: #3fae5a; }
+.callbtn--hangup { background: #e0483d; color: #fff; border-color: #e0483d; }
 .me__np { display: flex; align-items: center; gap: 4px; margin-top: 3px; }
 .me__np-ic { color: #9a6cd4; font-size: 12px; }
 .me__np input { flex: 1; min-width: 0; }

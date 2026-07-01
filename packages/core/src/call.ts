@@ -40,9 +40,20 @@ export interface CallHangup {
   type: "call-hangup";
   callId: string;
 }
+export interface CallCandidate {
+  type: "call-candidate";
+  callId: string;
+  candidate: string;
+  sdpMid?: string;
+  sdpMLineIndex?: number;
+}
 
-/** 通話控制信令（不含 ICE candidate；後者由執行期走既有 candidate 路徑）。 */
-export type CallSignal = CallInvite | CallAccept | CallReject | CallHangup;
+/**
+ * 通話信令。控制信令（invite/accept/reject/hangup）驅動 {@link CallSession}；
+ * `call-candidate` 為 trickle ICE，由執行期直接套用到通話的 RTCPeerConnection，
+ * 狀態機不處理（`onSignal` 對其回傳空動作）。
+ */
+export type CallSignal = CallInvite | CallAccept | CallReject | CallHangup | CallCandidate;
 
 /** 通話狀態（單一通話槽的本端視角）。 */
 export type CallState = "idle" | "outgoing" | "incoming" | "connecting" | "active" | "ended";
@@ -153,6 +164,8 @@ export class CallSession {
         return this.onReject(signal);
       case "call-hangup":
         return this.onHangup(signal);
+      case "call-candidate":
+        return []; // ICE candidate 由執行期直接處理。
     }
   }
 
@@ -249,6 +262,13 @@ export function parseCallSignal(content: string): CallSignal {
       return { type: "call-reject", callId, reason: s.reason };
     case "call-hangup":
       return { type: "call-hangup", callId };
+    case "call-candidate": {
+      if (typeof s.candidate !== "string") throw new Error("call-candidate 缺少 candidate");
+      const out: CallCandidate = { type: "call-candidate", callId, candidate: s.candidate };
+      if (typeof s.sdpMid === "string") out.sdpMid = s.sdpMid;
+      if (typeof s.sdpMLineIndex === "number") out.sdpMLineIndex = s.sdpMLineIndex;
+      return out;
+    }
     default:
       throw new Error(`未知通話信令類型：${String(s.type)}`);
   }

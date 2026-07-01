@@ -1,4 +1,5 @@
 import {
+  CALL_SIGNAL_KIND,
   createHeartbeat,
   createMusicStatus,
   createTyping,
@@ -21,12 +22,14 @@ import {
   wrapDeletion,
   wrapMessage,
   wrapReaction,
+  type CallMedia,
   type NostrEvent,
   type OutgoingFile,
   type PubkeyHex,
   type RelayClientHandlers,
   type SecretKey,
 } from "@nostr-buddy/core";
+import { WebRtcCall } from "./webrtc-call.js";
 import { WebRtcTransfer } from "./webrtc.js";
 import type { AppStorage } from "../storage/types.js";
 import type {
@@ -142,6 +145,7 @@ export class RelayChatBackend implements ChatBackend {
   private contacts: { pubkey: PubkeyHex; name: string }[];
   private blocked: { pubkey: PubkeyHex; name: string }[];
   private readonly transfer: WebRtcTransfer;
+  private readonly call: WebRtcCall;
   private handlers: ChatBackendEvents | null = null;
   private heartbeatTimer: ReturnType<typeof setInterval> | undefined;
   private renderTimer: ReturnType<typeof setInterval> | undefined;
@@ -180,6 +184,13 @@ export class RelayChatBackend implements ChatBackend {
         this.handlers?.onFileReceived?.(peer, file);
       },
       onError: (peer, reason) => this.handlers?.onFileError?.(peer, reason),
+    });
+    this.call = new WebRtcCall(this.sk, {
+      publishCallSignal: (evt) => this.client.publish(evt),
+      onState: (peer, state, media) => this.handlers?.onCallState?.(peer, state, media),
+      onLocalStream: (stream) => this.handlers?.onCallLocalStream?.(stream),
+      onRemoteStream: (stream) => this.handlers?.onCallRemoteStream?.(stream),
+      onError: (reason) => this.handlers?.onFileError?.(this.self.pubkey, reason),
     });
   }
 
@@ -223,6 +234,7 @@ export class RelayChatBackend implements ChatBackend {
     this.client.subscribe("nudge", [{ kinds: [NUDGE_KIND], authors, "#p": [this.self.pubkey] }]);
     this.client.subscribe("dm", [{ kinds: [KIND.OFFLINE_DM_GIFT_WRAP], "#p": [this.self.pubkey] }]);
     this.client.subscribe("sig", [{ kinds: [SDP_SIGNAL_KIND], "#p": [this.self.pubkey] }]);
+    this.client.subscribe("call", [{ kinds: [CALL_SIGNAL_KIND], "#p": [this.self.pubkey] }]);
   }
 
   private beat(): void {
@@ -249,6 +261,9 @@ export class RelayChatBackend implements ChatBackend {
         return;
       case KIND.OFFLINE_DM_GIFT_WRAP:
         this.receiveDm(event);
+        return;
+      case CALL_SIGNAL_KIND:
+        this.call.onCallSignalEvent(event);
         return;
       case SDP_SIGNAL_KIND:
         this.transfer.onSignalEvent(event);
@@ -412,6 +427,19 @@ export class RelayChatBackend implements ChatBackend {
     return this.transfer.sendFile(to, file);
   }
 
+  startCall(to: PubkeyHex, media: CallMedia): void {
+    this.call.startCall(to, media);
+  }
+  acceptCall(): void {
+    this.call.accept();
+  }
+  rejectCall(): void {
+    this.call.reject();
+  }
+  hangupCall(): void {
+    this.call.hangup();
+  }
+
   sendTyping(to: PubkeyHex): void {
     this.client.publish(createTyping(this.sk, to));
   }
@@ -426,6 +454,7 @@ export class RelayChatBackend implements ChatBackend {
     if (this.heartbeatTimer) clearInterval(this.heartbeatTimer);
     if (this.renderTimer) clearInterval(this.renderTimer);
     this.transfer.close();
+    this.call.close();
     this.handlers = null;
   }
 }

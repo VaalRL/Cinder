@@ -1,3 +1,4 @@
+import type { CallMedia, CallState, PubkeyHex } from "@nostr-buddy/core";
 import { useEffect, useRef, useState } from "react";
 import { BrowserChatBackend } from "./backend/browser-backend.js";
 import { RelayChatBackend, webSocketConnector } from "./backend/relay-backend.js";
@@ -11,6 +12,7 @@ import type {
   Status,
 } from "./backend/types.js";
 import { LocalStorage } from "./storage/local.js";
+import { CallWindow } from "./ui/CallWindow.js";
 import { ContactListWindow } from "./ui/ContactListWindow.js";
 import { ConversationWindow } from "./ui/ConversationWindow.js";
 import { SettingsPanel } from "./ui/SettingsPanel.js";
@@ -37,6 +39,11 @@ export function App(): JSX.Element {
   const [blocked, setBlocked] = useState<BlockedContact[]>([]);
   const [unread, setUnread] = useState<Record<string, number>>({});
   const [conn, setConn] = useState<ConnectionState>("online");
+  const [callPeer, setCallPeer] = useState<PubkeyHex | null>(null);
+  const [callState, setCallState] = useState<CallState>("idle");
+  const [callMedia, setCallMedia] = useState<CallMedia | null>(null);
+  const [localStream, setLocalStream] = useState<MediaStream | null>(null);
+  const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
   const [open, setOpen] = useState<string[]>([]);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [notify, setNotify] = useState<boolean>(() => {
@@ -142,6 +149,20 @@ export function App(): JSX.Element {
         const msg: ChatMessage = { id: uid("fe"), outgoing: false, text: `⚠️ ${reason}`, at: Date.now() };
         setConvos((prev) => ({ ...prev, [pk]: [...(prev[pk] ?? []), msg] }));
       },
+      onCallState: (peer, state, media) => {
+        setCallState(state);
+        setCallMedia(media);
+        if (state === "idle" || state === "ended") {
+          setCallPeer(null);
+          setLocalStream(null);
+          setRemoteStream(null);
+        } else {
+          setCallPeer(peer);
+          if (peer) setOpen((prev) => (prev.includes(peer) ? prev : [...prev, peer]));
+        }
+      },
+      onCallLocalStream: setLocalStream,
+      onCallRemoteStream: setRemoteStream,
     });
     return () => backend.stop();
   }, [backend]);
@@ -324,6 +345,9 @@ export function App(): JSX.Element {
           ? { onUnsend: (messageId: string) => activeBackend.unsendMessage!(pk, messageId) }
           : {};
         const fileProps = activeBackend.sendFile ? { onSendFile: (f: File) => sendFile(pk, f) } : {};
+        const callProps = activeBackend.startCall
+          ? { onStartCall: (media: CallMedia) => activeBackend.startCall!(pk, media) }
+          : {};
         return (
           <ConversationWindow
             key={pk}
@@ -338,6 +362,7 @@ export function App(): JSX.Element {
             {...reactProps}
             {...unsendProps}
             {...fileProps}
+            {...callProps}
             onSend={(text, ttlSeconds) => activeBackend.sendMessage(pk, text, ttlSeconds)}
             onTyping={() => {
               const now = Date.now();
@@ -350,6 +375,19 @@ export function App(): JSX.Element {
           />
         );
       })}
+      {callState !== "idle" && callState !== "ended" ? (
+        <CallWindow
+          peerName={contacts.find((c) => c.pubkey === callPeer)?.name ?? callPeer ?? ""}
+          peerKey={callPeer ?? ""}
+          state={callState}
+          media={callMedia}
+          localStream={localStream}
+          remoteStream={remoteStream}
+          onAccept={() => activeBackend.acceptCall?.()}
+          onReject={() => activeBackend.rejectCall?.()}
+          onHangup={() => activeBackend.hangupCall?.()}
+        />
+      ) : null}
     </div>
   );
 }

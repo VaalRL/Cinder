@@ -164,6 +164,23 @@ describe("通話信令傳輸（NIP-59 ephemeral，隱藏雙方）", () => {
     expect(bob.activeCallId).toBe("h1");
   });
 
+  it("call-candidate：狀態機忽略（回空動作）、傳輸可還原", () => {
+    const c = new CallSession();
+    c.startCall("cc", "audio");
+    c.localDescription("O");
+    // 收到 candidate 不改變通話控制狀態
+    expect(c.onSignal({ type: "call-candidate", callId: "cc", candidate: "cand:1", sdpMid: "0" })).toEqual([]);
+    expect(c.state).toBe("outgoing");
+    // 傳輸 round-trip
+    const evt = createCallSignal(
+      { type: "call-candidate", callId: "cc", candidate: "cand:1", sdpMid: "0", sdpMLineIndex: 0 },
+      aliceSk,
+      bobPk,
+    );
+    const { signal } = readCallSignal(evt, bobSk);
+    expect(signal).toEqual({ type: "call-candidate", callId: "cc", candidate: "cand:1", sdpMid: "0", sdpMLineIndex: 0 });
+  });
+
   it("parseCallSignal 拒絕非法結構", () => {
     expect(() => parseCallSignal("{}")).toThrow();
     expect(() => parseCallSignal(JSON.stringify({ type: "call-invite", callId: "x" }))).toThrow();

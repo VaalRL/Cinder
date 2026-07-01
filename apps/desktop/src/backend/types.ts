@@ -1,4 +1,4 @@
-import type { OutgoingFile, PubkeyHex, ReceivedFile } from "@nostr-buddy/core";
+import type { CallMedia, CallState, OutgoingFile, PubkeyHex, ReceivedFile } from "@nostr-buddy/core";
 
 /** 使用者可見狀態（避開商標，以中文呈現於 UI）。 */
 export type Status = "online" | "away" | "busy" | "offline";
@@ -81,6 +81,12 @@ export interface ChatBackendEvents {
   onFileReceived?(contact: PubkeyHex, file: ReceivedFile): void;
   /** 檔案傳輸錯誤。 */
   onFileError?(contact: PubkeyHex, reason: string): void;
+  /** 通話狀態變化（M8；`peer` 為對象、null 表示無通話）。 */
+  onCallState?(peer: PubkeyHex | null, state: CallState, media: CallMedia | null): void;
+  /** 本端通話媒體串流（自我預覽；null 表示結束）。 */
+  onCallLocalStream?(stream: MediaStream | null): void;
+  /** 遠端通話媒體串流（播放；null 表示結束）。 */
+  onCallRemoteStream?(stream: MediaStream | null): void;
 }
 
 /**
@@ -102,6 +108,14 @@ export interface ChatBackend {
   unsendMessage?(to: PubkeyHex, messageId: string): void;
   /** 以 WebRTC P2P 傳送檔案（不經中繼），回傳追蹤用的傳輸 id。 */
   sendFile?(to: PubkeyHex, file: OutgoingFile): string;
+  /** 發起語音/視訊通話（M8，媒體全程 P2P）。 */
+  startCall?(to: PubkeyHex, media: CallMedia): void;
+  /** 接聽目前來電。 */
+  acceptCall?(): void;
+  /** 拒接目前來電。 */
+  rejectCall?(): void;
+  /** 掛斷目前通話。 */
+  hangupCall?(): void;
   /** 以 NIP-19 `npub` 新增聯絡人（僅真實 relay 後端支援）。 */
   addContact?(npub: string): void;
   /** 移除聯絡人並清除對話。 */
