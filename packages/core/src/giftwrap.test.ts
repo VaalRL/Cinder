@@ -92,4 +92,37 @@ describe("NIP-17/59 Gift Wrap 離線私訊", () => {
     );
     expect(() => unwrapMessage(wrap, bobSk)).toThrow();
   });
+
+  it("偽造 rumor.id（雜湊不符內容）會被拒（審查 #5）", () => {
+    // Alice 用自己的金鑰簽 seal（寄件人一致），但把 rumor.id 竄改成錯誤雜湊，
+    // 意圖污染去重鍵；openWrap 應核對雜湊並拒收。
+    const forgedRumor = {
+      id: "0".repeat(64),
+      pubkey: alicePk,
+      created_at: 1000,
+      kind: 14,
+      tags: [] as string[][],
+      content: "id 被竄改",
+    };
+    const seal = finalizeEvent(
+      {
+        kind: 13,
+        created_at: 1000,
+        tags: [],
+        content: encryptDM(JSON.stringify(forgedRumor), aliceSk, bobPk),
+      },
+      aliceSk,
+    );
+    const wrapSk = generateSecretKey();
+    const wrap = finalizeEvent(
+      {
+        kind: KIND.OFFLINE_DM_GIFT_WRAP,
+        created_at: 1000,
+        tags: [["p", bobPk]],
+        content: encryptDM(JSON.stringify(seal), wrapSk, bobPk),
+      },
+      wrapSk,
+    );
+    expect(() => unwrapMessage(wrap, bobSk)).toThrow(/id/);
+  });
 });

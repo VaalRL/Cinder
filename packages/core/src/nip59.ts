@@ -90,6 +90,11 @@ export function openWrap(wrapEvent: NostrEvent, recipientSk: SecretKey): Opened 
   if (rumor.pubkey !== seal.pubkey) {
     throw new Error("NIP-59：寄件人不一致，可能為偽造");
   }
+  // 核對 rumor.id 為其內容的正確雜湊（防偽造 id 污染去重鍵）。
+  const { id, ...unsigned } = rumor;
+  if (id !== getEventHash(unsigned)) {
+    throw new Error("NIP-59：rumor id 與內容不符");
+  }
 
   return { sender: seal.pubkey, rumor };
 }
