@@ -49,6 +49,8 @@ export interface AppStorage {
   saveIdentity(identity: StoredIdentity): void;
   loadContacts(): StoredContact[];
   addContact(contact: StoredContact): void;
+  /** 更新聯絡人的 relay hint（ADR-0035 自動學習）；undefined 表示清除。 */
+  updateContactRelay(pubkey: string, relayUrl: string | undefined): void;
   /** 移除聯絡人並清除其對話訊息。 */
   removeContact(pubkey: string): void;
   /** 封鎖某身分（會一併移出聯絡人），並記入封鎖名單。 */

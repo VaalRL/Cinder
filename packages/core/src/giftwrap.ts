@@ -24,6 +24,11 @@ export interface WrapOptions {
    * 縮短為同一時間以利中繼清除。
    */
   disappearAt?: number;
+  /**
+   * 寄件人的 home relay（ADR-0035）：寫進 **rumor 內層** `relay` tag，
+   * 經加密只有收件人可見，供對方自動學習路由 hint。
+   */
+  relayHint?: string;
 }
 
 /**
@@ -38,8 +43,10 @@ export function wrapMessage(
 ): NostrEvent {
   const nowSec = opts.now ?? Math.floor(Date.now() / 1000);
   const outerExpiration = opts.expiration ?? opts.disappearAt ?? nowSec + DEFAULT_TTL_SECONDS;
-  const rumorTags: string[][] =
-    opts.disappearAt !== undefined ? [["expiration", String(opts.disappearAt)]] : [];
+  const rumorTags: string[][] = [
+    ...(opts.disappearAt !== undefined ? [["expiration", String(opts.disappearAt)]] : []),
+    ...(opts.relayHint ? [["relay", opts.relayHint]] : []),
+  ];
   return sealAndWrap(
     { kind: KIND_CHAT, created_at: nowSec, tags: rumorTags, content },
     senderSk,
@@ -60,6 +67,11 @@ export function messageExpiry(rumor: Rumor): number | undefined {
   if (raw === undefined) return undefined;
   const n = Number(raw);
   return Number.isFinite(n) ? n : undefined;
+}
+
+/** 讀出 rumor 內層的寄件人 relay hint（ADR-0035）；無則回傳 undefined。 */
+export function relayHintOf(rumor: Rumor): string | undefined {
+  return rumor.tags.find((t) => t[0] === "relay")?.[1];
 }
 
 /** 解開離線留言並驗證寄件人真實性。 */

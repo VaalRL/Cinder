@@ -179,6 +179,85 @@ describe("跨中繼通訊：Relay Pool 與收件人路由（ADR-0034）", () => 
     expect(b.selfShareUri).toBe(b.selfNpub);
   });
 
+  it("hint 自動學習（ADR-0035）：收到第一則來訊即自癒，回程直達對方 relay", () => {
+    const { netX, netY, connectorFor, spy } = twoRelays();
+    const storeB = new MemoryStorage();
+    const a = new RelayChatBackend(new MemoryStorage(), (h) => netX.connect("a", h), "Alice", {
+      relayUrl: "wss://x",
+      connectorFor,
+    });
+    const b = new RelayChatBackend(storeB, (h) => netY.connect("b", h), "Bob", {
+      relayUrl: "wss://y",
+      connectorFor,
+    });
+    const aIncoming: ChatMessage[] = [];
+    a.start({ ...noop, onMessage: (_pk, m) => aIncoming.push(m) });
+    b.start(noop);
+
+    a.addContact(`${b.selfNpub}@wss://y`);
+    a.sendMessage(b.self.pubkey, "帶 hint 的來訊");
+
+    // Bob 被自動加入 Alice 且從加密 rumor 學到她的 relay
+    expect(storeB.loadContacts().find((c) => c.pubkey === a.self.pubkey)?.relayUrl).toBe("wss://x");
+
+    // 回程：直達 X（不再退回 Bob 的 home Y）
+    const dmToAOnX = spy(netX, { kinds: [KIND.OFFLINE_DM_GIFT_WRAP], "#p": [a.self.pubkey] });
+    const dmToAOnY = spy(netY, { kinds: [KIND.OFFLINE_DM_GIFT_WRAP], "#p": [a.self.pubkey] });
+    b.sendMessage(a.self.pubkey, "自癒後的回程");
+    expect(aIncoming.map((m) => m.text)).toContain("自癒後的回程");
+    expect(dmToAOnX).toHaveLength(1);
+    expect(dmToAOnY).toHaveLength(0);
+    a.stop();
+    b.stop();
+  });
+
+  it("hint 學習的邊界：與收件人 home 相同存為無 hint；非法 hint 不動現有值", () => {
+    const { netX, netY, connectorFor } = twoRelays();
+    const storeB = new MemoryStorage();
+    const a = new RelayChatBackend(new MemoryStorage(), (h) => netX.connect("a", h), "Alice", {
+      relayUrl: "wss://y", // 故意與 Bob 同 home
+      connectorFor,
+    });
+    const b = new RelayChatBackend(storeB, (h) => netY.connect("b", h), "Bob", {
+      relayUrl: "wss://y",
+      connectorFor,
+    });
+    a.start(noop);
+    b.start(noop);
+    a.addContact(b.selfNpub); // 同 home，無需 hint
+    a.sendMessage(b.self.pubkey, "同座來訊");
+    expect(storeB.loadContacts().find((c) => c.pubkey === a.self.pubkey)?.relayUrl).toBeUndefined();
+    a.stop();
+    b.stop();
+  });
+
+  it("pool 連線狀態：onRelayPool 回報 home 與外部座（home 標記正確）", () => {
+    const { netX, connectorFor } = twoRelays();
+    const seen: { url: string; state: string; home: boolean }[][] = [];
+    // 外部座連接器：立刻回報 online
+    const statefulFor = (url: string) => {
+      const inner = connectorFor(url);
+      return ((h: RelayClientHandlers, onStatus?: (s: "connecting" | "online" | "offline") => void) => {
+        const c = inner(h);
+        onStatus?.("online");
+        return c;
+      }) as ReturnType<typeof connectorFor>;
+    };
+    const b = new RelayChatBackend(new MemoryStorage(), (h) => netX.connect("b", h), "Bob");
+    const a = new RelayChatBackend(new MemoryStorage(), (h) => netX.connect("a", h), "Alice", {
+      relayUrl: "wss://x",
+      connectorFor: statefulFor,
+    });
+    a.start({ ...noop, onRelayPool: (rs) => seen.push(rs) });
+    a.addContact(`${b.selfNpub}@wss://y`);
+
+    const last = seen[seen.length - 1]!;
+    expect(last).toContainEqual({ url: "wss://y", state: "online", home: false });
+    expect(last.find((r) => r.home)?.url).toBe("wss://x");
+    a.stop();
+    b.stop();
+  });
+
   it("單 relay 模式（未提供 connectorFor）：hint 被忽略、行為與既有相同", () => {
     const net = createInMemoryRelayNetwork();
     const a = new RelayChatBackend(new MemoryStorage(), (h) => net.connect("a", h), "Alice");

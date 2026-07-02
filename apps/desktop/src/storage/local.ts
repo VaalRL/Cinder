@@ -52,6 +52,16 @@ export class LocalStorage implements AppStorage {
     contacts.push(contact);
     write(K_CONTACTS, contacts);
   }
+  updateContactRelay(pubkey: string, relayUrl: string | undefined): void {
+    write(
+      K_CONTACTS,
+      this.loadContacts().map((c) => {
+        if (c.pubkey !== pubkey) return c;
+        const { relayUrl: _drop, ...rest } = c;
+        return relayUrl ? { ...rest, relayUrl } : rest;
+      }),
+    );
+  }
   removeContact(pubkey: string): void {
     write(K_CONTACTS, this.loadContacts().filter((c) => c.pubkey !== pubkey));
     try {

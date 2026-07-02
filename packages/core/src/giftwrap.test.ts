@@ -4,7 +4,7 @@ import { getEventHash } from "./event.js";
 import { generateSecretKey, getPublicKey } from "./keys.js";
 import { encryptDM } from "./nip44.js";
 import { finalizeEvent } from "./sign.js";
-import { messageExpiry, unwrapMessage, wrapMessage } from "./giftwrap.js";
+import { messageExpiry, relayHintOf, unwrapMessage, wrapMessage } from "./giftwrap.js";
 
 const aliceSk = generateSecretKey();
 const alicePk = getPublicKey(aliceSk);
@@ -52,6 +52,16 @@ describe("NIP-17/59 Gift Wrap 離線私訊", () => {
   it("一般訊息 rumor 不帶到期 tag（messageExpiry 為 undefined）", () => {
     const { rumor } = unwrapMessage(wrapMessage("hi", aliceSk, bobPk), bobSk);
     expect(messageExpiry(rumor)).toBeUndefined();
+  });
+
+  it("relay hint（ADR-0035）：寫進 rumor 內層、外層不可見，收件端可讀出", () => {
+    const wrap = wrapMessage("hi", aliceSk, bobPk, { relayHint: "wss://x" });
+    // 外層 wrap 與其 tags 不含 hint（只有 p 與 expiration）
+    expect(JSON.stringify(wrap.tags)).not.toContain("wss://x");
+    const { rumor } = unwrapMessage(wrap, bobSk);
+    expect(relayHintOf(rumor)).toBe("wss://x");
+    // 未帶 hint 時為 undefined
+    expect(relayHintOf(unwrapMessage(wrapMessage("hi", aliceSk, bobPk), bobSk).rumor)).toBeUndefined();
   });
 
   it("大內容（~33KB，自製貼圖 v2 規模）可完整 wrap/unwrap（ADR-0032）", () => {

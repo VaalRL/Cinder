@@ -22,6 +22,7 @@ import {
   PresenceTracker,
   reactionTarget,
   RelayClient,
+  relayHintOf,
   SDP_SIGNAL_KIND,
   unwrapMessage,
   wrapDeletion,
@@ -150,6 +151,8 @@ export class RelayChatBackend implements ChatBackend {
   private readonly relayPool = new Map<string, RelayClient>();
   /** 跨 relay 事件去重（同一事件可能經多個 relay 抵達）。 */
   private readonly seenEvt = new Set<string>();
+  /** 各 relay 連線狀態（home + pool），供設定面板顯示（ADR-0034 後續）。 */
+  private readonly relayStates = new Map<string, ConnectionState>();
   private readonly presence = new PresenceTracker();
   private readonly statuses = new Map<PubkeyHex, PresencePayload>();
   private nowPlaying = "";
@@ -283,10 +286,14 @@ export class RelayChatBackend implements ChatBackend {
         { onEvent: (_sub, event) => this.onEvent(event) },
         // 外部 relay 重連後重掛該 relay 的訂閱；不驅動 UI 主連線指示（ADR-0034）。
         (state) => {
+          this.relayStates.set(url, state);
+          this.emitRelayPool();
           if (state === "online") this.resubscribeRelay(url);
         },
       );
       this.relayPool.set(url, client);
+      // onStatus 可能在註冊前同步觸發（測試替身）；註冊後補發一次 pool 快照。
+      this.emitRelayPool();
     }
     return client;
   }
@@ -408,6 +415,7 @@ export class RelayChatBackend implements ChatBackend {
     }
 
     this.ensureContact(sender);
+    this.learnRelayHint(sender, rumor);
 
     if (rumor.kind === KIND.REACTION) {
       const target = reactionTarget(rumor);
@@ -483,6 +491,19 @@ export class RelayChatBackend implements ChatBackend {
     return this.blocked.some((b) => b.pubkey === pubkey);
   }
 
+  /** 從解密後的 rumor 學習寄件人的 relay hint（ADR-0035）；變動時更新並重掛訂閱。 */
+  private learnRelayHint(sender: PubkeyHex, rumor: Rumor): void {
+    const url = normalizeRelayUrl(relayHintOf(rumor));
+    if (url === undefined) return; // 無 hint 或非法：不動現有值
+    // 與自己 home 相同時存為「無 hint」（路由等價）。
+    const next = url !== this.homeUrl ? url : undefined;
+    const contact = this.contacts.find((c) => c.pubkey === sender);
+    if (!contact || contact.relayUrl === next) return;
+    this.storage.updateContactRelay(sender, next);
+    this.contacts = this.storage.loadContacts();
+    this.resubscribe();
+  }
+
   private ensureContact(pubkey: PubkeyHex): void {
     if (this.isBlocked(pubkey)) return;
     if (this.contacts.some((c) => c.pubkey === pubkey)) return;
@@ -535,11 +556,26 @@ export class RelayChatBackend implements ChatBackend {
     this.emitBlocked();
   }
 
+  /** 通知 relay pool（home 優先）各座連線狀態。 */
+  private emitRelayPool(): void {
+    if (!this.handlers?.onRelayPool) return;
+    const homeKey = this.homeUrl ?? "";
+    const list: { url: string; state: ConnectionState; home: boolean }[] = [
+      { url: homeKey, state: this.relayStates.get(homeKey) ?? "connecting", home: true },
+    ];
+    for (const url of this.relayPool.keys()) {
+      list.push({ url, state: this.relayStates.get(url) ?? "connecting", home: false });
+    }
+    this.handlers.onRelayPool(list);
+  }
+
   private emitBlocked(): void {
     this.handlers?.onBlocked?.(this.blocked.map((b) => ({ pubkey: b.pubkey, name: b.name })));
   }
 
   private onConnection(state: ConnectionState): void {
+    this.relayStates.set(this.homeUrl ?? "", state);
+    this.emitRelayPool();
     this.handlers?.onConnection?.(state);
     // 重連成功後重新訂閱並發送心跳（RelayClient 不會自動重送訂閱）
     if (state === "online" && this.handlers) {
@@ -584,7 +620,10 @@ export class RelayChatBackend implements ChatBackend {
 
   sendMessage(to: PubkeyHex, text: string, ttlSeconds?: number): void {
     const disappearAt = ttlSeconds ? nowSec() + ttlSeconds : undefined;
-    const evt = wrapMessage(text, this.sk, to, disappearAt !== undefined ? { disappearAt } : {});
+    const evt = wrapMessage(text, this.sk, to, {
+      ...(disappearAt !== undefined ? { disappearAt } : {}),
+      ...(this.homeUrl ? { relayHint: this.homeUrl } : {}),
+    });
     this.publishAddressed(evt);
     const extra = disappearAt !== undefined ? { expiresAt: disappearAt * 1000 } : {};
     const message = { id: evt.id, contact: to, outgoing: true, text, at: Date.now(), ...extra };

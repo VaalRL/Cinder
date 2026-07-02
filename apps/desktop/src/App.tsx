@@ -41,6 +41,7 @@ export function App(): JSX.Element {
   const [blocked, setBlocked] = useState<BlockedContact[]>([]);
   const [unread, setUnread] = useState<Record<string, number>>({});
   const [conn, setConn] = useState<ConnectionState>("online");
+  const [relays, setRelays] = useState<{ url: string; state: ConnectionState; home: boolean }[]>([]);
   const [groups, setGroups] = useState<Group[]>([]);
   const [callPeer, setCallPeer] = useState<PubkeyHex | null>(null);
   const [callState, setCallState] = useState<CallState>("idle");
@@ -126,6 +127,7 @@ export function App(): JSX.Element {
         }),
       onBlocked: setBlocked,
       onConnection: setConn,
+      onRelayPool: setRelays,
       onFileProgress: (pk, id, sent) =>
         setConvos((prev) => {
           const cur = prev[pk];
@@ -380,6 +382,7 @@ export function App(): JSX.Element {
               return "";
             }
           })()}
+          {...(relays.length > 0 ? { relays } : {})}
           {...(activeBackend.selfNsec ? { selfNsec: activeBackend.selfNsec } : {})}
           notifications={notify}
           onToggleNotifications={toggleNotifications}

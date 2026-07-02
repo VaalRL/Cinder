@@ -74,6 +74,10 @@ export interface Messages {
   unread_title: string;
   conn_connecting: string;
   conn_offline: string;
+  conn_state_online: string;
+  conn_state_connecting: string;
+  conn_state_offline: string;
+  settings_relayHome: string;
   file_attach: string;
   file_download: string;
   file_sending: string;
@@ -199,6 +203,10 @@ const zhHant: Messages = {
   unread_title: "{count} 則未讀",
   conn_connecting: "連線中…",
   conn_offline: "已斷線，重連中…",
+  conn_state_online: "已連線",
+  conn_state_connecting: "連線中",
+  conn_state_offline: "離線",
+  settings_relayHome: "（我的中繼）",
   file_attach: "傳送檔案（P2P）",
   file_download: "下載",
   file_sending: "傳送中…",
@@ -324,6 +332,10 @@ const en: Messages = {
   unread_title: "{count} unread",
   conn_connecting: "Connecting…",
   conn_offline: "Disconnected — reconnecting…",
+  conn_state_online: "Connected",
+  conn_state_connecting: "Connecting",
+  conn_state_offline: "Offline",
+  settings_relayHome: " (my relay)",
   file_attach: "Send a file (P2P)",
   file_download: "Download",
   file_sending: "Sending…",

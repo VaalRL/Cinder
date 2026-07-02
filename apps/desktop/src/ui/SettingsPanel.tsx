@@ -1,9 +1,18 @@
 import { useState } from "react";
 import { useI18n } from "../i18n.js";
 
+/** Relay pool 一座的連線狀態（ADR-0034）。 */
+export interface RelayPoolEntry {
+  url: string;
+  state: "connecting" | "online" | "offline";
+  home: boolean;
+}
+
 export interface SettingsPanelProps {
   /** 目前使用的中繼站網址；空字串表示示範模式。 */
   relayUrl: string;
+  /** Relay pool 各座連線狀態（多中繼時才有；ADR-0034）。 */
+  relays?: RelayPoolEntry[];
   /** 自己的 nsec 私鑰（僅本機備份用；示範模式為 undefined）。 */
   selfNsec?: string;
   /** 桌面通知是否啟用。 */
@@ -11,6 +20,12 @@ export interface SettingsPanelProps {
   onToggleNotifications: () => void;
   onClose: () => void;
 }
+
+const STATE_DOT: Record<RelayPoolEntry["state"], string> = {
+  online: "🟢",
+  connecting: "🟡",
+  offline: "🔴",
+};
 
 /** 設定面板：中繼站、身分備份（私鑰）、桌面通知。 */
 export function SettingsPanel(props: SettingsPanelProps): JSX.Element {
@@ -49,7 +64,26 @@ export function SettingsPanel(props: SettingsPanelProps): JSX.Element {
         <div className="settings__body">
           <section className="settings__sec">
             <h4>{t("settings_relayUrl")}</h4>
-            <div className="settings__relay">{props.relayUrl || t("settings_relayDemo")}</div>
+            {props.relays && props.relays.length > 0 ? (
+              <ul className="settings__relays" data-testid="relay-pool">
+                {props.relays.map((r) => {
+                  const stateLabel = {
+                    online: t("conn_state_online"),
+                    connecting: t("conn_state_connecting"),
+                    offline: t("conn_state_offline"),
+                  }[r.state];
+                  return (
+                    <li key={r.url || "(home)"} className="settings__relayrow">
+                      <span aria-label={stateLabel} title={stateLabel}>{STATE_DOT[r.state]}</span>{" "}
+                      <code>{r.url || t("settings_relayDemo")}</code>
+                      {r.home ? <em className="settings__home">{t("settings_relayHome")}</em> : null}
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : (
+              <div className="settings__relay">{props.relayUrl || t("settings_relayDemo")}</div>
+            )}
           </section>
 
           {props.selfNsec ? (
