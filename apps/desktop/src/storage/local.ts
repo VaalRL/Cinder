@@ -65,12 +65,20 @@ export class LocalStorage implements AppStorage {
     );
   }
   removeContact(pubkey: string): void {
+    const ids = new Set(this.loadMessages(pubkey).map((m) => m.id));
     write(K_CONTACTS, this.loadContacts().filter((c) => c.pubkey !== pubkey));
     try {
       localStorage.removeItem(K_MSG_PREFIX + pubkey);
     } catch {
       /* 忽略 */
     }
+    this.pruneOrphans(ids); // 清理該對話訊息的孤兒 reactions/deleted（審查 P1-5）
+  }
+  /** 移除一組 messageId 對應的孤兒回應與已收回標記（避免全域清單無限累積）。 */
+  private pruneOrphans(messageIds: Set<string>): void {
+    if (messageIds.size === 0) return;
+    write(K_REACTIONS, this.loadReactions().filter((r) => !messageIds.has(r.messageId)));
+    write(K_DELETED, this.loadDeleted().filter((id) => !messageIds.has(id)));
   }
   blockContact(contact: StoredContact): void {
     this.removeContact(contact.pubkey);
@@ -121,12 +129,14 @@ export class LocalStorage implements AppStorage {
     write(K_GROUPS, list);
   }
   removeGroup(id: string): void {
+    const ids = new Set(this.loadMessages(id).map((m) => m.id));
     write(K_GROUPS, this.loadGroups().filter((g) => g.id !== id));
     try {
       localStorage.removeItem(K_MSG_PREFIX + id);
     } catch {
       /* 忽略 */
     }
+    this.pruneOrphans(ids); // 審查 P1-5
   }
   loadBootstrapList(): StoredBootstrapList | null {
     return read<StoredBootstrapList | null>(K_BOOTSTRAP, null);

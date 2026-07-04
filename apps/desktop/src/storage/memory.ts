@@ -39,8 +39,15 @@ export class MemoryStorage implements AppStorage {
     });
   }
   removeContact(pubkey: string): void {
+    const ids = new Set((this.messages.get(pubkey) ?? []).map((m) => m.id));
     this.contacts = this.contacts.filter((c) => c.pubkey !== pubkey);
     this.messages.delete(pubkey);
+    this.pruneOrphans(ids); // 審查 P1-5
+  }
+  private pruneOrphans(messageIds: Set<string>): void {
+    if (messageIds.size === 0) return;
+    this.reactions = this.reactions.filter((r) => !messageIds.has(r.messageId));
+    for (const id of messageIds) this.deleted.delete(id);
   }
   blockContact(contact: StoredContact): void {
     this.removeContact(contact.pubkey);
@@ -83,8 +90,10 @@ export class MemoryStorage implements AppStorage {
     else this.groups.push(group);
   }
   removeGroup(id: string): void {
+    const ids = new Set((this.messages.get(id) ?? []).map((m) => m.id));
     this.groups = this.groups.filter((g) => g.id !== id);
     this.messages.delete(id);
+    this.pruneOrphans(ids); // 審查 P1-5
   }
   private bootstrapList: StoredBootstrapList | null = null;
   loadBootstrapList(): StoredBootstrapList | null {

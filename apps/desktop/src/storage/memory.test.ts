@@ -36,6 +36,21 @@ describe("MemoryStorage", () => {
     expect(s.loadMessages("aa")).toEqual([]);
   });
 
+  it("刪除聯絡人會清理其訊息的孤兒 reactions/deleted（P1-5）", () => {
+    const s = new MemoryStorage();
+    s.addContact({ pubkey: "aa", name: "A" });
+    s.appendMessage({ id: "m1", contact: "aa", outgoing: false, text: "hi", at: 1 });
+    s.appendMessage({ id: "m2", contact: "bb", outgoing: false, text: "yo", at: 2 });
+    s.addReaction({ id: "r1", messageId: "m1", emoji: "👍", mine: true });
+    s.addReaction({ id: "r2", messageId: "m2", emoji: "❤", mine: false });
+    s.markDeleted("m1");
+    s.markDeleted("m2");
+    s.removeContact("aa");
+    // m1 的孤兒被清、m2（bb 的）保留
+    expect(s.loadReactions().map((r) => r.messageId)).toEqual(["m2"]);
+    expect(s.loadDeleted()).toEqual(["m2"]);
+  });
+
   it("封鎖：移出聯絡人、記入封鎖名單、可解除", () => {
     const s = new MemoryStorage();
     s.addContact({ pubkey: "aa", name: "A" });
