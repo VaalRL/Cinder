@@ -132,6 +132,10 @@ export function App(): JSX.Element {
           }
         }
       },
+      onHistory: (pk, msgs) => {
+        // 啟動回放：一次寫入該對話、且不自動開窗（使用者從清單點開才載入視窗）。
+        setConvos((prev) => (prev[pk] ? prev : { ...prev, [pk]: msgs }));
+      },
       onTyping: (pk) => setTypingAt((prev) => ({ ...prev, [pk]: Date.now() })),
       onNudge: (pk) => {
         setOpen((prev) => (prev.includes(pk) ? prev : [...prev, pk]));

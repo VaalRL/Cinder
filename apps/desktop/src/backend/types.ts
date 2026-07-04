@@ -67,6 +67,11 @@ export interface ChatBackendEvents {
   onContacts(contacts: Contact[]): void;
   /** 收到（或自己送出的）一則訊息。 */
   onMessage(contact: PubkeyHex, message: ChatMessage): void;
+  /**
+   * 啟動時一次回放某對話的完整歷史（批次，取代逐則 onMessage）。
+   * 由前端一次寫入該對話、且不自動開窗——避免大量歷史造成 O(n²) 狀態更新與全開視窗。
+   */
+  onHistory?(contact: PubkeyHex, messages: ChatMessage[]): void;
   /** 對方正在輸入中。 */
   onTyping(contact: PubkeyHex): void;
   /** 被某聯絡人戳了一下（Nudge）。 */

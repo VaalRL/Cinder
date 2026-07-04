@@ -232,4 +232,31 @@ describe("RelayChatBackend（真實後端 + 持久化）", () => {
     expect(store.loadContacts().length).toBe(1);
     a2.stop();
   });
+
+  it("啟動回放：歷史以 onHistory 批次交付、回放期間不逐則 onMessage（P0-2）", () => {
+    const net = createInMemoryRelayNetwork();
+    const store = new MemoryStorage();
+    const bob = new RelayChatBackend(new MemoryStorage(), (h) => net.connect("bob", h), "Bob");
+    bob.start(noop);
+    const a1 = new RelayChatBackend(store, (h) => net.connect("a1", h), "Alice");
+    a1.start(noop);
+    a1.addContact(bob.selfNpub);
+    a1.sendMessage(bob.self.pubkey, "一");
+    a1.sendMessage(bob.self.pubkey, "二");
+    a1.stop();
+
+    const history: { pk: string; ids: string[] }[] = [];
+    const live: string[] = [];
+    const a2 = new RelayChatBackend(store, (h) => net.connect("a2", h), "Alice");
+    a2.start({
+      ...noop,
+      onHistory: (pk, msgs) => history.push({ pk, ids: msgs.map((m) => m.id) }),
+      onMessage: (_pk, m) => live.push(m.id),
+    });
+    const conv = history.find((h) => h.pk === bob.self.pubkey);
+    expect(conv?.ids.length).toBe(2); // 一次批次交付兩則
+    expect(live).toEqual([]); // 回放不逐則 onMessage
+    a2.stop();
+    bob.stop();
+  });
 });

@@ -304,18 +304,21 @@ export class RelayChatBackend implements ChatBackend {
     // 外送匣節流泵（ADR-0041）：以固定間隔在併發上限內送出、退避重試、丟棄逾時在途。
     this.pumpTimer = setInterval(() => this.outbox.pump(), 200);
     this.emitContacts();
-    // 回放本機持久化的歷史訊息
+    // 回放本機持久化的歷史訊息：每對話一次批次交付（避免逐則 O(n²) 狀態更新與全開視窗）。
     for (const c of this.contacts) {
-      for (const m of this.storage.loadMessages(c.pubkey)) {
-        this.seenMsg.add(m.id);
-        handlers.onMessage(c.pubkey, {
+      const msgs = this.storage.loadMessages(c.pubkey);
+      if (msgs.length === 0) continue;
+      for (const m of msgs) this.seenMsg.add(m.id);
+      handlers.onHistory?.(
+        c.pubkey,
+        msgs.map((m) => ({
           id: m.id,
           outgoing: m.outgoing,
           text: m.text,
           at: m.at,
           ...(m.expiresAt !== undefined ? { expiresAt: m.expiresAt } : {}),
-        });
-      }
+        })),
+      );
     }
     // 回放持久化的回應（並標記已見，避免 relay 重送時重複處理）
     for (const r of this.storage.loadReactions()) {
@@ -326,20 +329,23 @@ export class RelayChatBackend implements ChatBackend {
     for (const id of this.storage.loadDeleted()) {
       handlers.onUnsend?.(id);
     }
-    // 回放群組與其歷史訊息
+    // 回放群組與其歷史訊息（同樣批次交付）
     this.emitGroups();
     for (const g of this.groups) {
-      for (const m of this.storage.loadMessages(g.id)) {
-        this.seenMsg.add(m.id);
-        handlers.onMessage(g.id, {
+      const msgs = this.storage.loadMessages(g.id);
+      if (msgs.length === 0) continue;
+      for (const m of msgs) this.seenMsg.add(m.id);
+      handlers.onHistory?.(
+        g.id,
+        msgs.map((m) => ({
           id: m.id,
           outgoing: m.outgoing,
           text: m.text,
           at: m.at,
           ...(m.sender !== undefined ? { sender: m.sender } : {}),
           ...(m.expiresAt !== undefined ? { expiresAt: m.expiresAt } : {}),
-        });
-      }
+        })),
+      );
     }
     this.emitBlocked();
   }
