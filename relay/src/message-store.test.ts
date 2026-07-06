@@ -4,7 +4,7 @@ import {
   generateSecretKey,
   getPublicKey,
   type NostrEvent,
-} from "@nostr-buddy/core";
+} from "@cinder/core";
 import { getExpiration, MessageStore } from "./message-store.js";
 
 const recipient = getPublicKey(generateSecretKey());

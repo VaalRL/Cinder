@@ -17,8 +17,8 @@ import {
   type PubkeyHex,
   type RelayClient,
   type SecretKey,
-} from "@nostr-buddy/core";
-import { createInMemoryRelayNetwork, MessageStore } from "@nostr-buddy/relay";
+} from "@cinder/core";
+import { createInMemoryRelayNetwork, MessageStore } from "@cinder/relay";
 import type { ChatBackend, ChatBackendEvents, ChatMessage, Contact, Self, Status } from "./types.js";
 
 const NUDGE_KIND = 20100;

@@ -15,8 +15,8 @@ import {
   type PubkeyHex,
   type RelayClient,
   type SecretKey,
-} from "@nostr-buddy/core";
-import { createInMemoryRelayNetwork, MessageStore } from "@nostr-buddy/relay";
+} from "@cinder/core";
+import { createInMemoryRelayNetwork, MessageStore } from "@cinder/relay";
 
 const NUDGE_KIND = 20100;
 const DEMO_PRESENCE_TIMEOUT_MS = 5_000;

@@ -1,10 +1,12 @@
-# Nostr Buddy
+# Cinder
+
+> **Life is short, connect buddies.**
 
 > 去中心化、無中央資料庫的即時通訊軟體。融合 **Nostr 協議** 與 **WebRTC**，高度還原早期 MSN Messenger 的經典互動體驗（震動、音樂狀態、離線留言），並以「零伺服器維護成本」為營運目標。
 
 ## 簡介
 
-Nostr Buddy 透過「狀態信令」與「巨量資料傳輸」雙軌混合網路，達成極致隱私與低延遲：
+Cinder 透過「狀態信令」與「巨量資料傳輸」雙軌混合網路，達成極致隱私與低延遲：
 
 - **零知識身分**：首次啟動於本機生成 secp256k1 金鑰對（Nostr/NIP-01），公鑰（`npub`）即為全網唯一 ID，無帳號密碼。
 - **純本機資料庫**：以本機 SQLite 作為唯一真相來源（SSOT），對話與金鑰永不上雲，為未來本地 AI（RAG 摘要）預留封閉環境。
@@ -75,13 +77,13 @@ pnpm -r typecheck       # 所有套件型別檢查
 
 | 任務 | 指令 |
 | --- | --- |
-| 桌面前端（懷舊即時通風格） | `pnpm --filter @nostr-buddy/desktop dev`，開啟 `/`（另有端到端 demo `/demo.html`、真實 WebRTC `/webrtc.html`） |
-| 前端建置 | `pnpm --filter @nostr-buddy/desktop build` |
-| 共用核心測試 | `pnpm --filter @nostr-buddy/core test` |
-| 中繼站測試 | `pnpm --filter @nostr-buddy/relay test` |
-| 本機真實 relay（開發用） | `pnpm --filter @nostr-buddy/relay build:dev && pnpm --filter @nostr-buddy/relay dev`（起 `ws://localhost:8787`；前端開 `/?relay=ws://localhost:8787` 即連真實 relay） |
+| 桌面前端（懷舊即時通風格） | `pnpm --filter @cinder/desktop dev`，開啟 `/`（另有端到端 demo `/demo.html`、真實 WebRTC `/webrtc.html`） |
+| 前端建置 | `pnpm --filter @cinder/desktop build` |
+| 共用核心測試 | `pnpm --filter @cinder/core test` |
+| 中繼站測試 | `pnpm --filter @cinder/relay test` |
+| 本機真實 relay（開發用） | `pnpm --filter @cinder/relay build:dev && pnpm --filter @cinder/relay dev`（起 `ws://localhost:8787`；前端開 `/?relay=ws://localhost:8787` 即連真實 relay） |
 | Rust 測試 | `cargo test`（於 `apps/desktop/src-tauri/`） |
-| 桌面端開發（需 Tauri 工具鏈） | `pnpm --filter @nostr-buddy/desktop tauri dev` |
+| 桌面端開發（需 Tauri 工具鏈） | `pnpm --filter @cinder/desktop tauri dev` |
 | 中繼站本地開發 / 部署（需 wrangler） | `wrangler dev` / `wrangler deploy`（於 `relay/`） |
 
 ## 🚀 在 Cloudflare Workers 架設中繼站（Nostr / WebRTC 信令 relay）
@@ -106,7 +108,7 @@ pnpm -r typecheck       # 所有套件型別檢查
 
 ```bash
 # 1. 取得原始碼並安裝相依（會建立 workspace 連結，wrangler 打包時需要）
-git clone <your-fork-url> nostr-buddy && cd nostr-buddy
+git clone <your-fork-url> cinder && cd cinder
 pnpm install
 
 # 2. 登入 Cloudflare（會開瀏覽器授權）
@@ -116,7 +118,7 @@ pnpm dlx wrangler login
 # 3. 本地開發：在 ws://127.0.0.1:8787 起一個本機 relay
 pnpm dlx wrangler dev
 
-# 4. 部署到 Cloudflare，取得 wss://nostr-buddy-relay.<你的帳號>.workers.dev
+# 4. 部署到 Cloudflare，取得 wss://cinder-relay.<你的帳號>.workers.dev
 pnpm dlx wrangler deploy
 ```
 
@@ -126,12 +128,12 @@ TypeScript，無需額外建置步驟。可在 `wrangler.toml` 修改 `name` 換
 
 ### 連線測試
 
-relay 講標準 Nostr 的 `REQ` / `EVENT` / `CLOSE` 協定，可用 `@nostr-buddy/core` 的 `RelayClient`：
+relay 講標準 Nostr 的 `REQ` / `EVENT` / `CLOSE` 協定，可用 `@cinder/core` 的 `RelayClient`：
 
 ```ts
-import { RelayClient, createHeartbeat, generateSecretKey } from "@nostr-buddy/core";
+import { RelayClient, createHeartbeat, generateSecretKey } from "@cinder/core";
 
-const ws = new WebSocket("wss://nostr-buddy-relay.<你的帳號>.workers.dev");
+const ws = new WebSocket("wss://cinder-relay.<你的帳號>.workers.dev");
 const sk = generateSecretKey();
 const client = new RelayClient(
   { send: (data) => ws.send(data) },
@@ -192,4 +194,4 @@ Ephemeral 心跳會隨上線人數扇出，請參考 [`docs/adr/0006`](./docs/ad
 這代表你可以自由使用、修改與散布；但若你**散布修改版，或將修改版作為網路服務（例如自架本中繼站）提供給他人**，
 就必須以相同授權公開你的原始碼（AGPL 第 13 條）。此選擇是為了確保所有衍生版本與自架的 relay 都對使用者保持透明、可審計，貫徹本專案的隱私與去中心化精神。
 
-Copyright (C) 2026 Nostr Buddy contributors.
+Copyright (C) 2026 Cinder contributors.

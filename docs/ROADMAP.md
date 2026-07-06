@@ -1,4 +1,4 @@
-# Nostr Buddy 長期施工計畫（ROADMAP）
+# Cinder 長期施工計畫（ROADMAP）
 
 > 本文件是「還有哪些要蓋、依什麼順序蓋」的單一入口。里程碑定義見 `ARCHITECTURE.md §7`，決策理由見 `docs/adr/`，產品規格見 `PRD.md`。功能實作前先立/查對應 ADR。
 

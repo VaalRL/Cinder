@@ -3,7 +3,7 @@
 // 「擁有」的來源：自 SVG/圖片匯入、fork 現有貼圖、或「對話中被展示且點擊」。
 // id 一律為 contentHash(svg)（sha256），天然去重；純陣列運算可於 node 測試。
 
-import { contentHash } from "@nostr-buddy/core";
+import { contentHash } from "@cinder/core";
 import { clampStickerLabel, validateStickerSvg, type SvgVerdict } from "./sticker-svg.js";
 
 export interface CustomSticker {

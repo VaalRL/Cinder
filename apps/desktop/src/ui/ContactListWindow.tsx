@@ -1,4 +1,4 @@
-import type { MessageKey } from "@nostr-buddy/i18n";
+import type { MessageKey } from "@cinder/i18n";
 import { useState } from "react";
 import { useI18n } from "../i18n.js";
 import type { BlockedContact, ConnectionState, Contact, Group, Self, Status } from "../backend/types.js";

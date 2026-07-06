@@ -1,4 +1,4 @@
-# nostr-buddy-desktop（Tauri 原生殼）
+# cinder-desktop（Tauri 原生殼）
 
 包住 `apps/desktop` 前端的 Tauri 2 桌面二進位，並提供原生服務所需的
 IPC 資料契約與可測邏輯。
@@ -28,9 +28,9 @@ pnpm add -D @tauri-apps/cli          # 或： cargo install tauri-cli
 然後於 repo 根目錄：
 
 ```bash
-pnpm --filter @nostr-buddy/desktop build            # 產出前端 dist/
-pnpm --filter @nostr-buddy/desktop exec tauri build  # 打包各平台安裝檔
-# 開發： pnpm --filter @nostr-buddy/desktop exec tauri dev
+pnpm --filter @cinder/desktop build            # 產出前端 dist/
+pnpm --filter @cinder/desktop exec tauri build  # 打包各平台安裝檔
+# 開發： pnpm --filter @cinder/desktop exec tauri dev
 ```
 
 `tauri.conf.json` 的 `frontendDist` 指向 `../dist`，`devUrl` 指向 Vite 開發伺服器

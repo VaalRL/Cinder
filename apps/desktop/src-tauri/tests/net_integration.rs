@@ -8,7 +8,7 @@
 use std::time::Duration;
 
 use futures_util::{SinkExt, StreamExt};
-use nostr_buddy_desktop::net::{run, Command, Incoming};
+use cinder_desktop::net::{run, Command, Incoming};
 use tokio::net::TcpListener;
 use tokio::sync::mpsc;
 use tokio_tungstenite::{accept_async, tungstenite::Message};

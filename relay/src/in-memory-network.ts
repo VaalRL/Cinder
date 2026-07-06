@@ -1,4 +1,4 @@
-import { RelayClient, type RelayClientHandlers } from "@nostr-buddy/core";
+import { RelayClient, type RelayClientHandlers } from "@cinder/core";
 import { RelayCore, type RelayCoreOptions } from "./relay-core.js";
 
 export interface InMemoryRelayNetwork {

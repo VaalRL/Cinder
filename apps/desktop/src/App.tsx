@@ -10,7 +10,7 @@ import {
   type OrgGroup,
   type OrgMember,
   type PubkeyHex,
-} from "@nostr-buddy/core";
+} from "@cinder/core";
 import { useEffect, useRef, useState } from "react";
 import { BrowserChatBackend } from "./backend/browser-backend.js";
 import { RelayChatBackend, webSocketConnector } from "./backend/relay-backend.js";
@@ -179,7 +179,7 @@ export function App(): JSX.Element {
           setUnread((u) => ({ ...u, [pk]: (u[pk] ?? 0) + 1 }));
           if (notifyRef.current && typeof Notification !== "undefined" && Notification.permission === "granted") {
             try {
-              new Notification("Nostr Buddy", { body: msg.text });
+              new Notification("Cinder", { body: msg.text });
             } catch {
               /* 忽略通知失敗 */
             }

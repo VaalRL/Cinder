@@ -1,4 +1,4 @@
-import type { NostrEvent } from "@nostr-buddy/core";
+import type { NostrEvent } from "@cinder/core";
 import { matchFilter } from "./filters.js";
 import type { RelayFilter } from "./protocol.js";
 

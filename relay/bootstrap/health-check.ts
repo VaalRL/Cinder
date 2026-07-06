@@ -4,13 +4,13 @@
 // relay），剔除逾時者；never-empty 守門（全滅則保留原清單、不覆寫）；若提供
 // 維護者金鑰（MAINTAINER_NSEC）則產生簽章的 kind RELAY_LIST 事件供發佈。
 //
-// 執行：pnpm --filter @nostr-buddy/relay bootstrap:run
+// 執行：pnpm --filter @cinder/relay bootstrap:run
 // 信任根＝維護者金鑰；此腳本與 GitHub 僅為發佈通道，無法偽造簽章清單。
 
 import { readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import { nsecDecode, signRelayList, type RelayListDoc } from "@nostr-buddy/core";
+import { nsecDecode, signRelayList, type RelayListDoc } from "@cinder/core";
 
 // 打包後執行檔位於 relay/dist/；清單常駐 relay/bootstrap/。
 const HERE = dirname(fileURLToPath(import.meta.url));

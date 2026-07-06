@@ -1,6 +1,6 @@
 # 架構決策紀錄（ADR）
 
-本目錄記錄 Nostr Buddy 的重大架構與設計決策（Architecture Decision Records）。
+本目錄記錄 Cinder 的重大架構與設計決策（Architecture Decision Records）。
 
 > 自此之後，任何架構/設計層級的決策（模組邊界、加密與協定選型、資料流、隱私取捨、外部依賴等）都必須新增一份 ADR。`PRD.md` 與 `ARCHITECTURE.md` 描述「規格現況」，ADR 描述「為何如此決策」。
 

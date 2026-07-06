@@ -40,7 +40,7 @@ export const MAINTAINER_PUBKEY = "你的維護者公鑰 hex（64 字元）";
 
 ### A6. 驗證上線
 - 本機模擬：`PORT=8899 node relay/dist/dev-server.js` 起一座、把它填進 relays.json、
-  `MAINTAINER_NSEC=<nsec> pnpm --filter @nostr-buddy/relay bootstrap:run`，
+  `MAINTAINER_NSEC=<nsec> pnpm --filter @cinder/relay bootstrap:run`，
   應看到 `✅ 探測` → `已簽章 kind 10037` → `📡 發佈至 …`。
 - 真機：兩台裝置填好 A3 設定，其一 home 指向會下架的節點，關掉該節點後觀察訊息是否仍送達（經錨點），5 分鐘後 home 是否自動遞補（設定面板連線狀態）。
 

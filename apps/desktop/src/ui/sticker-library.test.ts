@@ -1,4 +1,4 @@
-import { contentHash } from "@nostr-buddy/core";
+import { contentHash } from "@cinder/core";
 import { describe, expect, it } from "vitest";
 import { formatCustomSticker, parseCustomSticker } from "../stickers.js";
 import { addSticker, LIBRARY_MAX, removeSticker, type CustomSticker } from "./sticker-library.js";

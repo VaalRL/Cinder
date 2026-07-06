@@ -61,7 +61,7 @@ import {
   type RelayListDoc,
   type Rumor,
   type SecretKey,
-} from "@nostr-buddy/core";
+} from "@cinder/core";
 import { buildRtcConfig } from "./rtc-config.js";
 import { WebRtcCall } from "./webrtc-call.js";
 import { WebRtcTransfer } from "./webrtc.js";

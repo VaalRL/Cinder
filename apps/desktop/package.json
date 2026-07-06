@@ -1,9 +1,9 @@
 {
-  "name": "@nostr-buddy/desktop",
+  "name": "@cinder/desktop",
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "Nostr Buddy 桌面前端（Tauri + React/TS）",
+  "description": "Cinder 桌面前端（Tauri + React/TS）",
   "license": "AGPL-3.0-only",
   "scripts": {
     "dev": "vite",
@@ -13,14 +13,14 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@nostr-buddy/core": "workspace:*",
-    "@nostr-buddy/i18n": "workspace:*",
+    "@cinder/core": "workspace:*",
+    "@cinder/i18n": "workspace:*",
     "qrcode-generator": "^2.0.4",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },
   "devDependencies": {
-    "@nostr-buddy/relay": "workspace:*",
+    "@cinder/relay": "workspace:*",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.4",

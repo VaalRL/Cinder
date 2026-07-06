@@ -2,7 +2,7 @@
 //
 // 純函式，沿用 ADR-0037 尾端建議列的體驗；名稱→公鑰解析交給 core parseMentions。
 
-import type { MentionCandidate } from "@nostr-buddy/core";
+import type { MentionCandidate } from "@cinder/core";
 
 /** 建議列上限。 */
 export const MENTION_SUGGEST_MAX = 6;

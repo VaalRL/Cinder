@@ -1,7 +1,7 @@
 // Windows release 版隱藏主控台視窗。
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-//! Nostr Buddy 桌面 Tauri 二進位（B1 殼）。
+//! Cinder 桌面 Tauri 二進位（B1 殼）。
 //!
 //! 目前包住 `apps/desktop` 前端（於 webview 執行既有 React UI + RelayChatBackend）。
 //! 原生服務（背景長連線 B3、SQLCipher 持久化 B4、OS 金鑰庫 B5）將以 `ipc` 契約
@@ -9,13 +9,13 @@
 //!
 //! 需以 `--features tauri-app` 在具 Tauri 工具鏈與 webkit2gtk 的環境建置。
 
-use nostr_buddy_desktop::ipc::{BridgeEvent, ConnectionState, EVENT_CHANNEL};
+use cinder_desktop::ipc::{BridgeEvent, ConnectionState, EVENT_CHANNEL};
 use tauri::{Emitter, Manager};
 
 /// 橋接健康檢查：供前端確認原生層就緒（B2 IPC 契約的首個 command）。
 #[tauri::command]
 fn native_ready() -> String {
-    format!("nostr-buddy native bridge {}", env!("CARGO_PKG_VERSION"))
+    format!("cinder native bridge {}", env!("CARGO_PKG_VERSION"))
 }
 
 fn main() {

@@ -4,7 +4,7 @@ import {
   generateSecretKey,
   getPublicKey,
   type NostrEvent,
-} from "@nostr-buddy/core";
+} from "@cinder/core";
 import { MessageStore } from "./message-store.js";
 import { leadingZeroBits, RelayCore } from "./relay-core.js";
 

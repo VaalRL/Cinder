@@ -12,7 +12,7 @@ import {
   type ReceivedFile,
   type SecretKey,
   type Signal,
-} from "@nostr-buddy/core";
+} from "@cinder/core";
 
 /** ICE candidate 批次的去抖動視窗（毫秒）：把一陣爆發的候選合併成一則信令。 */
 const CANDIDATE_BATCH_MS = 60;

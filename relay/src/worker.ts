@@ -8,7 +8,7 @@ export interface Env {
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     if (request.headers.get("Upgrade") !== "websocket") {
-      return new Response("Nostr Buddy relay", { status: 200 });
+      return new Response("Cinder relay", { status: 200 });
     }
     const stub = env.RELAY_ROOM.get(env.RELAY_ROOM.idFromName("global"));
     return stub.fetch(request);

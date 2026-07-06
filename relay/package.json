@@ -1,9 +1,9 @@
 {
-  "name": "@nostr-buddy/relay",
+  "name": "@cinder/relay",
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "Nostr Buddy 中繼站：自建最小 Cloudflare Worker relay（Ephemeral 純轉發）",
+  "description": "Cinder 中繼站：自建最小 Cloudflare Worker relay（Ephemeral 純轉發）",
   "license": "AGPL-3.0-only",
   "main": "./src/index.ts",
   "types": "./src/index.ts",
@@ -20,7 +20,7 @@
     "bootstrap:run": "pnpm bootstrap:build && node dist/health-check.js"
   },
   "dependencies": {
-    "@nostr-buddy/core": "workspace:*"
+    "@cinder/core": "workspace:*"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20241218.0",

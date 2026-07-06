@@ -1,4 +1,4 @@
-import { generateSecretKey, getPublicKey, nsecEncode } from "@nostr-buddy/core";
+import { generateSecretKey, getPublicKey, nsecEncode } from "@cinder/core";
 import { beforeEach, describe, expect, it } from "vitest";
 import {
   activeProfile,

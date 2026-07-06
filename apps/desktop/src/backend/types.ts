@@ -8,7 +8,7 @@ import type {
   OutgoingFile,
   PubkeyHex,
   ReceivedFile,
-} from "@nostr-buddy/core";
+} from "@cinder/core";
 
 export type { Group, OrgGroup, OrgMember, OrgPolicy };
 

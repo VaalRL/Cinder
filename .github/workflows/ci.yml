@@ -21,7 +21,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm -r typecheck
       - run: pnpm -r test
-      - run: pnpm --filter @nostr-buddy/desktop build
+      - run: pnpm --filter @cinder/desktop build
 
   rust:
     name: Rust（cargo test）

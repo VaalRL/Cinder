@@ -1,4 +1,4 @@
-import type { NostrEvent } from "@nostr-buddy/core";
+import type { NostrEvent } from "@cinder/core";
 
 /**
  * Relay 端支援的訂閱 filter（NIP-01 子集，含 `#<tag>` 標籤 filter）。

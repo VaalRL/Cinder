@@ -1,7 +1,7 @@
-import { contentHash, parseMentions, REACTION_EMOJIS } from "@nostr-buddy/core";
+import { contentHash, parseMentions, REACTION_EMOJIS } from "@cinder/core";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useI18n } from "../i18n.js";
-import type { CallMedia, MentionCandidate } from "@nostr-buddy/core";
+import type { CallMedia, MentionCandidate } from "@cinder/core";
 import { applyMention, suggestMentions } from "./mention-suggest.js";
 import { mainMessages, replyCounts, threadMessages } from "./thread-util.js";
 import type { ChatMessage, Contact, Self } from "../backend/types.js";

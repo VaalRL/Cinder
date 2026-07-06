@@ -1,4 +1,4 @@
-import { verifyEvent, type NostrEvent } from "@nostr-buddy/core";
+import { verifyEvent, type NostrEvent } from "@cinder/core";
 import { matchFilter } from "./filters.js";
 import type { MessageStore } from "./message-store.js";
 import {

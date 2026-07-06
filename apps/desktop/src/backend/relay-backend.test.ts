@@ -1,5 +1,5 @@
-import { generateSecretKey, getPublicKey, nsecEncode, signOrgRoster, wrapGroupMessage } from "@nostr-buddy/core";
-import { createInMemoryRelayNetwork } from "@nostr-buddy/relay";
+import { generateSecretKey, getPublicKey, nsecEncode, signOrgRoster, wrapGroupMessage } from "@cinder/core";
+import { createInMemoryRelayNetwork } from "@cinder/relay";
 import { describe, expect, it } from "vitest";
 import { MemoryStorage } from "../storage/memory.js";
 import type { ChatBackendEvents, ChatMessage } from "./types.js";

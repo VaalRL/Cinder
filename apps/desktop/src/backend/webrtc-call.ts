@@ -9,7 +9,7 @@ import {
   type NostrEvent,
   type PubkeyHex,
   type SecretKey,
-} from "@nostr-buddy/core";
+} from "@cinder/core";
 
 /** 通話執行期對外事件。 */
 export interface CallHandlers {

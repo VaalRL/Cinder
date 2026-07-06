@@ -1,4 +1,4 @@
-# ARCHITECTURE.md — Nostr Buddy 系統架構（草稿）
+# ARCHITECTURE.md — Cinder 系統架構（草稿）
 
 > 本文件是模組邊界、資料流與初始化規劃的**單一真實來源（SSOT）**。產品行為以 [`PRD.md`](./PRD.md) 為準；本文件定義「落在哪一層、如何連接」。
 >

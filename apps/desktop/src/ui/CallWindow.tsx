@@ -1,4 +1,4 @@
-import type { CallMedia, CallState } from "@nostr-buddy/core";
+import type { CallMedia, CallState } from "@cinder/core";
 import { useEffect, useRef, useState } from "react";
 import { useI18n } from "../i18n.js";
 import { avatarColor, initial } from "./util.js";
