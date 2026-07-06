@@ -71,4 +71,17 @@ describe("org-roster 簽章名冊（ADR-0047）", () => {
     expect(toAdd.map((m) => m.pubkey)).toEqual([a]);
     expect(toRemove).toEqual([]);
   });
+  it("政策（ADR-0048）：round-trip 保留、僅接受布林旗標", () => {
+    const ev = signOrgRoster(
+      { org: "Acme", members: [{ pubkey: a, name: "Alice" }], policy: { disableFiles: true, forceTurn: true }, updatedAt: 1000 },
+      adminSk,
+    );
+    const out = verifyOrgRoster(ev, admin);
+    expect(out?.policy).toEqual({ disableFiles: true, forceTurn: true });
+  });
+
+  it("政策：無旗標時省略 policy", () => {
+    const ev = signOrgRoster({ org: "Acme", members: [{ pubkey: a, name: "Alice" }], updatedAt: 1000 }, adminSk);
+    expect(verifyOrgRoster(ev, admin)?.policy).toBeUndefined();
+  });
 });

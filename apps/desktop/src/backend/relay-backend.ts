@@ -47,6 +47,7 @@ import {
   type GroupControl,
   type NostrEvent,
   type OrgMember,
+  type OrgPolicy,
   type OrgRosterDoc,
   type OutgoingFile,
   type PresencePayload,
@@ -514,6 +515,7 @@ export class RelayChatBackend implements ChatBackend {
   private adoptRoster(doc: OrgRosterDoc): void {
     if (!shouldAdoptRoster(this.lastRoster, doc)) return;
     this.lastRoster = doc;
+    if (doc.policy) this.handlers?.onPolicy?.(doc.policy); // 企業政策（ADR-0048）
     const self = this.self.pubkey;
     const desired = doc.members.filter((m) => m.pubkey !== self);
     const desiredKeys = new Set(desired.map((m) => m.pubkey));
@@ -939,8 +941,8 @@ export class RelayChatBackend implements ChatBackend {
    * 回傳供 relay `allowedAuthors` 佈建的 pubkey 清單。只有把此身分 pubkey 設為
    * `adminPubkey` 的成員會採用此名冊。
    */
-  publishRoster(org: string, members: OrgMember[]): PubkeyHex[] {
-    const doc: OrgRosterDoc = { org, members, updatedAt: nowSec() };
+  publishRoster(org: string, members: OrgMember[], policy?: OrgPolicy): PubkeyHex[] {
+    const doc: OrgRosterDoc = { org, members, ...(policy ? { policy } : {}), updatedAt: nowSec() };
     const evt = signOrgRoster(doc, this.sk);
     this.client.publish(evt);
     this.lastRoster = doc; // 自身也記錄，避免採用自己較舊的

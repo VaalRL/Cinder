@@ -131,7 +131,7 @@
 | --- | --- | --- |
 | G0 | 封閉 allowlist + 多身分 | ✅ **已完成**：relay 發布 allowlist（`RelayCore.allowedAuthors`，ADR-0044）＋客戶端多身分設定檔/命名空間隔離/切換器/工作身分鎖定單座（ADR-0045）＋文件（PRD §13、ARCH §8、ADR-0046）。 |
 | G1 | ① 佈建 + 企業通訊錄 | ✅ **完成（ADR-0047）**：core `org-roster`（簽章名冊 kind 10038、驗簽/採用/allowlist/diff，複用 ADR-0039 機制）＋客戶端工作身分**自動採用名冊**（權威對帳：匯入成員、撤銷離職者）＋**管理者佈建 UI**（🗂 簽章發布名冊、匯出 allowlist）。整合測試涵蓋。**後續**：多管理者/金鑰輪替。 |
-| G2 | ④ 政策開關 + ③ 強制 TURN | 📋 **待實作**：客戶端建置旗標依政策停用檔案/通話/貼圖；relay 加 `allowedKinds`（比照 `allowedAuthors`）只轉發允許事件類型；工作身分**強制走 TURN / 停用 P2P**（避免揭露內網 IP，複用既有 TURN 保底）。低成本。 |
+| G2 | ④ 政策開關 + ③ 強制 TURN | ✅ **大致完成（ADR-0048）**：relay `allowedKinds`（協定層硬強制停用檔案/通話＝排除信令 kind）＋名冊分發客戶端政策（`disableFiles/Calls/Stickers/forceTurn`）＋App UI 閘門（隱藏對應鈕）＋管理者佈建工具政策勾選。**後續**：`forceTurn` 接入 WebRTC `iceTransportPolicy:"relay"`（需 TURN 部署）。 |
 | G3 | ② 組織群組 / ⑤ 公告 | 📋 **待實作**：管理者建立部門群並推送成員（自動入群，延伸 ADR-0027 群組控制 + 管理者簽章）；⑤ 為其唯讀變體（單向公告，成員不能回發）。 |
 | G4 | 金鑰託管（選用） | 🔧 **需 ADR 取捨**：企業「換機/遺失還原」硬需求 vs「設備全毀＝帳號死亡」承諾；做成選用、加密託管到公司還原金鑰，僅企業版開啟。 |
 | G5 | SSO 整合 / 元資料稽核 | 🔧 **後續**：佈建階段綁 AD/LDAP/OIDC → npub、SSO 守金鑰解鎖；自架 relay 記錄連線**元資料**（不碰內容，E2E 不破）供資安維運。 |

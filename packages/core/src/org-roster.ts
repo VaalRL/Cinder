@@ -16,12 +16,35 @@ export interface OrgMember {
   relayUrl?: string;
 }
 
+/** 企業政策（ADR-0048）：管理者集中控管的功能停用/強制 TURN 旗標。 */
+export interface OrgPolicy {
+  disableFiles?: boolean;
+  disableCalls?: boolean;
+  disableStickers?: boolean;
+  /** 強制 WebRTC 只走 TURN（iceTransportPolicy: "relay"），避免揭露內網 IP。 */
+  forceTurn?: boolean;
+}
+
 /** 組織名冊文件（簽章事件的 content JSON）。 */
 export interface OrgRosterDoc {
   org: string;
   members: OrgMember[];
+  /** 集中政策（可選，ADR-0048）。 */
+  policy?: OrgPolicy;
   /** 發佈時間（unix 秒）；用於「較新才取代」。 */
   updatedAt: number;
+}
+
+/** 從任意值解析政策（僅保留布林旗標）；無有效旗標回傳 undefined。 */
+function parsePolicy(value: unknown): OrgPolicy | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  const v = value as Record<string, unknown>;
+  const p: OrgPolicy = {};
+  if (v.disableFiles === true) p.disableFiles = true;
+  if (v.disableCalls === true) p.disableCalls = true;
+  if (v.disableStickers === true) p.disableStickers = true;
+  if (v.forceTurn === true) p.forceTurn = true;
+  return Object.keys(p).length > 0 ? p : undefined;
 }
 
 /** 採用名冊所需的最小成員數（防自動化腳本清空）。 */
@@ -43,12 +66,13 @@ function dedupeMembers(members: OrgMember[]): OrgMember[] {
 /** 建立並簽章一份組織名冊事件（管理者金鑰）。 */
 export function signOrgRoster(doc: OrgRosterDoc, adminSk: SecretKey): NostrEvent {
   const members = dedupeMembers(doc.members);
+  const policy = parsePolicy(doc.policy);
   return finalizeEvent(
     {
       kind: ORG_ROSTER_KIND,
       created_at: doc.updatedAt,
       tags: [],
-      content: JSON.stringify({ org: doc.org, members, updatedAt: doc.updatedAt }),
+      content: JSON.stringify({ org: doc.org, members, ...(policy ? { policy } : {}), updatedAt: doc.updatedAt }),
     },
     adminSk,
   );
@@ -82,7 +106,8 @@ export function verifyOrgRoster(event: NostrEvent, adminPubkey: PubkeyHex): OrgR
     ),
   );
   if (members.length < MIN_ROSTER) return null;
-  return { org: doc.org, members, updatedAt: doc.updatedAt };
+  const policy = parsePolicy(doc.policy);
+  return { org: doc.org, members, ...(policy ? { policy } : {}), updatedAt: doc.updatedAt };
 }
 
 /** 僅當候選較新（updatedAt 更大）且成員數達標時取代目前 last-known-good。 */

@@ -28,6 +28,7 @@ import type {
   ConnectionState,
   Contact,
   Group,
+  OrgPolicy,
   Self,
   Status,
 } from "./backend/types.js";
@@ -126,6 +127,7 @@ export function App(): JSX.Element {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [addIdOpen, setAddIdOpen] = useState(false);
   const [rosterOpen, setRosterOpen] = useState(false);
+  const [policy, setPolicy] = useState<OrgPolicy>({});
   const [notify, setNotify] = useState<boolean>(() => {
     try {
       return localStorage.getItem(NOTIFY_KEY) === "1";
@@ -204,6 +206,7 @@ export function App(): JSX.Element {
       onBlocked: setBlocked,
       onConnection: setConn,
       onRelayPool: setRelays,
+      onPolicy: setPolicy,
       onFileProgress: (pk, id, sent) =>
         setConvos((prev) => {
           const cur = prev[pk];
@@ -523,7 +526,7 @@ export function App(): JSX.Element {
         <RosterAdminModal
           selfNpub={activeBackend.selfNpub ?? ""}
           onCancel={() => setRosterOpen(false)}
-          onPublish={(org, members) => activeBackend.publishRoster!(org, members)}
+          onPublish={(org, members, pol) => activeBackend.publishRoster!(org, members, pol)}
         />
       ) : null}
       <ContactListWindow
@@ -612,10 +615,14 @@ export function App(): JSX.Element {
         const unsendProps = activeBackend.unsendMessage
           ? { onUnsend: (messageId: string) => activeBackend.unsendMessage!(pk, messageId) }
           : {};
-        const fileProps = activeBackend.sendFile ? { onSendFile: (f: File) => sendFile(pk, f) } : {};
-        const callProps = activeBackend.startCall
-          ? { onStartCall: (media: CallMedia) => activeBackend.startCall!(pk, media) }
-          : {};
+        // 企業政策（ADR-0048）：停用檔案/通話時不傳對應 handler → UI 隱藏。
+        const fileProps =
+          activeBackend.sendFile && !policy.disableFiles ? { onSendFile: (f: File) => sendFile(pk, f) } : {};
+        const callProps =
+          activeBackend.startCall && !policy.disableCalls
+            ? { onStartCall: (media: CallMedia) => activeBackend.startCall!(pk, media) }
+            : {};
+        const stickerProps = policy.disableStickers ? { stickersDisabled: true } : {};
         return (
           <ConversationWindow
             key={pk}
@@ -631,6 +638,7 @@ export function App(): JSX.Element {
             {...unsendProps}
             {...fileProps}
             {...callProps}
+            {...stickerProps}
             onSend={(text, ttlSeconds) => activeBackend.sendMessage(pk, text, ttlSeconds)}
             onTyping={() => {
               const now = Date.now();
@@ -741,13 +749,15 @@ function RosterAdminModal({
   onCancel,
 }: {
   selfNpub: string;
-  onPublish: (org: string, members: OrgMember[]) => string[];
+  onPublish: (org: string, members: OrgMember[], policy?: OrgPolicy) => string[];
   onCancel: () => void;
 }): JSX.Element {
   const [org, setOrg] = useState("");
   const [text, setText] = useState(selfNpub ? `${selfNpub} 管理者` : "");
+  const [pol, setPol] = useState<OrgPolicy>({});
   const [allowlist, setAllowlist] = useState<string[] | null>(null);
   const [error, setError] = useState("");
+  const flip = (k: keyof OrgPolicy) => setPol((p) => ({ ...p, [k]: !p[k] }));
   const publish = () => {
     setError("");
     const members: OrgMember[] = [];
@@ -767,7 +777,8 @@ function RosterAdminModal({
       return;
     }
     try {
-      setAllowlist(onPublish(org.trim() || "組織", members));
+      const anyPol = Object.values(pol).some(Boolean);
+      setAllowlist(onPublish(org.trim() || "組織", members, anyPol ? pol : undefined));
     } catch {
       setError("發布失敗");
     }
@@ -790,6 +801,23 @@ function RosterAdminModal({
             value={text}
             onChange={(e) => setText(e.target.value)}
           />
+          <div className="groupmodal__label">政策（可選，集中控管）</div>
+          <label className="groupmodal__item">
+            <input type="checkbox" checked={!!pol.disableFiles} onChange={() => flip("disableFiles")} />
+            <span>停用檔案傳輸</span>
+          </label>
+          <label className="groupmodal__item">
+            <input type="checkbox" checked={!!pol.disableCalls} onChange={() => flip("disableCalls")} />
+            <span>停用通話</span>
+          </label>
+          <label className="groupmodal__item">
+            <input type="checkbox" checked={!!pol.disableStickers} onChange={() => flip("disableStickers")} />
+            <span>停用貼圖</span>
+          </label>
+          <label className="groupmodal__item">
+            <input type="checkbox" checked={!!pol.forceTurn} onChange={() => flip("forceTurn")} />
+            <span>強制 TURN（不揭露內網 IP）</span>
+          </label>
           {error ? <div className="text expired__text">{error}</div> : null}
           <button className="groupmodal__create" data-testid="roster-publish" onClick={publish}>
             簽章並發布名冊

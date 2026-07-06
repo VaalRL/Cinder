@@ -1,6 +1,6 @@
-import type { CallMedia, CallState, Group, OrgMember, OutgoingFile, PubkeyHex, ReceivedFile } from "@nostr-buddy/core";
+import type { CallMedia, CallState, Group, OrgMember, OrgPolicy, OutgoingFile, PubkeyHex, ReceivedFile } from "@nostr-buddy/core";
 
-export type { Group, OrgMember };
+export type { Group, OrgMember, OrgPolicy };
 
 /** 使用者可見狀態（避開商標，以中文呈現於 UI）。 */
 export type Status = "online" | "away" | "busy" | "offline";
@@ -94,6 +94,8 @@ export interface ChatBackendEvents {
   onFileError?(contact: PubkeyHex, reason: string): void;
   /** 群組清單更新（M9）。 */
   onGroups?(groups: Group[]): void;
+  /** 企業政策更新（ADR-0048，來自組織名冊）：前端據此隱藏對應功能。 */
+  onPolicy?(policy: OrgPolicy): void;
   /** 通話狀態變化（M8；`peer` 為對象、null 表示無通話）。 */
   onCallState?(peer: PubkeyHex | null, state: CallState, media: CallMedia | null): void;
   /** 本端通話媒體串流（自我預覽；null 表示結束）。 */
@@ -129,8 +131,8 @@ export interface ChatBackend {
   sendGroupMessage?(groupId: string, text: string): void;
   /** 離開群組。 */
   leaveGroup?(groupId: string): void;
-  /** 管理者佈建（ADR-0047）：簽章並發布組織名冊，回傳供 relay allowlist 佈建的 pubkey 清單。 */
-  publishRoster?(org: string, members: OrgMember[]): PubkeyHex[];
+  /** 管理者佈建（ADR-0047/0048）：簽章並發布組織名冊（含可選政策），回傳供 relay allowlist 佈建的 pubkey 清單。 */
+  publishRoster?(org: string, members: OrgMember[], policy?: OrgPolicy): PubkeyHex[];
   /** 發起語音/視訊通話（M8，媒體全程 P2P）。 */
   startCall?(to: PubkeyHex, media: CallMedia): void;
   /** 接聽目前來電。 */

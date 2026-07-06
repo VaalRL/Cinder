@@ -83,6 +83,8 @@ export interface ConversationProps {
   senderName?: (pubkey: string) => string;
   /** 離開群組（群組視窗才提供）。 */
   onLeaveGroup?: () => void;
+  /** 企業政策停用貼圖時隱藏貼圖鈕（ADR-0048）。 */
+  stickersDisabled?: boolean;
   onClose: () => void;
 }
 
@@ -426,13 +428,15 @@ export function ConversationWindow(props: ConversationProps): JSX.Element {
 
       <div className="toolbar">
         <button className="tool" title={t("convo_emojiTitle")} onClick={() => setShowEmo((v) => !v)}>🙂</button>
-        <button
-          className="tool"
-          title={t("sticker_title")}
-          onClick={() => setShowStickers((v) => !v)}
-        >
-          🧸
-        </button>
+        {props.stickersDisabled ? null : (
+          <button
+            className="tool"
+            title={t("sticker_title")}
+            onClick={() => setShowStickers((v) => !v)}
+          >
+            🧸
+          </button>
+        )}
         <button className="tool" title={t("convo_nudgeTitle")} onClick={props.onNudge}>{t("convo_nudge")}</button>
         <button
           className="tool"
