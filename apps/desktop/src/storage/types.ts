@@ -30,6 +30,8 @@ export interface StoredMessage {
   expiresAt?: number;
   /** 群訊發送者公鑰（群組訊息才有；1:1 省略）。 */
   sender?: string;
+  /** 此訊息 @提及了自己（ADR-0050）：供重載後仍凸顯。 */
+  mentionsMe?: boolean;
 }
 
 export interface StoredGroup {

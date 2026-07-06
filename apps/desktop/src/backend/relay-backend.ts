@@ -12,6 +12,7 @@ import {
   groupTarget,
   generateSecretKey,
   getPublicKey,
+  isMentioned,
   jitter,
   KIND,
   messageExpiry,
@@ -362,6 +363,7 @@ export class RelayChatBackend implements ChatBackend {
           at: m.at,
           ...(m.sender !== undefined ? { sender: m.sender } : {}),
           ...(m.expiresAt !== undefined ? { expiresAt: m.expiresAt } : {}),
+          ...(m.mentionsMe ? { mentionsMe: true } : {}),
         })),
       );
     }
@@ -707,7 +709,12 @@ export class RelayChatBackend implements ChatBackend {
     if (!canPostToGroup(g, sender)) return; // 非成員/公告群非管理者不得發訊（ADR-0049）
     const expirySec = messageExpiry(rumor);
     const expiresAt = expirySec !== undefined ? expirySec * 1000 : undefined;
-    const extra = { sender, ...(expiresAt !== undefined ? { expiresAt } : {}) };
+    const mine = isMentioned(rumor, this.self.pubkey); // @提及我（ADR-0050）
+    const extra = {
+      sender,
+      ...(expiresAt !== undefined ? { expiresAt } : {}),
+      ...(mine ? { mentionsMe: true } : {}),
+    };
     const message = { id: eventId, contact: groupId, outgoing: false, text: rumor.content, at: Date.now(), ...extra };
     this.storage.appendMessage(message);
     this.handlers?.onMessage(groupId, { id: eventId, outgoing: false, text: rumor.content, at: message.at, ...extra });
@@ -940,11 +947,12 @@ export class RelayChatBackend implements ChatBackend {
     this.beat();
   }
 
-  sendMessage(to: PubkeyHex, text: string, ttlSeconds?: number): void {
+  sendMessage(to: PubkeyHex, text: string, ttlSeconds?: number, mentions?: PubkeyHex[]): void {
     const disappearAt = ttlSeconds ? nowSec() + ttlSeconds : undefined;
     const evt = wrapMessage(text, this.sk, to, {
       ...(disappearAt !== undefined ? { disappearAt } : {}),
       ...(this.homeUrl ? { relayHint: this.homeUrl } : {}),
+      ...(mentions && mentions.length > 0 ? { mentions } : {}),
     });
     this.publishReliable(evt);
     const extra = disappearAt !== undefined ? { expiresAt: disappearAt * 1000 } : {};
@@ -1014,12 +1022,15 @@ export class RelayChatBackend implements ChatBackend {
     this.emitGroups();
   }
 
-  sendGroupMessage(groupId: string, text: string): void {
+  sendGroupMessage(groupId: string, text: string, mentions?: PubkeyHex[]): void {
     const group = this.groups.find((g) => g.id === groupId);
     if (!group) return;
     if (!canPostToGroup(group, this.self.pubkey)) return; // 公告群僅管理者可發（ADR-0049）
+    // 只保留確實在群內的提及對象（避免對非成員扇出 p-tag）。
+    const validMentions = mentions?.filter((pk) => group.members.includes(pk)) ?? [];
     const evts = wrapGroupMessage(text, this.sk, this.self.pubkey, group, {
       ...(this.homeUrl ? { relayHint: this.homeUrl } : {}),
+      ...(validMentions.length > 0 ? { mentions: validMentions } : {}),
     });
     for (const evt of evts) this.publishReliable(evt);
     const id = evts[0]?.id ?? `g-${Date.now()}-${Math.random().toString(16).slice(2)}`;

@@ -87,6 +87,31 @@ describe("RelayChatBackend（真實後端 + 持久化）", () => {
     c.stop();
   });
 
+  it("@提及（ADR-0050）：Alice 群訊提及 Bob，Bob 收到 mentionsMe，Carol 沒有", () => {
+    const net = createInMemoryRelayNetwork();
+    const a = new RelayChatBackend(new MemoryStorage(), (h) => net.connect("a", h), "Alice");
+    const b = new RelayChatBackend(new MemoryStorage(), (h) => net.connect("b", h), "Bob");
+    const c = new RelayChatBackend(new MemoryStorage(), (h) => net.connect("c", h), "Carol");
+
+    const bGroups: string[] = [];
+    const bMsgs: ChatMessage[] = [];
+    const cMsgs: ChatMessage[] = [];
+    a.start(noop);
+    b.start({ ...noop, onGroups: (gs) => bGroups.push(...gs.map((g) => g.id)), onMessage: (_pk, m) => bMsgs.push(m) });
+    c.start({ ...noop, onMessage: (_pk, m) => cMsgs.push(m) });
+
+    a.createGroup("好友", [b.self.pubkey, c.self.pubkey]);
+    const gid = bGroups[0]!;
+    a.sendGroupMessage(gid, "@Bob 看這個", [b.self.pubkey]);
+
+    expect(bMsgs.find((m) => m.text === "@Bob 看這個")?.mentionsMe).toBe(true);
+    expect(cMsgs.find((m) => m.text === "@Bob 看這個")?.mentionsMe).toBeUndefined();
+
+    a.stop();
+    b.stop();
+    c.stop();
+  });
+
   it("群組授權：非成員（含陌生人）的群訊被拒收（#3）", () => {
     const net = createInMemoryRelayNetwork();
     const storeB = new MemoryStorage();
