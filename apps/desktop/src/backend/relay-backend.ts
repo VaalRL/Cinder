@@ -24,9 +24,12 @@ import {
   PresenceTracker,
   mergeBootstrapPool,
   normalizeRelay,
+  ORG_ROSTER_KIND,
   reactionTarget,
   RelayClient,
   RELAY_LIST_KIND,
+  shouldAdoptRoster,
+  verifyOrgRoster,
   relayHintOf,
   shouldAdoptList,
   verifyRelayList,
@@ -41,6 +44,7 @@ import {
   type Group,
   type GroupControl,
   type NostrEvent,
+  type OrgRosterDoc,
   type OutgoingFile,
   type PresencePayload,
   type PresenceState,
@@ -166,6 +170,8 @@ export interface RelayPoolOptions {
   maintainerPubkey?: string;
   /** home 因長期離線自動遞補到健康引導座時通知（ADR-0039）。 */
   onHomeSwitched?: (newUrl: string) => void;
+  /** 企業組織名冊的管理者公鑰（ADR-0047）；設定後訂閱並自動採用名冊、同步通訊錄。 */
+  orgAdminPubkey?: string;
 }
 
 export class RelayChatBackend implements ChatBackend {
@@ -186,6 +192,9 @@ export class RelayChatBackend implements ChatBackend {
   /** 引導座（錨點 ∪ 已採用清單，ADR-0039）：恆連保底、冗餘廣播與 home 遞補來源。 */
   private readonly bootstrapSeats = new Set<string>();
   private readonly maintainerPubkey: string | undefined;
+  /** 企業名冊管理者公鑰與最近採用的名冊（ADR-0047）。 */
+  private readonly orgAdminPubkey: string | undefined;
+  private lastRoster: OrgRosterDoc | null = null;
   private readonly onHomeSwitched: ((url: string) => void) | undefined;
   private lastList: RelayListDoc | null;
   /** 外部 relay 連線（正規化 URL → client），惰性建立（ADR-0034）。 */
@@ -225,6 +234,7 @@ export class RelayChatBackend implements ChatBackend {
     this.originalHomeUrl = this.homeUrl;
     this.connectorFor = pool?.connectorFor;
     this.maintainerPubkey = pool?.maintainerPubkey;
+    this.orgAdminPubkey = pool?.orgAdminPubkey;
     this.onHomeSwitched = pool?.onHomeSwitched;
     for (const a of pool?.anchors ?? []) {
       const norm = normalizeRelay(a);
@@ -452,6 +462,10 @@ export class RelayChatBackend implements ChatBackend {
     if (this.maintainerPubkey) {
       client.subscribe("relaylist", [{ kinds: [RELAY_LIST_KIND], authors: [this.maintainerPubkey] }]);
     }
+    // 企業組織名冊（ADR-0047）：訂閱管理者簽章的名冊事件。
+    if (this.orgAdminPubkey) {
+      client.subscribe("orgroster", [{ kinds: [ORG_ROSTER_KIND], authors: [this.orgAdminPubkey] }]);
+    }
   }
 
   private resubscribeRelay(url: string): void {
@@ -490,6 +504,39 @@ export class RelayChatBackend implements ChatBackend {
     }
   }
 
+  /**
+   * 採用帶內收到的管理者組織名冊（ADR-0047）：驗簽已在 onEvent 完成。
+   * 工作身分聯絡人由名冊**權威管理**——移除名冊外者（撤銷/離職）、匯入名冊成員。
+   */
+  private adoptRoster(doc: OrgRosterDoc): void {
+    if (!shouldAdoptRoster(this.lastRoster, doc)) return;
+    this.lastRoster = doc;
+    const self = this.self.pubkey;
+    const desired = doc.members.filter((m) => m.pubkey !== self);
+    const desiredKeys = new Set(desired.map((m) => m.pubkey));
+    let changed = false;
+    // 撤銷：移除名冊外的（非封鎖）聯絡人
+    for (const c of this.contacts) {
+      if (!desiredKeys.has(c.pubkey) && !this.isBlocked(c.pubkey)) {
+        this.storage.removeContact(c.pubkey);
+        this.statuses.delete(c.pubkey);
+        changed = true;
+      }
+    }
+    // 匯入：名冊成員（既有則略過；帶 relay hint）
+    for (const m of desired) {
+      if (this.isBlocked(m.pubkey) || this.contacts.some((c) => c.pubkey === m.pubkey)) continue;
+      const hint = normalizeRelayUrl(m.relayUrl);
+      this.storage.addContact({ pubkey: m.pubkey, name: m.name, ...(hint && hint !== this.homeUrl ? { relayUrl: hint } : {}) });
+      changed = true;
+    }
+    if (changed) {
+      this.contacts = this.storage.loadContacts();
+      this.resubscribe();
+      this.emitContacts();
+    }
+  }
+
   private beat(): void {
     if (this.self.status === "offline") return;
     const payload: PresencePayload = {
@@ -524,6 +571,13 @@ export class RelayChatBackend implements ChatBackend {
       if (this.maintainerPubkey) {
         const doc = verifyRelayList(event, this.maintainerPubkey);
         if (doc) this.adoptRelayList(doc);
+      }
+      return;
+    }
+    if (event.kind === ORG_ROSTER_KIND) {
+      if (this.orgAdminPubkey) {
+        const doc = verifyOrgRoster(event, this.orgAdminPubkey);
+        if (doc) this.adoptRoster(doc);
       }
       return;
     }

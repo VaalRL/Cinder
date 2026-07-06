@@ -3,6 +3,7 @@ import {
   type CallState,
   generateSecretKey,
   getPublicKey,
+  npubDecode,
   nsecDecode,
   nsecEncode,
   type PubkeyHex,
@@ -58,6 +59,18 @@ const NOTIFY_KEY = "nb.notify";
 let _uid = 0;
 const uid = (prefix: string): string => `${prefix}_${Date.now()}_${_uid++}`;
 
+/** 把管理者輸入（npub… 或 hex）正規化為 hex pubkey；非法回傳 undefined（ADR-0047）。 */
+function normalizeAdminPubkey(input: string): string | undefined {
+  const v = input.trim();
+  try {
+    if (v.startsWith("npub")) return npubDecode(v);
+    if (/^[0-9a-f]{64}$/i.test(v)) return v.toLowerCase();
+  } catch {
+    /* 非法 */
+  }
+  return undefined;
+}
+
 /**
  * 依身分設定檔建立後端（ADR-0045）。工作身分（enterprise）鎖定單座：不給
  * connectorFor/anchors/onHomeSwitched → 不漫遊、不遞補；個人身分走開放模式。
@@ -67,7 +80,7 @@ function buildBackend(p: Profile): ChatBackend {
   if (!p.relayUrl) return new BrowserChatBackend(p.name);
   const storage = new LocalStorage(p.namespace);
   const opts = p.enterprise
-    ? { relayUrl: p.relayUrl }
+    ? { relayUrl: p.relayUrl, ...(p.adminPubkey ? { orgAdminPubkey: p.adminPubkey } : {}) }
     : {
         relayUrl: p.relayUrl,
         connectorFor: webSocketConnector,
@@ -325,11 +338,17 @@ export function App(): JSX.Element {
   };
 
   // 新增身分：產生或匯入 nsec → 存入該身分命名空間 → 登錄並切換（重載）。
-  const addIdentity = (name: string, relayUrl: string, enterprise: boolean, nsecInput?: string) => {
-    const sk = nsecInput?.trim() ? nsecDecode(nsecInput.trim()) : generateSecretKey();
+  const addIdentity = (
+    name: string,
+    relayUrl: string,
+    enterprise: boolean,
+    opts: { nsec?: string | undefined; adminPubkey?: string | undefined } = {},
+  ) => {
+    const sk = opts.nsec?.trim() ? nsecDecode(opts.nsec.trim()) : generateSecretKey();
     const pubkey = getPublicKey(sk);
     new LocalStorage(pubkey).saveIdentity({ nsec: nsecEncode(sk), name });
-    const profile: Profile = { pubkey, name, relayUrl, enterprise, namespace: pubkey };
+    const admin = enterprise && opts.adminPubkey?.trim() ? normalizeAdminPubkey(opts.adminPubkey.trim()) : undefined;
+    const profile: Profile = { pubkey, name, relayUrl, enterprise, namespace: pubkey, ...(admin ? { adminPubkey: admin } : {}) };
     saveProfiles(upsertProfile(profilesState, profile));
     try {
       location.reload();
@@ -632,17 +651,26 @@ function AddIdentityModal({
   onAdd,
   onCancel,
 }: {
-  onAdd: (name: string, relayUrl: string, enterprise: boolean, nsec?: string) => void;
+  onAdd: (
+    name: string,
+    relayUrl: string,
+    enterprise: boolean,
+    opts: { nsec?: string | undefined; adminPubkey?: string | undefined },
+  ) => void;
   onCancel: () => void;
 }): JSX.Element {
   const [name, setName] = useState("");
   const [relayUrl, setRelayUrl] = useState("");
   const [enterprise, setEnterprise] = useState(false);
   const [nsec, setNsec] = useState("");
+  const [admin, setAdmin] = useState("");
   const submit = () => {
     if (!name.trim() || !relayUrl.trim()) return;
     try {
-      onAdd(name.trim(), relayUrl.trim(), enterprise, nsec.trim() || undefined);
+      onAdd(name.trim(), relayUrl.trim(), enterprise, {
+        nsec: nsec.trim() || undefined,
+        adminPubkey: enterprise ? admin.trim() || undefined : undefined,
+      });
     } catch {
       /* 非法 nsec：保留輸入 */
     }
@@ -669,6 +697,14 @@ function AddIdentityModal({
             <input type="checkbox" checked={enterprise} onChange={(e) => setEnterprise(e.target.checked)} />
             <span>工作身分（鎖定此節點、不漫遊）</span>
           </label>
+          {enterprise ? (
+            <input
+              className="groupmodal__name"
+              placeholder="管理者 npub（可選，自動同步企業通訊錄）"
+              value={admin}
+              onChange={(e) => setAdmin(e.target.value)}
+            />
+          ) : null}
           <input
             className="groupmodal__name"
             placeholder="匯入 nsec（留空＝產生新身分）"

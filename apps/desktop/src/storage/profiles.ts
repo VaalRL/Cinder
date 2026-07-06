@@ -16,6 +16,8 @@ export interface Profile {
   enterprise: boolean;
   /** localStorage 命名空間；空＝既有單一身分的舊鍵（ADR-0045）。 */
   namespace: string;
+  /** 企業名冊管理者 hex pubkey（工作身分可選，ADR-0047）：訂閱並自動採用組織通訊錄。 */
+  adminPubkey?: string;
 }
 
 export interface ProfilesState {

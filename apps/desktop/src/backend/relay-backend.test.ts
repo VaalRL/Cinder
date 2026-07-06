@@ -1,4 +1,4 @@
-import { generateSecretKey, getPublicKey, wrapGroupMessage } from "@nostr-buddy/core";
+import { generateSecretKey, getPublicKey, signOrgRoster, wrapGroupMessage } from "@nostr-buddy/core";
 import { createInMemoryRelayNetwork } from "@nostr-buddy/relay";
 import { describe, expect, it } from "vitest";
 import { MemoryStorage } from "../storage/memory.js";
@@ -258,5 +258,26 @@ describe("RelayChatBackend（真實後端 + 持久化）", () => {
     expect(live).toEqual([]); // 回放不逐則 onMessage
     a2.stop();
     bob.stop();
+  });
+
+  it("工作身分自動採用管理者名冊、匯入通訊錄並撤銷離職者（ADR-0047）", () => {
+    const net = createInMemoryRelayNetwork();
+    const adminSk = generateSecretKey();
+    const admin = getPublicKey(adminSk);
+    const store = new MemoryStorage();
+    const work = new RelayChatBackend(store, (h) => net.connect("work", h), "Worker", { orgAdminPubkey: admin });
+    work.start(noop);
+    const memberA = getPublicKey(generateSecretKey());
+    const memberB = getPublicKey(generateSecretKey());
+
+    net
+      .connect("admin")
+      .publish(signOrgRoster({ org: "Acme", members: [{ pubkey: memberA, name: "Alice" }, { pubkey: memberB, name: "Bob" }], updatedAt: 1000 }, adminSk));
+    expect(store.loadContacts().map((c) => c.pubkey).sort()).toEqual([memberA, memberB].sort());
+
+    // 較新名冊移除 Bob（離職）→ 撤銷聯絡人
+    net.connect("admin2").publish(signOrgRoster({ org: "Acme", members: [{ pubkey: memberA, name: "Alice" }], updatedAt: 1001 }, adminSk));
+    expect(store.loadContacts().map((c) => c.pubkey)).toEqual([memberA]);
+    work.stop();
   });
 });
