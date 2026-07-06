@@ -114,7 +114,26 @@
 - **M8**：語音/視訊通話——WebRTC media track（P2P）、通話控制信令（kind 21002）、通話 UI。✅（假音源 + 真實 relay/WebRTC E2E）；⏳ TURN 保底、來電鈴聲。
 - **M9**：聯絡人與群組——QR 加好友（`npub` 交換，✅ 產生）、群組聊天（✅ Gift-Wrap 成對扇出，ADR-0027；3-context 真實 relay E2E）。
 
-## 8. 待決議（Open Questions）
+## 8. 企業模式資料流（自架封閉節點 + 多身分）
+
+> 產品需求見 `PRD.md §13`；決策見 `docs/adr/0044`（封閉 allowlist）、`0045`（多身分）、`0046`（成員判定與邊界）。此節記錄模組落點與資料流，隱私鐵則不變。
+
+**中繼端 — 發布 allowlist（封閉節點）**
+- `relay/src/relay-core.ts`：`RelayCoreOptions.allowedAuthors`（hex pubkey 集合）。`handleEvent` 於**驗簽後、寫庫/扇出前**檢查 `event.pubkey ∈ allowlist`；非成員的任何事件（含心跳 20000）回 `OK false "blocked:"`（永久拒絕）。未設＝開放中繼。
+- 「外部客戶不進系統」在**內容層**由此成立；讀取層由企業自架於私網/VPN 把關（無 NIP-42 亦足夠，且取到皆 E2E 密文）。
+
+**自架外殼 — 與 Cloudflare 解耦**
+- `RelayCore` 為傳輸無關；`relay/src/worker.ts` 僅注入 Cloudflare `WebSocketPair`。自架＝以 Node/Deno/Bun/Docker 的 WS server 包 `RelayCore`（`relay/src/dev-server.ts`、`in-memory-network.ts` 已示範 Worker 外執行）。
+
+**客戶端 — 多身分與資料隔離**
+- `apps/desktop/src/storage/profiles.ts`：全域設定檔登錄（`nb.profiles`＋作用中 pubkey）；首次載入把既有單一身分遷移為 namespace 為空的 legacy 設定檔（向後相容）。
+- `apps/desktop/src/storage/local.ts`：`LocalStorage(namespace)` 以 `nb.<pubkey>.<key>` 隔離各身分資料（聯絡人/訊息/群組/貼圖庫…），空 namespace＝舊鍵。
+- `apps/desktop/src/App.tsx`：`buildBackend(profile)` 依身分建立後端——**工作身分（enterprise）鎖定單座**（不給 `connectorFor`/`anchors`/`onHomeSwitched` → 不漫遊、不遞補，ADR-0044/0045）；個人身分走開放模式（relay pool/錨點/漫遊）。切換身分以 reload 乾淨重建 per-身分 狀態。
+
+**資料流（工作身分送一則群訊）**
+`App → buildBackend(工作profile, 鎖定) → RelayChatBackend(LocalStorage(pubkey)) → Outbox 節流扇出 Gift Wrap → 公司自架 RelayCore（allowlist 驗 pubkey）→ 只轉發給名單內成員`。中繼全程只見密文與成員 pubkey，看不到群組/內容/串結構。
+
+## 9. 待決議（Open Questions）
 
 - 中繼站採自建 Worker relay 還是相容既有 Nostr relay 實作？
 - `packages/core` 的加密原語選型（Web Crypto vs Rust 端 `ring`/`ed25519-dalek`）與跨平台一致性策略。
