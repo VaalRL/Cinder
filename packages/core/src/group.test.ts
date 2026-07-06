@@ -10,6 +10,7 @@ import {
   wrapGroupMessage,
   type Group,
 } from "./group.js";
+import { isMentioned } from "./mention.js";
 import { generateSecretKey, getPublicKey } from "./keys.js";
 import { openWrap } from "./nip59.js";
 
@@ -37,6 +38,16 @@ describe("群組訊息扇出（M9，Gift-Wrap 成對）", () => {
     // 兩個 wrap 各自只能由對應收件人解開
     expect(() => openWrap(events[0]!, carolSk)).toThrow();
     expect(openWrap(events[1]!, carolSk).rumor.content).toBe("嗨大家");
+  });
+
+  it("提及（ADR-0050）：mentions 寫進加密 rumor 內層 p-tag，收端可判定被提及", () => {
+    const g = group();
+    const events = wrapGroupMessage("@Bob 看這個", aliceSk, alicePk, g, { mentions: [bobPk] });
+    const asBob = openWrap(events[0]!, bobSk);
+    expect(isMentioned(asBob.rumor, bobPk)).toBe(true);
+    const asCarol = openWrap(events[1]!, carolSk);
+    expect(isMentioned(asCarol.rumor, bobPk)).toBe(true); // 群成員都看得到提及對象
+    expect(isMentioned(asCarol.rumor, carolPk)).toBe(false);
   });
 
   it("外層作者非寄件人（隱藏群組社交圖譜）", () => {

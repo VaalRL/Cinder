@@ -1,6 +1,7 @@
 import { KIND } from "./constants.js";
 import type { NostrEvent } from "./event.js";
 import type { PubkeyHex, SecretKey } from "./keys.js";
+import { mentionTags } from "./mention.js";
 import { openWrap, sealAndWrap, type Rumor } from "./nip59.js";
 
 const KIND_CHAT = 14;
@@ -29,6 +30,8 @@ export interface WrapOptions {
    * 經加密只有收件人可見，供對方自動學習路由 hint。
    */
   relayHint?: string;
+  /** @提及（ADR-0050）：寫進 **rumor 內層** `p` tag，隨加密僅收件人可見。 */
+  mentions?: PubkeyHex[];
 }
 
 /**
@@ -46,6 +49,7 @@ export function wrapMessage(
   const rumorTags: string[][] = [
     ...(opts.disappearAt !== undefined ? [["expiration", String(opts.disappearAt)]] : []),
     ...(opts.relayHint ? [["relay", opts.relayHint]] : []),
+    ...(opts.mentions && opts.mentions.length > 0 ? mentionTags(opts.mentions) : []),
   ];
   return sealAndWrap(
     { kind: KIND_CHAT, created_at: nowSec, tags: rumorTags, content },

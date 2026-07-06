@@ -9,6 +9,7 @@ import { bytesToHex, randomBytes } from "@noble/hashes/utils";
 import { KIND } from "./constants.js";
 import type { NostrEvent } from "./event.js";
 import type { PubkeyHex, SecretKey } from "./keys.js";
+import { mentionTags } from "./mention.js";
 import type { Rumor } from "./nip59.js";
 import { sealAndWrap } from "./nip59.js";
 
@@ -58,12 +59,16 @@ function others(members: PubkeyHex[], self: PubkeyHex): PubkeyHex[] {
 
 function wrapFor(
   recipientPk: PubkeyHex,
-  rumor: { kind: number; content: string; groupId: string },
+  rumor: { kind: number; content: string; groupId: string; mentions?: PubkeyHex[] },
   senderSk: SecretKey,
   nowSec: number,
   relayHint?: string,
 ): NostrEvent {
-  const tags: string[][] = [["g", rumor.groupId], ...(relayHint ? [["relay", relayHint]] : [])];
+  const tags: string[][] = [
+    ["g", rumor.groupId],
+    ...(relayHint ? [["relay", relayHint]] : []),
+    ...(rumor.mentions && rumor.mentions.length > 0 ? mentionTags(rumor.mentions) : []),
+  ];
   return sealAndWrap(
     { kind: rumor.kind, created_at: nowSec, tags, content: rumor.content },
     senderSk,
@@ -87,12 +92,16 @@ export function wrapGroupMessage(
   senderSk: SecretKey,
   senderPk: PubkeyHex,
   group: Group,
-  opts: { now?: number; relayHint?: string } = {},
+  opts: { now?: number; relayHint?: string; mentions?: PubkeyHex[] } = {},
 ): NostrEvent[] {
   const nowSec = opts.now ?? Math.floor(Date.now() / 1000);
-  return others(group.members, senderPk).map((pk) =>
-    wrapFor(pk, { kind: KIND.CHAT, content: text, groupId: group.id }, senderSk, nowSec, opts.relayHint),
-  );
+  const rumor = {
+    kind: KIND.CHAT,
+    content: text,
+    groupId: group.id,
+    ...(opts.mentions && opts.mentions.length > 0 ? { mentions: opts.mentions } : {}),
+  };
+  return others(group.members, senderPk).map((pk) => wrapFor(pk, rumor, senderSk, nowSec, opts.relayHint));
 }
 
 /** 將群組控制訊息扇出給指定收件人（各一個 Gift Wrap）。 */
