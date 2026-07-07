@@ -22,8 +22,10 @@ interface I18nContextValue {
 
 const I18nContext = createContext<I18nContextValue | null>(null);
 
-export function I18nProvider({ children }: { children: ReactNode }): JSX.Element {
-  const [locale, setLocaleState] = useState<Locale>(initialLocale);
+export function I18nProvider({ children, locale: fixed }: { children: ReactNode; locale?: Locale }): JSX.Element {
+  // `locale` 明確指定時以其為初始值（供測試/內嵌情境固定語系，不受 OS 預設影響）；
+  // 省略時沿用既有偵測（localStorage → navigator.language → 預設）。
+  const [locale, setLocaleState] = useState<Locale>(fixed ?? initialLocale);
   const setLocale = (next: Locale) => {
     try {
       localStorage.setItem(STORAGE_KEY, next);

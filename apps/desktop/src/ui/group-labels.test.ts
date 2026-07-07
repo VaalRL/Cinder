@@ -66,12 +66,17 @@ describe("withPinned / isPinned", () => {
 });
 
 describe("allLabels", () => {
-  it("跨群組去重並排序", () => {
+  it("跨群組去重並依地區排序", () => {
     let m: GroupPrefsMap = {};
     m = withLabel(m, "g1", "工作");
     m = withLabel(m, "g2", "家人");
     m = withLabel(m, "g2", "工作");
-    expect(allLabels(m)).toEqual(["家人", "工作"]);
+    const result = allLabels(m);
+    // 去重：工作跨兩群只出現一次
+    expect(result).toHaveLength(2);
+    expect(new Set(result)).toEqual(new Set(["工作", "家人"]));
+    // 依地區定序（與 localeCompare 一致；不綁定特定 OS 語系的固定順序，避免跨機脆弱）
+    expect([...result].sort((a, b) => a.localeCompare(b))).toEqual(result);
   });
 });
 

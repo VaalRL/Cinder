@@ -13,7 +13,7 @@ const mkMessages = (n: number): ChatMessage[] =>
 
 const render = (messages: ChatMessage[]) =>
   renderToStaticMarkup(
-    <I18nProvider>
+    <I18nProvider locale="en">
       <ThemeProvider>
         <ConversationWindow
           self={self}
@@ -58,7 +58,7 @@ describe("ConversationWindow 訊息列視窗化（P0-3）", () => {
     // 回覆只在面板顯示，不灌進主頻道
     expect(html).not.toContain("串內回覆一");
     expect(html).not.toContain("串內回覆二");
-    // 根訊息顯示回覆數入口（測試環境 I18n 預設英文）
+    // 根訊息顯示回覆數入口（明確以 en 語系渲染，不依賴 OS 預設語系）
     expect(html).toContain('data-testid="thread-count"');
     expect(html).toContain("2 replies");
   });
