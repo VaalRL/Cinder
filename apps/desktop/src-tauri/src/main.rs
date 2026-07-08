@@ -11,7 +11,20 @@
 
 use cinder_desktop::encstore;
 use cinder_desktop::ipc::{BridgeEvent, ConnectionState, EVENT_CHANNEL};
-use tauri::{Emitter, Manager};
+use tauri::{
+    menu::{Menu, MenuItem},
+    tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
+    Emitter, Manager, WindowEvent,
+};
+
+/// 顯示並聚焦主視窗（系統匣點擊/選單用）。
+fn show_main(app: &tauri::AppHandle) {
+    if let Some(w) = app.get_webview_window("main") {
+        let _ = w.show();
+        let _ = w.unminimize();
+        let _ = w.set_focus();
+    }
+}
 
 /// 橋接健康檢查：供前端確認原生層就緒（B2 IPC 契約的首個 command）。
 #[tauri::command]
@@ -91,7 +104,41 @@ fn store_save(app: tauri::AppHandle, namespace: String, json: String) -> Result<
 
 fn main() {
     tauri::Builder::default()
+        // 背景在線（Phase B ②）：關閉視窗＝隱藏到系統匣，保留 webview 存活＝引擎續連、
+        // 仍收得到訊息；真正結束走系統匣選單「結束」。
+        .on_window_event(|window, event| {
+            if let WindowEvent::CloseRequested { api, .. } = event {
+                let _ = window.hide();
+                api.prevent_close();
+            }
+        })
         .setup(|app| {
+            // 系統匣圖示 + 選單（顯示 / 結束）。左鍵點圖示＝顯示視窗。
+            let show = MenuItem::with_id(app, "show", "顯示 Cinder", true, None::<&str>)?;
+            let quit = MenuItem::with_id(app, "quit", "結束 Cinder", true, None::<&str>)?;
+            let menu = Menu::with_items(app, &[&show, &quit])?;
+            TrayIconBuilder::with_id("main")
+                .tooltip("Cinder")
+                .icon(app.default_window_icon().cloned().expect("內建視窗圖示應存在"))
+                .menu(&menu)
+                .show_menu_on_left_click(false)
+                .on_menu_event(|app, event| match event.id.as_ref() {
+                    "show" => show_main(app),
+                    "quit" => app.exit(0),
+                    _ => {}
+                })
+                .on_tray_icon_event(|tray, event| {
+                    if let TrayIconEvent::Click {
+                        button: MouseButton::Left,
+                        button_state: MouseButtonState::Up,
+                        ..
+                    } = event
+                    {
+                        show_main(tray.app_handle());
+                    }
+                })
+                .build(app)?;
+
             // 啟動時向 webview 廣播一次連線狀態（示範單一事件通道；
             // 之後由原生 relay 引擎於狀態變化時持續 emit）。
             let handle = app.handle().clone();
