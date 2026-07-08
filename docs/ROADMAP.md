@@ -83,7 +83,7 @@
 
 | # | 任務 | 說明 |
 | --- | --- | --- |
-| D1 | RN App 骨架 | Expo/RN + 重用 core/i18n；移植聯絡人/對話 UI（可先 react-native-web 於瀏覽器驗證）。 |
+| D1 | RN App 骨架 | 🔧 **起手完成（此環境）**：`apps/mobile`（react-native-web + 重用 `@cinder/core`/`@cinder/i18n`）；首個 `ContactListScreen`（依上線狀態分區、npub 編碼、多語系），typecheck + 測試綠。⏳ 更多畫面移植（登入/對話）、Expo/Metro 原生打包（需工具鏈或 EAS）。 |
 | D2 | 行動持久化 | RN SQLite + Keystore/Secure Enclave。 |
 | D3 | 無聲推播喚醒 | Worker 存 APNs/FCM 憑證，Silent Push 喚醒背景拉取（PRD §3）。 |
 | D4 | 多設備同步接線 | 接既有 QR 配對 + 持續對帳邏輯。 |
