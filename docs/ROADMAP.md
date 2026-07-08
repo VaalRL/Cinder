@@ -11,7 +11,7 @@
 
 ## 0. 現況快照
 
-> **產品名：Cinder**（slogan「Life is short, connect buddies.」；npm scope `@cinder/*`）。測試現況：**core 169 / relay 37 / desktop 205 / i18n 6，全綠**。
+> **產品名：Cinder**（slogan「Life is short, connect buddies.」；npm scope `@cinder/*`）。測試現況：**core 193 / relay 52 / desktop 250 / i18n 6，全綠**。
 
 - **共用協定/邏輯層（`packages/core`、`relay`）**：secp256k1 身分 → NIP-01 事件/簽章 → NIP-44 加密 → NIP-17/59 Gift Wrap → 心跳/輸入中/音樂 → 群組成對扇出 → WebRTC 信令/資料通道/降級 → QR 配對/競速/多設備收斂 → RelayClient → **節流外送匣 Outbox / 有界去重 BoundedSet** → 防濫用(PoW/訂閱上限/**企業 allowlist**)/時鐘·重放防護 → **@提及（p-tag）/對話串（reply e-tag）**。✅
 - **桌面前端（`apps/desktop`）**：登入、聯絡人清單、對話視窗、表情、Markdown、Nudge、輸入中、深色/明亮、多語系；**Phase A 產品化完成**——接真實 relay（含自動重連/連線狀態）、本機持久化、聯絡人管理（刪除/封鎖）、設定面板（身分備份/通知）、未讀徽章、音樂狀態、**WebRTC P2P 檔案傳輸**。示範模式（記憶體 relay + 機器人）仍保留供體驗。✅
@@ -19,9 +19,10 @@
 - **進階功能（Phase E，M6–M9）**：✅ 訊息回應/收回/限時、語音訊息/相簿/貼圖（含動態/自製/編輯器/觸發字）、語音視訊通話（含**來電鈴聲**）、QR 加好友、群組聊天、群組本地標籤、**@提及 Mention**、**對話串 Thread（Slack 式右側面板）**。
 - **安全與規模化（Phase F）+ 審查修正**：✅ 前向保密決策、二進位框架、混合式引導路由、跨中繼互通、網址衛生；**審查規模化修正**（啟動回放批次化、訊息列視窗化、去重集合有界、孤兒清理、每對話上限）。
 - **企業模式（Phase G，G0–G4 完成）**：✅ 封閉 allowlist 中繼、單一 App 多身分並存與切換（工作/個人、鎖定/開放、資料命名空間隔離）；✅ 簽章名冊佈建＋企業通訊錄（G1）、政策開關＋**強制 TURN 接入 WebRTC**（G2）、組織群組／公告（G3）、**工作身分輪替（G4，否決金鑰托管、無後門，ADR-0052）**。餘 G5 SSO/元資料稽核。
-- **治理**：pnpm monorepo、TS strict、TDD、CI、**52 份 ADR**、AGPL-3.0。✅
+- **治理**：pnpm monorepo、TS strict、TDD、CI、**62 份 ADR**、AGPL-3.0。✅
+- **本階段新增（額外需求，皆測試綠）**：✅ 跨身分互加防呆（ADR-0055）；**relay 生產部署上線**（免費層 SQLite DO）＋**WebSocket 休眠化＋心跳 30s**（降免費層 duration，ADR-0059）；**樹莓派自架 node-relay**（＋說明文件）；**送達/已讀回條**（Gift Wrap，已讀 opt-in＋互惠，ADR-0058）；**MSN 風 UI**（依上線狀態排序/彩色狀態選單/頂部漸層/大頭貼光暈）＋**分享 ID 縮短+複製**＋**長訊息右側詳情面板**；**本機 Ollama AI 改寫＋未讀摘要**（Rust IPC、localhost 硬守則、prompt injection 緩解，ADR-0060）；**顯示名稱加密個人檔**（只送聯絡人、非公開 kind 0，ADR-0061）。
 
-**缺口總覽**：Tauri **程式碼簽章/自動更新**（B6；需憑證——安裝檔＋系統匣背景＋加密儲存＋金鑰庫皆已 Windows 實機完成）、relay **離線留言 D1／AUTH**（節點已上線）、行動端、企業 G5（SSO/元資料稽核）、通話 TURN 保底真機驗證、F4 第三方稽核。
+**缺口總覽**：Tauri **程式碼簽章/自動更新**（B6；需憑證——安裝檔＋系統匣背景＋加密儲存＋金鑰庫皆已 Windows 實機完成）、行動端（Phase D）、企業 G5（SSO/元資料稽核）、通話 TURN 保底真機驗證、F4 第三方稽核。**relay 離線留言/AUTH 已完成並上線**（C1–C3 ✅，C4 容量校準待真實流量）。
 
 ---
 
@@ -70,7 +71,7 @@
 | C1 | 離線留言持久化 | ✅ **核心完成（ADR-0056）**：改用 **DO 內建 SQLite**（同步，免 D1 async 摩擦、免額外 binding）。`OfflineStore` 介面＋`SqlMessageStore`（NIP-40 過期/每收件人 cap/`#p` 索引/matchFilter，以 `node:sqlite` headless 測 6 項）＋`RelayRoom` DO 接線。⏳ 使用者 `wrangler deploy` 後驗離線收送。 |
 | C2 | NIP-40 排程 prune | ✅ **完成**：`RelayRoom` DO 每小時 `alarm()` → `store.prune()` 清過期留言並重排（DO 休眠仍被喚醒）；建構時若無 alarm 即排程。`prune` 邏輯已測（C1）；alarm 觸發為執行期，`wrangler deploy` 後生效。 |
 | C3 | NIP-42 AUTH | ✅ **完成（ADR-0057）**：`RelayCore.requireAuth`（連線挑戰、驗 kind 22242、發布/讀取閘門、`#p` 收件匣只准本人）＋ `RelayClient` 自動回應挑戰（`authSigner`）＋認證後重掛訂閱（`onAuthenticated`，解「訂閱早於認證」）＋後端接線＋**worker 啟用**。core/relay/desktop 共 14+ 測試（含 requireAuth 下兩端仍能對話）。⏳ 真線上驗（`wrangler deploy` 後）。 |
-| C4 | 部署與容量校準 | `wrangler deploy`；上線後實測請求數回填 `docs/adr/0006`。 |
+| C4 | 部署與容量校準 | 🔧 **已部署上線**（`cinder-relay.…workers.dev`，含 C1–C3）＋**WebSocket 休眠化降 duration**＋免費層量級模型（ADR-0059）。⏳ 待真實流量實測請求數校準、回填 `docs/adr/0006`。 |
 
 **完成定義**：公開可用的中繼站，離線留言真正持久化並自動過期。
 
@@ -167,6 +168,6 @@ Phase A（前端產品化，可在此環境大量推進）
 
 1. **需你決策**：M7 語音訊息離線退回策略、G5 SSO/元資料稽核（各先立 ADR）。
 2. **需換環境**：Phase B（Tauri 打包＋OS 金鑰庫）、Phase C（Cloudflare relay 部署＋D1＋NIP-42 AUTH）、Phase D（React Native 行動端＋QR 相機掃描）、通話 TURN 部署、F4 第三方稽核。
-3. **此環境可選打磨**：**顯示名稱傳遞（Nostr kind 0 profile metadata——聯絡人顯示對方自選暱稱，而非 npub／本地標籤；見 ARCHITECTURE §9）**、G4 輪替後續（輪替提示 i18n、Rust store 平價）、G1 多管理者名冊、多身分切換列同時在線。
+3. **此環境可選打磨**：~~顯示名稱傳遞~~ ✅ **已完成（改用加密個人檔，非公開 kind 0，ADR-0061）**；G4 輪替後續（輪替提示 i18n、Rust store 平價）、G1 多管理者名冊、多身分切換列同時在線、AI 改寫串流輸出、嚴格 CSP（需 tauri:dev 逐項驗）。
 
 > 只有人能做的部署/金鑰步驟集中在 [`OPERATOR-TODO.md`](./OPERATOR-TODO.md)。
