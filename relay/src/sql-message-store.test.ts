@@ -126,3 +126,40 @@ describe("壽命上限（ADR-0065：孤兒資料不可能）", () => {
     expect(s.query(f({ "#p": ["a"] }), 1000)).toEqual([]);
   });
 });
+
+describe("SQL 可尋址事件（NIP-33，ADR-0071 快照）", () => {
+  const snap = (opts: { d?: string; content?: string; createdAt?: number; pubkey?: string; id?: string } = {}): NostrEvent =>
+    ({
+      id: opts.id ?? `snap-${opts.d ?? "dev1"}-${opts.createdAt ?? 1000}`,
+      pubkey: opts.pubkey ?? "author",
+      created_at: opts.createdAt ?? 1000,
+      kind: 30078,
+      tags: [["d", opts.d ?? "dev1"]],
+      content: opts.content ?? "密文快照",
+      sig: "",
+    }) as NostrEvent;
+
+  it("取代語意：同 (kind,pubkey,d) 只留最新；purge（空 content）刪除", () => {
+    const s = new SqlMessageStore(nodeSqlExec());
+    expect(s.putAddressable(snap({ createdAt: 1000, content: "v1" }), 1000)).toBe(true);
+    expect(s.putAddressable(snap({ createdAt: 2000, content: "v2" }), 2000)).toBe(true);
+    expect(s.putAddressable(snap({ createdAt: 500, content: "stale" }), 2100)).toBe(false);
+    let got = s.query(f({ kinds: [30078], authors: ["author"] }), 2000);
+    expect(got).toHaveLength(1);
+    expect(got[0]?.content).toBe("v2");
+    expect(s.putAddressable(snap({ createdAt: 3000, content: "" }), 3000)).toBe(true); // purge
+    got = s.query(f({ kinds: [30078], authors: ["author"] }), 3000);
+    expect(got).toHaveLength(0);
+  });
+
+  it("配額：每 (pubkey,kind) 至多 5 個 d、單顆 256KB；30 天到期 prune 收走", () => {
+    const MONTH = 30 * 86_400;
+    const s = new SqlMessageStore(nodeSqlExec());
+    for (let i = 1; i <= 5; i++) expect(s.putAddressable(snap({ d: `dev${i}` }), 1000)).toBe(true);
+    expect(s.putAddressable(snap({ d: "dev6" }), 1000)).toBe(false);
+    expect(s.putAddressable(snap({ d: "dev1", createdAt: 2000 }), 2000)).toBe(true); // 既有位址可更新
+    expect(s.putAddressable(snap({ d: "dev2", createdAt: 3000, content: "x".repeat(300_000) }), 3000)).toBe(false);
+    s.prune(1000 + MONTH + 1);
+    expect(s.query(f({ kinds: [30078], authors: ["author"] }), 1000)).toHaveLength(1); // 只剩 2000 寫入的 dev1
+  });
+});

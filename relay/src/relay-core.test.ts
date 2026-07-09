@@ -376,3 +376,83 @@ describe("RelayCore — 企業政策 allowedKinds（ADR-0048）", () => {
     expect(core.handle("c", EVENT(signedKind(generateSecretKey(), 21000)))[0]?.message[2]).toBe(true);
   });
 });
+
+describe("RelayCore — 可尋址快照（NIP-33，ADR-0071）", () => {
+  const AUTHMSG = (e: NostrEvent) => JSON.stringify(["AUTH", e]);
+  const snapshot = (sk: Uint8Array, opts: { d?: string; content?: string; createdAt?: number } = {}): NostrEvent =>
+    finalizeEvent(
+      {
+        kind: 30078,
+        created_at: opts.createdAt ?? 1_700_000_000,
+        tags: [["d", opts.d ?? "dev1"]],
+        content: opts.content ?? "密文快照",
+      },
+      sk,
+    );
+
+  it("發佈→取代→purge：REQ 永遠只看到最新一顆；purge 後查無", () => {
+    const store = new MessageStore();
+    const core = new RelayCore({ store, now: () => 1_700_000_000 });
+    core.connect("c");
+    const sk = generateSecretKey();
+    const pk = getPublicKey(sk);
+
+    const v1 = snapshot(sk, { createdAt: 1_700_000_000, content: "v1" });
+    const v2 = snapshot(sk, { createdAt: 1_700_000_100, content: "v2" });
+    expect(core.handle("c", EVENT(v1))).toContainEqual({ to: "c", message: ["OK", v1.id, true, ""] });
+    expect(core.handle("c", EVENT(v2))).toContainEqual({ to: "c", message: ["OK", v2.id, true, ""] });
+
+    const replay = core.handle("c", REQ("s", { kinds: [30078], authors: [pk] }));
+    const events = replay.filter((o) => o.message[0] === "EVENT");
+    expect(events).toHaveLength(1);
+    expect((events[0]!.message[2] as NostrEvent).content).toBe("v2");
+
+    const purge = snapshot(sk, { createdAt: 1_700_000_200, content: "" });
+    expect(core.handle("c", EVENT(purge))).toContainEqual({ to: "c", message: ["OK", purge.id, true, ""] });
+    const after = core.handle("c", REQ("s2", { kinds: [30078], authors: [pk] }));
+    expect(after.filter((o) => o.message[0] === "EVENT")).toHaveLength(0);
+  });
+
+  it("配額超限回 OK false（第 6 個 d）", () => {
+    const store = new MessageStore();
+    const core = new RelayCore({ store, now: () => 1_700_000_000 });
+    core.connect("c");
+    const sk = generateSecretKey();
+    for (let i = 1; i <= 5; i++) {
+      const e = snapshot(sk, { d: `dev${i}` });
+      expect(core.handle("c", EVENT(e))).toContainEqual({ to: "c", message: ["OK", e.id, true, ""] });
+    }
+    const sixth = snapshot(sk, { d: "dev6" });
+    expect(core.handle("c", EVENT(sixth))).toContainEqual({
+      to: "c",
+      message: ["OK", sixth.id, false, "blocked: 可尋址事件遭拒（配額/大小/較舊）"],
+    });
+  });
+
+  it("requireAuth：他人讀不到我的快照——REQ 重放與即時扇出皆閘門，本人可讀", () => {
+    const store = new MessageStore();
+    const core = new RelayCore({ store, now: () => 1_700_000_000, requireAuth: true, authChallenge: () => "ch" });
+    const aliceSk = generateSecretKey();
+    const alicePk = getPublicKey(aliceSk);
+    const bobSk = generateSecretKey();
+
+    core.connect("alice");
+    core.handle("alice", AUTHMSG(buildAuthEvent("ch", "wss://r", aliceSk)));
+    core.connect("bob");
+    core.handle("bob", AUTHMSG(buildAuthEvent("ch", "wss://r", bobSk)));
+
+    // Bob 先掛萬用訂閱（會匹配任何 kind）——即時扇出不得把 Alice 的快照送給他
+    core.handle("bob", REQ("spy", {}));
+    const snap = snapshot(aliceSk);
+    const out = core.handle("alice", EVENT(snap));
+    expect(out.some((o) => o.to === "bob")).toBe(false);
+
+    // Bob 的 REQ 重放也拿不到（即使 filter 直指 Alice）
+    const replay = core.handle("bob", REQ("s", { kinds: [30078], authors: [alicePk] }));
+    expect(replay.filter((o) => o.message[0] === "EVENT")).toHaveLength(0);
+
+    // Alice 本人可讀回
+    const mine = core.handle("alice", REQ("m", { kinds: [30078], authors: [alicePk] }));
+    expect(mine.filter((o) => o.message[0] === "EVENT")).toHaveLength(1);
+  });
+});

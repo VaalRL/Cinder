@@ -1,6 +1,6 @@
 import { AUTH_KIND, authChallengeOf, verifyEvent, type NostrEvent } from "@cinder/core";
 import { matchFilter } from "./filters.js";
-import type { OfflineStore } from "./message-store.js";
+import { isAddressableKind, type OfflineStore } from "./message-store.js";
 import {
   parseClientMessage,
   type RelayFilter,
@@ -272,9 +272,12 @@ export class RelayCore {
     if (this.opts.store) {
       const nowSec = this.now();
       const seen = new Set<string>();
+      const self = this.authState.get(connId)?.pubkey;
       for (const filter of filters) {
         for (const event of this.opts.store.query(filter, nowSec)) {
           if (seen.has(event.id)) continue;
+          // ADR-0071：快照（可尋址密文）只回給作者本人（requireAuth 時）——不論 filter 形狀。
+          if (this.requireAuth && isAddressableKind(event.kind) && event.pubkey !== self) continue;
           seen.add(event.id);
           out.push({ to: connId, message: ["EVENT", subId, event] });
         }
@@ -319,13 +322,24 @@ export class RelayCore {
       if (minPow > 0 && leadingZeroBits(event.id) < minPow) {
         return [{ to: connId, message: ["OK", event.id, false, `pow: 需要難度 ${minPow}`] }];
       }
-      this.opts.store?.put(event, this.now());
+      if (isAddressableKind(event.kind)) {
+        // ADR-0071 快照：取代語意＋配額；遭拒＝OK false（不扇出）。
+        if (this.opts.store && !this.opts.store.putAddressable(event, this.now())) {
+          return [{ to: connId, message: ["OK", event.id, false, "blocked: 可尋址事件遭拒（配額/大小/較舊）"] }];
+        }
+      } else {
+        this.opts.store?.put(event, this.now());
+      }
     }
 
     const out: Outbound[] = [{ to: connId, message: ["OK", event.id, true, ""] }];
     const candidates = new Set<SubEntry>(this.byKind.get(event.kind));
     for (const entry of this.anyKindSubs) candidates.add(entry);
     for (const entry of candidates) {
+      // ADR-0071：快照（可尋址密文）只回給作者本人——requireAuth 時即時扇出也閘門。
+      if (this.requireAuth && isAddressableKind(event.kind) && this.authState.get(entry.connId)?.pubkey !== event.pubkey) {
+        continue;
+      }
       if (entry.filters.some((f) => matchFilter(f, event))) {
         out.push({ to: entry.connId, message: ["EVENT", entry.subId, event] });
       }

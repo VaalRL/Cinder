@@ -98,3 +98,59 @@ describe("壽命上限（ADR-0065：孤兒資料不可能）", () => {
     expect(store.query({ "#p": [recipient] }, 1000 + WEEK + 1)).toHaveLength(0);
   });
 });
+
+describe("可尋址事件（NIP-33，ADR-0071 快照）", () => {
+  const authorSk = generateSecretKey();
+  const author = getPublicKey(authorSk);
+  const snap = (opts: { d?: string; content?: string; createdAt?: number; sk?: Uint8Array } = {}): NostrEvent =>
+    finalizeEvent(
+      {
+        kind: 30078,
+        created_at: opts.createdAt ?? 1000,
+        tags: [["d", opts.d ?? "dev1"]],
+        content: opts.content ?? "密文快照",
+      },
+      opts.sk ?? authorSk,
+    );
+
+  it("取代語意：同 (kind,pubkey,d) 只留最新；不同 d 並存；較舊 created_at 拒收", () => {
+    const store = new MessageStore();
+    expect(store.putAddressable(snap({ createdAt: 1000, content: "v1" }), 1000)).toBe(true);
+    expect(store.putAddressable(snap({ createdAt: 2000, content: "v2" }), 2000)).toBe(true);
+    expect(store.putAddressable(snap({ d: "dev2", createdAt: 1500 }), 1500)).toBe(true);
+    const got = store.query({ kinds: [30078], authors: [author] }, 2000);
+    expect(got).toHaveLength(2); // dev1 最新 + dev2
+    expect(got.find((e) => e.tags.some((t) => t[1] === "dev1"))?.content).toBe("v2");
+    // 較舊的回寫被拒（只留最新）
+    expect(store.putAddressable(snap({ createdAt: 500, content: "stale" }), 2100)).toBe(false);
+  });
+
+  it("purge：content 空＝刪除既有快照", () => {
+    const store = new MessageStore();
+    store.putAddressable(snap({ createdAt: 1000 }), 1000);
+    expect(store.putAddressable(snap({ createdAt: 2000, content: "" }), 2000)).toBe(true);
+    expect(store.query({ kinds: [30078], authors: [author] }, 2000)).toHaveLength(0);
+  });
+
+  it("配額：每 (pubkey, kind) 至多 5 個 d；單顆超過 256KB 拒收", () => {
+    const store = new MessageStore();
+    for (let i = 1; i <= 5; i++) {
+      expect(store.putAddressable(snap({ d: `dev${i}` }), 1000)).toBe(true);
+    }
+    expect(store.putAddressable(snap({ d: "dev6" }), 1000)).toBe(false); // 第 6 台拒收
+    expect(store.putAddressable(snap({ d: "dev1", createdAt: 2000 }), 2000)).toBe(true); // 既有位址可更新
+    expect(store.putAddressable(snap({ d: "dev1", createdAt: 3000, content: "x".repeat(300_000) }), 3000)).toBe(false);
+  });
+
+  it("壽命：30 天上限、每次備份刷新；到期後查不到且 prune 收走", () => {
+    const MONTH = 30 * 86_400;
+    const store = new MessageStore();
+    store.putAddressable(snap({ createdAt: 1000 }), 1000);
+    expect(store.query({ kinds: [30078], authors: [author] }, 1000 + MONTH + 1)).toHaveLength(0);
+    // 刷新（重新備份）＝延壽
+    store.putAddressable(snap({ createdAt: MONTH }), MONTH);
+    expect(store.query({ kinds: [30078], authors: [author] }, MONTH + 100)).toHaveLength(1);
+    store.prune(MONTH * 3);
+    expect(store.query({ kinds: [30078], authors: [author] }, 1000)).toHaveLength(0);
+  });
+});

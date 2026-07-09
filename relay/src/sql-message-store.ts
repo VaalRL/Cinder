@@ -1,8 +1,12 @@
 import type { NostrEvent } from "@cinder/core";
 import { matchFilter } from "./filters.js";
 import {
+  ADDRESSABLE_MAX_BYTES,
+  ADDRESSABLE_MAX_PER_AUTHOR,
+  ADDRESSABLE_TTL_SECONDS,
   DEFAULT_MAX_TTL_SECONDS,
   dedupById,
+  dTagOf,
   effectiveExpiration,
   getExpiration,
   type MessageStoreOptions,
@@ -40,6 +44,20 @@ export class SqlMessageStore implements OfflineStore {
     );
     this.sql(`CREATE INDEX IF NOT EXISTS idx_offline_recipient ON offline_msgs(recipient)`);
     this.sql(`CREATE INDEX IF NOT EXISTS idx_offline_expiration ON offline_msgs(expiration)`);
+    // 可尋址事件（NIP-33，ADR-0071 快照）：每 (kind, pubkey, d) 一列、新的取代舊的。
+    this.sql(
+      `CREATE TABLE IF NOT EXISTS addressable (
+        kind INTEGER NOT NULL,
+        pubkey TEXT NOT NULL,
+        d TEXT NOT NULL,
+        id TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        expiration INTEGER NOT NULL,
+        json TEXT NOT NULL,
+        PRIMARY KEY (kind, pubkey, d)
+      )`,
+    );
+    this.sql(`CREATE INDEX IF NOT EXISTS idx_addressable_expiration ON addressable(expiration)`);
     // ADR-0065 遷移：修正前寫入的無到期列（NULL）補上有界壽命，讓 prune 能收走。
     this.sql(
       `UPDATE offline_msgs SET expiration = created_at + ? WHERE expiration IS NULL`,
@@ -69,6 +87,42 @@ export class SqlMessageStore implements OfflineStore {
     return true;
   }
 
+  /** 寫入可尋址事件（取代語意＋配額；ADR-0071）。行為對齊記憶體版。 */
+  putAddressable(event: NostrEvent, nowSec: number): boolean {
+    const d = dTagOf(event);
+    const existing = this.sql(
+      `SELECT created_at FROM addressable WHERE kind = ? AND pubkey = ? AND d = ?`,
+      event.kind,
+      event.pubkey,
+      d,
+    );
+    if (existing[0] && (existing[0].created_at as number) > event.created_at) return false; // 只留最新
+    if (event.content === "") {
+      // purge：關閉備份時「已關閉」必須立即為真（ADR-0071）。
+      this.sql(`DELETE FROM addressable WHERE kind = ? AND pubkey = ? AND d = ?`, event.kind, event.pubkey, d);
+      return true;
+    }
+    const json = JSON.stringify(event);
+    if (json.length > ADDRESSABLE_MAX_BYTES) return false;
+    if (!existing[0]) {
+      const count = this.sql(`SELECT COUNT(*) AS n FROM addressable WHERE kind = ? AND pubkey = ?`, event.kind, event.pubkey);
+      if (((count[0]?.n as number) ?? 0) >= ADDRESSABLE_MAX_PER_AUTHOR) return false;
+    }
+    const eff = effectiveExpiration(event, nowSec, ADDRESSABLE_TTL_SECONDS);
+    if (eff <= nowSec) return false;
+    this.sql(
+      `INSERT OR REPLACE INTO addressable (kind, pubkey, d, id, created_at, expiration, json) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      event.kind,
+      event.pubkey,
+      d,
+      event.id,
+      event.created_at,
+      eff,
+      json,
+    );
+    return true;
+  }
+
   query(filter: RelayFilter, nowSec: number): NostrEvent[] {
     const pValues = filter["#p"];
     let rows: Record<string, unknown>[];
@@ -81,6 +135,8 @@ export class SqlMessageStore implements OfflineStore {
       );
     } else {
       rows = this.sql(`SELECT json FROM offline_msgs WHERE (expiration IS NULL OR expiration > ?)`, nowSec);
+      // 快照走 authors+kinds 查詢（無 `#p`）：可尋址列一併納入候選。
+      rows = rows.concat(this.sql(`SELECT json FROM addressable WHERE expiration > ?`, nowSec));
     }
     const events = dedupById(rows.map((r) => JSON.parse(r.json as string) as NostrEvent));
     return events.filter((e) => matchFilter(filter, e));
@@ -88,6 +144,7 @@ export class SqlMessageStore implements OfflineStore {
 
   prune(nowSec: number): void {
     this.sql(`DELETE FROM offline_msgs WHERE expiration IS NOT NULL AND expiration <= ?`, nowSec);
+    this.sql(`DELETE FROM addressable WHERE expiration <= ?`, nowSec);
   }
 
   private enforceCap(recipients: string[]): void {
