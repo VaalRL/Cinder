@@ -54,7 +54,7 @@ wscat -c ws://localhost:8787
 | --- | --- | --- |
 | `PORT` | `8787` | 監聽通訊埠。 |
 | `DB_PATH` | `cinder-relay.db` | 離線留言的 SQLite 檔路徑（建議用絕對路徑）。 |
-| `REQUIRE_AUTH` | 開啟 | 設 `REQUIRE_AUTH=0` 可關閉 NIP-42 認證（**不建議**——關了任何人都能拉他人的加密收件匣元資料，見 ADR-0057）。 |
+| `REQUIRE_AUTH` | 開啟 | 設 `REQUIRE_AUTH=0` 可關閉 NIP-42 認證（**不建議**——關了任何人都能拉他人的加密收件匣元資料，雲端快照密文（ADR-0071）也會失去「只回作者本人」的閘門，見 ADR-0057）。 |
 | `MAX_PER_RECIPIENT` | `500` | 每位收件人的離線留言上限（防塞爆）。 |
 
 範例：

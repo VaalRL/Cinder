@@ -1195,18 +1195,31 @@ export function AddIdentityModal({
   // 加密備份碼匯入（ADR-0070）：偵測到備份碼即要求備份密碼；信封 relay（明文）自動預填。
   const [backupPw, setBackupPw] = useState("");
   const [backupErr, setBackupErr] = useState(false);
+  const [busy, setBusy] = useState(false);
   const isCode = isBackupCode(nsec.trim());
   const submit = () => {
-    if (!name.trim() || !relayUrl.trim()) return;
-    if (isCode && !backupPw) return;
+    if (!name.trim() || !relayUrl.trim() || busy) return;
+    const adminPubkey = enterprise ? admin.trim() || undefined : undefined;
+    if (isCode) {
+      if (!backupPw) return;
+      // scrypt 解碼約需一秒（審查修正 #9）：先讓「還原中…」上畫再執行，避免無回饋凍結。
+      setBusy(true);
+      setTimeout(() => {
+        try {
+          const imported = parseBackupCode(nsec.trim(), backupPw).nsec;
+          onAdd(name.trim(), relayUrl.trim(), enterprise, { nsec: imported, adminPubkey });
+        } catch {
+          setBackupErr(true); // 備份密碼錯誤：保留輸入
+        } finally {
+          setBusy(false);
+        }
+      }, 0);
+      return;
+    }
     try {
-      const imported = isCode ? parseBackupCode(nsec.trim(), backupPw).nsec : nsec.trim() || undefined;
-      onAdd(name.trim(), relayUrl.trim(), enterprise, {
-        nsec: imported,
-        adminPubkey: enterprise ? admin.trim() || undefined : undefined,
-      });
+      onAdd(name.trim(), relayUrl.trim(), enterprise, { nsec: nsec.trim() || undefined, adminPubkey });
     } catch {
-      setBackupErr(true); // 備份密碼錯誤或非法 nsec：保留輸入
+      setBackupErr(true); // 非法 nsec：保留輸入
     }
   };
   return (
@@ -1268,10 +1281,10 @@ export function AddIdentityModal({
           <button
             className="groupmodal__create"
             data-testid="add-identity-confirm"
-            disabled={!name.trim() || !relayUrl.trim() || (isCode && !backupPw)}
+            disabled={!name.trim() || !relayUrl.trim() || (isCode && !backupPw) || busy}
             onClick={submit}
           >
-            建立並切換
+            {busy ? "還原中…" : "建立並切換"}
           </button>
         </div>
       </div>
