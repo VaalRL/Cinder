@@ -33,8 +33,18 @@ export const MAINTAINER_PUBKEY = "你的維護者公鑰 hex（64 字元）";
 
 ### A5. 填入初始節點清單 `relay/bootstrap/relays.json`
 ```json
-{ "relays": ["wss://relay.你的網域.tw", "wss://node2.某社群.com"], "updatedAt": 1 }
+{
+  "relays": ["wss://relay.你的網域.tw", "wss://node2.某社群.com"],
+  "entries": [
+    { "url": "wss://relay.你的網域.tw", "weight": 2 },
+    { "url": "wss://node2.某社群.com", "accepting": false }
+  ],
+  "updatedAt": 1
+}
 ```
+- `entries`（ADR-0069，可省略＝全預設）：`accepting: false`＝停收新帳號分配（額度吃緊）、
+  `weight`＝自動分配權重、`status: "draining"`＝計劃退役（既有用戶分批自動搬走）、
+  `"retired"`＝已退役（免探測、保留於清單讓客戶端學到）。
 - Cron（每小時）會自動 REQ→EOSE 探測、剔除逾時者、簽章並**發佈到每座健康 relay**（客戶端連上即學到）。
 - 想立刻跑一次：GitHub → Actions →「Relay 健康檢查」→ Run workflow（`workflow_dispatch`）。
 

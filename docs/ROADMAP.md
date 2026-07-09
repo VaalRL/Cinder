@@ -168,12 +168,12 @@
 
 | # | 任務 | 環境 | 說明 / 驗證 |
 | --- | --- | --- | --- |
-| I1 | 簽章清單 schema 擴充 | 🌐＋☁️ | 📋 清單每座增 `{ accepting, weight, status: ok\|draining\|retired }`；core 驗簽/採用邏輯與 relay-health workflow 同步更新；舊欄位相容（缺欄位視為 `accepting: true`）。 |
-| I2 | 遞補持久化＋T2 durable 搬家 | 🌐 | 📋 修 ADR-0039 缺口：遞補後持續離線逾門檻（24h）或開機即死且引導座健康 → 走 H2 `changeProfileRelay`＋H3 排水＋H1 廣播的 durable 搬家＋事後通知；遲滯防抖。 |
-| I3 | T3 清單退役撤離 | 🌐 | 📋 `draining`/`retired` → 既有用戶分批隨機延遲自動搬家（防羊群）；`accepting: false` 僅擋新分配。 |
-| I4 | SignIn 自動選座 | 🌐 | 📋 relay 欄改選填；留空→自 `accepting` 座加權隨機＋健康探測；保留手填與 `?relay=`。 |
+| I1 | 簽章清單 schema 擴充 | 🌐＋☁️ | ✅ **完成**：`RelayListDoc.entries`（accepting/weight/status；舊欄位 relays 保留＝舊客戶端相容、缺欄位全預設）；`listEntries`/`pickWeighted`/`migrationTarget`/`weightedOrder` 純函式；health-check 對 retired 免探測原樣保留、entries 隨簽章發佈。 |
+| I2 | 遞補持久化＋T2 durable 搬家 | 🌐 | ✅ **完成**：home 離線起點跨 session 持久化（`nb.homeDownAt`）；逾門檻（預設 24h）且有健康目標 → `onHomeMigrate` → App 走 H2＋H3 排水＋通知＋重載（一次性 latch、遲滯防抖；企業不接）。 |
+| I3 | T3 清單退役撤離 | 🌐 | ✅ **完成**：清單標我的 home 為 draining/retired → 隨機延遲（預設 0–6h 防羊群、測試可注入）後撤離；目標＝清單序首個 accepting ok 在線座（決定性防 split-brain）＋錨點保底；`accepting:false` 僅擋新分配。 |
+| I4 | SignIn 自動選座 | 🌐 | ✅ **完成**：欄位無預設值時自錨點加權隨機＋WebSocket 探測依序備援預填（可改可清）；`?relay=`>上次記憶>自動選座；無錨點＝行為不變（示範模式保留）。 |
 
-**完成定義**：新帳號免填網址上線；relay 死亡/退役對用戶透明，遷移一次到位不重演。
+**完成定義**：新帳號免填網址上線；relay 死亡/退役對用戶透明，遷移一次到位不重演。✅ **機制已達成**——實效待錨點營運前提（OPERATOR-TODO §A：填 `ANCHOR_RELAYS`/`MAINTAINER_PUBKEY`、立 ≥2 座）。
 
 ---
 
@@ -217,7 +217,7 @@ Phase A（前端產品化，可在此環境大量推進）
 此環境（🌐）**不需新決策就能做的規劃項目已全數完成**（Phase A/E 全部、G0–G4、M8 來電鈴聲、Cinder 更名）。往下推進需要：
 
 1. ~~已定案、可直接施工：Phase H~~ ✅ **H1–H3 完成、H4 核心完成**（ADR-0066/0067）——僅餘 H4 的 Tauri 實機驗證（`tauri:dev` 跑解鎖全流程）。
-2. ~~H5／H6／Phase J~~ ✅ **全數完成**（ADR-0068/0070/0071）——僅餘 `wrangler deploy` 讓 relay 端快照上線。**Phase I 自動分配/自動搬家（ADR-0069，I1→I4）已定案可施工**（實效需錨點營運前提，OPERATOR-TODO §A）。
+2. ~~H5／H6／Phase J／Phase I~~ ✅ **全數完成**（ADR-0068/0069/0070/0071）。剩兩件營運事項：`wrangler deploy`（relay 端快照上線）＋錨點前提（OPERATOR-TODO §A，Phase I 實效）。
 3. **需你決策**：M7 語音訊息離線退回策略、G5 SSO/元資料稽核（先立 ADR）；D4 桌面先行多裝置同步（完整歷史搬運＋即時 delta 通道＋快照模式 LWW 同步，若要做需立 ADR）。
 3. **需換環境**：Phase B（Tauri 打包＋OS 金鑰庫）、Phase C（Cloudflare relay 部署＋D1＋NIP-42 AUTH）、Phase D（React Native 行動端＋QR 相機掃描）、通話 TURN 部署、F4 第三方稽核。
 4. **此環境可選打磨**：~~顯示名稱傳遞~~ ✅ **已完成（改用加密個人檔，非公開 kind 0，ADR-0061）**；G4 輪替後續（輪替提示 i18n、Rust store 平價）、G1 多管理者名冊、多身分切換列同時在線、AI 改寫串流輸出、嚴格 CSP（需 tauri:dev 逐項驗）。
