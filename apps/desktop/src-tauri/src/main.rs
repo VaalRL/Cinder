@@ -163,9 +163,27 @@ fn pass_unlock(namespace: String, pubkey: String, password: String) -> Result<St
         return Err("此身分未啟用本地密碼".into());
     }
     let nsec = cinder_desktop::passlock::unwrap(&password, &v).map_err(|e| e.to_string())?;
-    if let Some(kb) = cinder_desktop::keyvault::get_key(&format!("db:{namespace}")).map_err(|e| e.to_string())? {
+    let account = format!("db:{namespace}");
+    let next_account = format!("db-next:{namespace}");
+    if let Some(kb) = cinder_desktop::keyvault::get_key(&account).map_err(|e| e.to_string())? {
         if cinder_desktop::passlock::is_wrapped(&kb) {
-            let key_b64 = cinder_desktop::passlock::unwrap(&password, &kb).map_err(|e| e.to_string())?;
+            let key_b64 = match cinder_desktop::passlock::unwrap(&password, &kb) {
+                Ok(k) => {
+                    let _ = cinder_desktop::keyvault::delete_key(&next_account); // 清掉改密碼殘留
+                    k
+                }
+                Err(e) => {
+                    // 審查修正 #4：改密碼中斷的回退——db 仍是舊包裹時，以 db-next（新密碼包裹）
+                    // 解開並回寫，完成被中斷的最後一步（自癒）。
+                    let nb = cinder_desktop::keyvault::get_key(&next_account)
+                        .map_err(|e2| e2.to_string())?
+                        .ok_or_else(|| e.to_string())?;
+                    let k = cinder_desktop::passlock::unwrap(&password, &nb).map_err(|e2| e2.to_string())?;
+                    cinder_desktop::keyvault::set_key(&account, &nb).map_err(|e2| e2.to_string())?;
+                    let _ = cinder_desktop::keyvault::delete_key(&next_account);
+                    k
+                }
+            };
             let bytes = STANDARD.decode(key_b64).map_err(|e| e.to_string())?;
             let key: [u8; encstore::KEY_LEN] =
                 bytes.as_slice().try_into().map_err(|_| "DB 金鑰長度不符".to_string())?;
@@ -202,13 +220,22 @@ fn pass_change(namespace: String, pubkey: String, old: String, new: String) -> R
         _ => None,
     };
     let wrapped_nsec = cinder_desktop::passlock::wrap(&new, &nsec).map_err(|e| e.to_string())?;
-    let wrapped_key = match &key_plain {
-        Some(k) => Some(cinder_desktop::passlock::wrap(&new, k).map_err(|e| e.to_string())?),
-        None => None,
-    };
-    cinder_desktop::keyvault::set_key(&pubkey, &wrapped_nsec).map_err(|e| e.to_string())?;
-    if let Some(wk) = wrapped_key {
-        cinder_desktop::keyvault::set_key(&account, &wk).map_err(|e| e.to_string())?;
+    // 防斷電順序（審查修正 #4）：db-next(新) → nsec(新) → db(新) → 刪 db-next。
+    // 任一中斷點皆可復原：nsec 未換前舊密碼全通；nsec 已換而 db 仍舊包裹時，
+    // pass_unlock 以 db-next（新密碼包裹）回退自癒。兩條 credman 寫入本質非原子，
+    // 此順序把「資料金鑰永久不可解」的窗口關掉。
+    let next_account = format!("db-next:{namespace}");
+    match &key_plain {
+        Some(k) => {
+            let wrapped_key = cinder_desktop::passlock::wrap(&new, k).map_err(|e| e.to_string())?;
+            cinder_desktop::keyvault::set_key(&next_account, &wrapped_key).map_err(|e| e.to_string())?;
+            cinder_desktop::keyvault::set_key(&pubkey, &wrapped_nsec).map_err(|e| e.to_string())?;
+            cinder_desktop::keyvault::set_key(&account, &wrapped_key).map_err(|e| e.to_string())?;
+            let _ = cinder_desktop::keyvault::delete_key(&next_account);
+        }
+        None => {
+            cinder_desktop::keyvault::set_key(&pubkey, &wrapped_nsec).map_err(|e| e.to_string())?;
+        }
     }
     Ok(())
 }
@@ -231,7 +258,9 @@ fn pass_disable(namespace: String, pubkey: String, password: String) -> Result<(
         }
         _ => None,
     };
-    cinder_desktop::keyvault::set_key(&pubkey, &nsec).map_err(|e| e.to_string())?;
+    // 防斷電順序（審查修正 #4）：先寫回 db 明文、再寫 nsec 明文——中間崩潰時
+    // nsec 仍是包裹（locked 旗標仍在）→ 解鎖畫面照常可走、db 已明文可讀；
+    // 反序則會落在「nsec 明文但 db 上鎖、又無解鎖入口」的死角。
     if let Some(k) = &key_plain {
         cinder_desktop::keyvault::set_key(&account, k).map_err(|e| e.to_string())?;
         let bytes = STANDARD.decode(k).map_err(|e| e.to_string())?;
@@ -239,6 +268,7 @@ fn pass_disable(namespace: String, pubkey: String, password: String) -> Result<(
             unlocked_keys().lock().unwrap().insert(namespace, key);
         }
     }
+    cinder_desktop::keyvault::set_key(&pubkey, &nsec).map_err(|e| e.to_string())?;
     Ok(())
 }
 
