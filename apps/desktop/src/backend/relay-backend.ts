@@ -16,6 +16,7 @@ import {
   isMentioned,
   jitter,
   KIND,
+  listEntries,
   messageExpiry,
   npubDecode,
   npubEncode,
@@ -209,6 +210,15 @@ export interface RelayPoolOptions {
    * （NIP-44 加密給自己、`d`＝deviceId）。未設＝不發佈；接收合併（J3）恆開。
    */
   cloudSync?: { mode: "basic" | "full"; deviceId: string };
+  /**
+   * durable 搬家通知（ADR-0069 T2/T3）：home 持續死亡逾門檻或清單標 draining/retired
+   * 時呼叫，App 執行保命名空間搬家（H2）＋排水（H3）＋重載。未設＝維持 session 遞補現況。
+   */
+  onHomeMigrate?: (newUrl: string, reason: "dead" | "retired") => void;
+  /** T2 門檻（ms）：home 連續離線超過此值→durable 搬家。預設 24 小時；測試可縮。 */
+  homeDeadMs?: number;
+  /** T3 分批延遲（ms）產生器（防羊群）；預設隨機 0–6 小時。測試可注入定值。 */
+  retireDelayMs?: () => number;
 }
 
 export class RelayChatBackend implements ChatBackend {
@@ -233,6 +243,12 @@ export class RelayChatBackend implements ChatBackend {
   private snapTimer: ReturnType<typeof setInterval> | undefined;
   /** 企業政策禁止快照上雲（ADR-0071）：名冊採用時設定，即刻停止發佈。 */
   private cloudBackupBlocked = false;
+  /** durable 搬家（ADR-0069 T2/T3）：通知回呼、T2 門檻、T3 延遲、一次性 latch。 */
+  private readonly onHomeMigrate: ((newUrl: string, reason: "dead" | "retired") => void) | undefined;
+  private readonly homeDeadMs: number;
+  private readonly retireDelayFn: (() => number) | undefined;
+  private migrateFired = false;
+  private retireTimer: ReturnType<typeof setTimeout> | undefined;
   /** 引導座（錨點 ∪ 已採用清單，ADR-0039）：恆連保底、冗餘廣播與 home 遞補來源。 */
   private readonly bootstrapSeats = new Set<string>();
   private readonly maintainerPubkey: string | undefined;
@@ -289,6 +305,9 @@ export class RelayChatBackend implements ChatBackend {
     const drain = normalizeRelayUrl(pool?.drainUrl);
     this.drainUrl = drain !== this.homeUrl ? drain : undefined;
     this.cloudSync = pool?.cloudSync;
+    this.onHomeMigrate = pool?.onHomeMigrate;
+    this.homeDeadMs = pool?.homeDeadMs ?? 24 * 3600_000;
+    this.retireDelayFn = pool?.retireDelayMs;
     this.connectorFor = pool?.connectorFor;
     this.maintainerPubkey = pool?.maintainerPubkey;
     this.orgAdminPubkey = pool?.orgAdminPubkey;
@@ -389,6 +408,7 @@ export class RelayChatBackend implements ChatBackend {
     this.renderTimer = setInterval(() => {
       this.emitContacts();
       this.maybeSucceedHome(); // home 長期離線 → 自動遞補健康引導座（ADR-0039）
+      this.maybeMigrateHome(); // home 死亡逾門檻 → durable 搬家通知（ADR-0069 T2）
       this.emitRelayPool(); // stale 隨時間推移改變；簽章防抖，沒變不發
     }, 1000);
     // 外送匣節流泵（ADR-0041）：以固定間隔在併發上限內送出、退避重試、丟棄逾時在途。
@@ -592,6 +612,7 @@ export class RelayChatBackend implements ChatBackend {
       this.resubscribe(); // 新引導座連線並掛收件箱訂閱
       this.emitRelayPool();
     }
+    this.scheduleRetirementIfNeeded(); // 清單標我的 home 為 draining/retired → T3 撤離（ADR-0069）
   }
 
   /** 當前 WebRTC ICE 設定（ADR-0048）：強制 TURN 政策生效時只走 relay 候選。 */
@@ -1009,6 +1030,79 @@ export class RelayChatBackend implements ChatBackend {
     this.resubscribe();
     this.beat(); // 立即在新 home 廣播在線
     if (this.handlers) this.onHomeSwitched?.(healthy);
+  }
+
+  /**
+   * 搬家目標（ADR-0069）：清單序首個 accepting 且 ok 且**在線**且 ≠ 原 home——
+   * 決定性選座讓同帳號多台裝置各自搬也選到同一座（緩解 split-brain）；
+   * 清單沒涵蓋的錨點座接在其後作為保底。
+   */
+  private pickMigrationTarget(): string | undefined {
+    const entries = this.lastList ? listEntries(this.lastList) : [];
+    const known = new Set(entries.map((e) => e.url));
+    for (const url of this.bootstrapSeats) {
+      if (!known.has(url)) entries.push({ url, accepting: true, weight: 1, status: "ok" });
+    }
+    for (const e of entries) {
+      if (!e.accepting || e.status !== "ok") continue;
+      const url = normalizeRelayUrl(e.url);
+      if (!url || url === this.originalHomeUrl) continue;
+      if (this.relayStates.get(url) === "online") return url;
+    }
+    return undefined;
+  }
+
+  /** home（profile 所指的原始座）離線起點；跨 session 以 localStorage 持久化（不可用時退回本 session）。 */
+  private homeDownSince(): number | undefined {
+    const url = this.originalHomeUrl;
+    if (!url) return undefined;
+    const key = `nb.homeDownAt.${this.self.pubkey.slice(0, 8)}`;
+    if (this.relayStates.get(url) === "online") {
+      try {
+        localStorage.removeItem(key);
+      } catch {
+        /* 忽略 */
+      }
+      return undefined;
+    }
+    const mem = this.offlineSince.get(url);
+    if (mem === undefined) return undefined; // 尚未觀察到離線（connecting 不算死）
+    try {
+      const raw = localStorage.getItem(key);
+      const persisted = raw ? Number(raw) : Number.NaN;
+      if (Number.isFinite(persisted)) return Math.min(persisted, mem);
+      localStorage.setItem(key, String(mem));
+      return mem;
+    } catch {
+      return mem;
+    }
+  }
+
+  /** T2（ADR-0069）：home 持續死亡逾門檻且有健康目標 → durable 搬家通知（一次性）。 */
+  private maybeMigrateHome(): void {
+    if (!this.onHomeMigrate || this.migrateFired || !this.originalHomeUrl) return;
+    const downAt = this.homeDownSince();
+    if (downAt === undefined || Date.now() - downAt <= this.homeDeadMs) return;
+    const target = this.pickMigrationTarget();
+    if (!target) return;
+    this.migrateFired = true;
+    this.onHomeMigrate(target, "dead");
+  }
+
+  /** T3（ADR-0069）：採用的清單把我的 home 標 draining/retired → 分批隨機延遲後撤離。 */
+  private scheduleRetirementIfNeeded(): void {
+    if (!this.onHomeMigrate || this.migrateFired || this.retireTimer !== undefined) return;
+    if (!this.originalHomeUrl || !this.lastList) return;
+    const mine = listEntries(this.lastList).find((e) => e.url === this.originalHomeUrl);
+    if (!mine || mine.status === "ok") return;
+    const delay = this.retireDelayFn?.() ?? Math.floor(Math.random() * 6 * 3600_000);
+    this.retireTimer = setTimeout(() => {
+      if (this.migrateFired) return;
+      const target = this.pickMigrationTarget();
+      if (!target) return;
+      this.migrateFired = true;
+      this.onHomeMigrate?.(target, "retired");
+    }, delay);
   }
 
   /** 記錄某座 relay 的狀態與連續離線起點，並發出 pool 快照。 */
@@ -1482,6 +1576,7 @@ export class RelayChatBackend implements ChatBackend {
     if (this.renderTimer) clearInterval(this.renderTimer);
     if (this.pumpTimer) clearInterval(this.pumpTimer);
     if (this.snapTimer) clearInterval(this.snapTimer);
+    if (this.retireTimer !== undefined) clearTimeout(this.retireTimer);
     this.outbox.clear();
     this.transfer.close();
     this.call.close();

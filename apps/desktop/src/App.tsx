@@ -151,6 +151,31 @@ function buildBackend(p: Profile, nsecOverride?: string, storage?: AppStorage): 
             /* 忽略 */
           }
         },
+        // durable 搬家（ADR-0069 T2/T3）：走 H2 保命名空間＋H3 排水，事後通知並重載。
+        onHomeMigrate: (newUrl: string, reason: "dead" | "retired") => {
+          const state = loadProfiles();
+          if (!state.profiles.some((x) => x.pubkey === p.pubkey)) return;
+          saveProfiles(changeProfileRelay(state, p.pubkey, newUrl));
+          try {
+            localStorage.setItem(RELAY_URL_KEY, newUrl);
+          } catch {
+            /* 忽略 */
+          }
+          try {
+            window.alert(
+              reason === "retired"
+                ? `你的中繼站已被維護者標記退役，已自動搬家到 ${newUrl}。舊站來訊將續收 7 天（排水）。`
+                : `你的中繼站已離線超過一天，已自動搬家到 ${newUrl}。舊站來訊將續收 7 天（排水）。`,
+            );
+          } catch {
+            /* 忽略 */
+          }
+          try {
+            location.reload();
+          } catch {
+            /* 忽略 */
+          }
+        },
       };
   return new RelayChatBackend(
     store,

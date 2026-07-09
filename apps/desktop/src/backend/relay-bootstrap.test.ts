@@ -154,6 +154,67 @@ describe("混合式引導路由：Node1 下架後自動遷移（ADR-0039）", ()
     b.stop();
   });
 
+  it("T2 durable 搬家（ADR-0069）：home 死亡逾門檻→onHomeMigrate 通知決定性目標（一次性）", () => {
+    vi.useFakeTimers();
+    try {
+      const farm = relayFarm(["wss://node1", "wss://anchor"]);
+      const migrated: [string, string][] = [];
+      const a = new RelayChatBackend(new MemoryStorage(), farm.connector("wss://node1"), "A", {
+        relayUrl: "wss://node1",
+        connectorFor: farm.connector,
+        anchors: ["wss://anchor"],
+        homeDeadMs: 10_000,
+        onHomeMigrate: (u, r) => migrated.push([u, r]),
+      });
+      a.start(noop);
+      farm.setDown("wss://node1");
+      vi.advanceTimersByTime(2_000);
+      expect(migrated).toHaveLength(0); // 未逾門檻（遲滯防抖）
+      vi.advanceTimersByTime(10_000);
+      expect(migrated).toEqual([["wss://anchor", "dead"]]);
+      vi.advanceTimersByTime(10_000);
+      expect(migrated).toHaveLength(1); // 一次性 latch，不重複觸發
+      a.stop();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("T3 退役撤離（ADR-0069）：清單標 draining→隨機延遲後搬到清單序首個健康 accepting 座", () => {
+    vi.useFakeTimers();
+    try {
+      const maintSk = generateSecretKey();
+      const maintPk = getPublicKey(maintSk);
+      const farm = relayFarm(["wss://node1", "wss://anchor", "wss://node2"]);
+      const migrated: [string, string][] = [];
+      const a = new RelayChatBackend(new MemoryStorage(), farm.connector("wss://node1"), "A", {
+        relayUrl: "wss://node1",
+        connectorFor: farm.connector,
+        anchors: ["wss://anchor"],
+        maintainerPubkey: maintPk,
+        retireDelayMs: () => 5_000,
+        onHomeMigrate: (u, r) => migrated.push([u, r]),
+      });
+      a.start(noop);
+
+      const list = signRelayList(
+        {
+          relays: ["wss://node1", "wss://node2"],
+          entries: [{ url: "wss://node1", status: "draining" }, { url: "wss://node2" }],
+          updatedAt: 1000,
+        },
+        maintSk,
+      );
+      farm.publishRaw("wss://anchor", list);
+      expect(migrated).toHaveLength(0); // 分批延遲未到（防羊群）
+      vi.advanceTimersByTime(6_000);
+      expect(migrated).toEqual([["wss://node2", "retired"]]); // 清單序首個 ok 座（決定性）
+      a.stop();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("偽造清單（非維護者簽章）不被採用", () => {
     const maintSk = generateSecretKey();
     const maintPk = getPublicKey(maintSk);
