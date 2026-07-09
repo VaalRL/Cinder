@@ -1,4 +1,6 @@
-import { useState } from "react";
+import { listEntries, weightedOrder } from "@cinder/core";
+import { useEffect, useState } from "react";
+import { ANCHOR_RELAYS } from "../bootstrap-config.js";
 import { useI18n } from "../i18n.js";
 import { CinderMark } from "./Brand.js";
 import { TitleControls } from "./TitleControls.js";
@@ -10,6 +12,49 @@ export const RELAY_URL_KEY = "nb.relayUrl";
 export function initialRelayUrl(search: string, lastUsed: string | null): string {
   const param = new URLSearchParams(search).get("relay");
   return param ?? lastUsed ?? "";
+}
+
+/**
+ * 自動選座候選（ADR-0069 I4）：錨點物化營運預設後加權隨機排序——
+ * 首選＋依序備援；無錨點（現況營運前提未備）回空、行為不變。
+ */
+export function autoRelayCandidates(anchors: readonly string[], rand: () => number): string[] {
+  return weightedOrder(listEntries({ relays: [...anchors], updatedAt: 0 }), rand);
+}
+
+/** WebSocket 開啟探測（best-effort）；環境無 WebSocket 時視為可用（交給連線層退避）。 */
+function probeRelay(url: string, timeoutMs: number): Promise<boolean> {
+  if (typeof WebSocket === "undefined") return Promise.resolve(true);
+  return new Promise((resolve) => {
+    let done = false;
+    let ws: WebSocket | undefined;
+    const finish = (ok: boolean) => {
+      if (done) return;
+      done = true;
+      try {
+        ws?.close();
+      } catch {
+        /* 忽略 */
+      }
+      resolve(ok);
+    };
+    const timer = setTimeout(() => finish(false), timeoutMs);
+    try {
+      ws = new WebSocket(url);
+    } catch {
+      clearTimeout(timer);
+      resolve(false);
+      return;
+    }
+    ws.addEventListener("open", () => {
+      clearTimeout(timer);
+      finish(true);
+    });
+    ws.addEventListener("error", () => {
+      clearTimeout(timer);
+      finish(false);
+    });
+  });
 }
 
 function initialRelay(): string {
@@ -24,6 +69,29 @@ export function SignIn({ onSignIn }: { onSignIn: (name: string, relayUrl: string
   const { t } = useI18n();
   const [name, setName] = useState("");
   const [relay, setRelay] = useState(initialRelay);
+
+  // 自動選座（ADR-0069 I4）：欄位無預設值時，自錨點加權隨機＋健康探測預填（可改可清）。
+  useEffect(() => {
+    if (relay) return;
+    const candidates = autoRelayCandidates(ANCHOR_RELAYS, Math.random);
+    if (candidates.length === 0) return;
+    let cancelled = false;
+    void (async () => {
+      for (const url of candidates) {
+        const ok = await probeRelay(url, 3000);
+        if (cancelled) return;
+        if (ok) {
+          setRelay((cur) => cur || url); // 使用者已手填則不覆蓋
+          return;
+        }
+      }
+      if (!cancelled) setRelay((cur) => cur || candidates[0] || ""); // 全滅仍給首選（清單機制會自癒）
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const submit = () => {
     const n = name.trim();
     if (n) onSignIn(n, relay.trim());

@@ -2,7 +2,16 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, describe, expect, it } from "vitest";
 import { I18nProvider } from "../i18n.js";
 import { ThemeProvider } from "../theme.js";
-import { initialRelayUrl, SignIn } from "./SignIn.js";
+import { autoRelayCandidates, initialRelayUrl, SignIn } from "./SignIn.js";
+
+describe("自動選座候選（ADR-0069 I4）", () => {
+  it("錨點加權隨機排序（預設權重相等）；無錨點回空＝行為不變", () => {
+    const seq = [0.9, 0];
+    let i = 0;
+    expect(autoRelayCandidates(["wss://a", "wss://b"], () => seq[i++] ?? 0)).toEqual(["wss://b", "wss://a"]);
+    expect(autoRelayCandidates([], () => 0.5)).toEqual([]);
+  });
+});
 
 describe("relay 欄位預設值（記住上次使用的網址）", () => {
   it("?relay= 參數優先於本地記憶", () => {

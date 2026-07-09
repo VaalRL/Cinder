@@ -9,6 +9,7 @@ import {
   shouldAdoptList,
   signRelayList,
   verifyRelayList,
+  weightedOrder,
   type RelayListDoc,
 } from "./bootstrap.js";
 import { RELAY_LIST_KIND } from "./constants.js";
@@ -155,5 +156,24 @@ describe("清單 entries 擴充（ADR-0069）", () => {
     expect(migrationTarget(entries, "wss://old")).toBe("wss://next");
     expect(migrationTarget(entries, "wss://next")).toBe("wss://other");
     expect(migrationTarget(listEntries({ relays: ["wss://x"], updatedAt: 1 }), "wss://x")).toBeUndefined();
+  });
+});
+
+describe("weightedOrder（ADR-0069 I4 自動選座順序）", () => {
+  it("反覆加權抽出至耗盡；非 accepting/非 ok 不入列", () => {
+    const entries = listEntries({
+      relays: [],
+      entries: [
+        { url: "wss://a", weight: 1 },
+        { url: "wss://b", weight: 3 },
+        { url: "wss://c", status: "retired" },
+      ],
+      updatedAt: 1,
+    });
+    // rand 依序 0.9（→b）、0（→剩下的 a）
+    const seq = [0.9, 0];
+    let i = 0;
+    expect(weightedOrder(entries, () => seq[i++] ?? 0)).toEqual(["wss://b", "wss://a"]);
+    expect(weightedOrder([], () => 0.5)).toEqual([]);
   });
 });

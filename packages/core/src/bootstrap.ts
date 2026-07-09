@@ -182,6 +182,25 @@ export function migrationTarget(entries: readonly ResolvedRelayEntry[], excludeU
 }
 
 /**
+ * 加權隨機排序（ADR-0069 I4）：反覆加權抽出直到候選耗盡——SignIn 自動選座的
+ * 「首選＋依序備援」順序。`rand` 每次呼叫回傳 [0,1)（注入可測）。
+ */
+export function weightedOrder(entries: readonly ResolvedRelayEntry[], rand: () => number): string[] {
+  const pool = entries.filter((e) => e.accepting && e.status === "ok");
+  const out: string[] = [];
+  while (pool.length > 0) {
+    const url = pickWeighted(pool, rand());
+    if (!url) break;
+    out.push(url);
+    pool.splice(
+      pool.findIndex((e) => e.url === url),
+      1,
+    );
+  }
+  return out;
+}
+
+/**
  * 合併出「引導 pool」（ADR-0039）：錨點 ∪ 簽章清單 ∪ 額外（home/hint）。
  * 錨點永遠在前（保底優先），全體正規化去重。
  */
