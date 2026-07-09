@@ -77,6 +77,7 @@ import { buildRtcConfig } from "./rtc-config.js";
 import { WebRtcCall } from "./webrtc-call.js";
 import { WebRtcTransfer } from "./webrtc.js";
 import { buildSnapshotContent, mergeSnapshotContent, parseSnapshotContent } from "../storage/cloud-snapshot.js";
+import { getDeviceId } from "../storage/device-id.js";
 import type { AppStorage } from "../storage/types.js";
 import type {
   ChatBackend,
@@ -325,6 +326,8 @@ export class RelayChatBackend implements ChatBackend {
     this.outbox = new Outbox({
       send: (evt) => this.publishAddressed(evt),
       onDrop: (evt, reason) => {
+        // 快照發佈失敗（拒收/重試耗盡）→ 清節流記錄讓 30 分後重試（審查修正 #5）。
+        if (evt.kind === SNAPSHOT_KIND) this.clearSnapshotThrottle();
         // 明確拒收或重試耗盡：目前記錄告警（未來可接 UI「未送達」提示）。
         console.warn(`[outbox] 事件 ${evt.id.slice(0, 8)}… 未送達：${reason}`);
       },
@@ -380,6 +383,7 @@ export class RelayChatBackend implements ChatBackend {
     this.broadcastProfile(); // ADR-0061：把自己的顯示名稱廣播給聯絡人
     this.broadcastGroups(); // ADR-0068：管理員把自建群組快照廣播給成員（換機自癒）
     this.maybePublishSnapshot(); // ADR-0071：雲端快照（開機檢查；內容有變＋每日至多一次）
+    this.reconcileCloudOff(); // 審查修正 #6：關閉狀態的雲端殘留對帳
     this.snapTimer = setInterval(() => this.maybePublishSnapshot(), 30 * 60_000);
     this.scheduleBeat();
     this.renderTimer = setInterval(() => {
@@ -1205,9 +1209,13 @@ export class RelayChatBackend implements ChatBackend {
     }
   }
 
+  private snapshotThrottleKey(deviceId: string): string {
+    return `nb.snapPub.${this.self.pubkey.slice(0, 8)}.${deviceId}`;
+  }
+
   /** 快照發佈節流（ADR-0071）：內容有變＋每日至多一次；localStorage 不可用時放行。 */
   private snapshotDue(contentHash: string): boolean {
-    const key = `nb.snapPub.${this.self.pubkey.slice(0, 8)}.${this.cloudSync?.deviceId ?? ""}`;
+    const key = this.snapshotThrottleKey(this.cloudSync?.deviceId ?? "");
     try {
       const raw = localStorage.getItem(key);
       const last = raw ? (JSON.parse(raw) as { at: number; hash: string }) : undefined;
@@ -1216,6 +1224,33 @@ export class RelayChatBackend implements ChatBackend {
       return true;
     } catch {
       return true;
+    }
+  }
+
+  /** 快照發佈失敗時清除節流記錄，讓下次 30 分檢查重試（審查修正 #5：TOCTOU 回滾）。 */
+  private clearSnapshotThrottle(): void {
+    try {
+      localStorage.removeItem(this.snapshotThrottleKey(this.cloudSync?.deviceId ?? ""));
+    } catch {
+      /* 忽略 */
+    }
+  }
+
+  /**
+   * 關閉狀態對帳（審查修正 #6）：曾發佈過快照（留有節流記錄）但現在未啟用備份
+   * → 開機補發 purge。切關當下的 flush 競態由此兜底，「已關閉＝雲端零殘留」最終一致。
+   */
+  private reconcileCloudOff(): void {
+    if (this.cloudSync) return;
+    try {
+      const deviceId = getDeviceId();
+      const key = this.snapshotThrottleKey(deviceId);
+      if (localStorage.getItem(key) !== null) {
+        localStorage.removeItem(key);
+        this.purgeCloudSnapshot(deviceId);
+      }
+    } catch {
+      /* localStorage 不可用（測試/受限環境）：略過 */
     }
   }
 

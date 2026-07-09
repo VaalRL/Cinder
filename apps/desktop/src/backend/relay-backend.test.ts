@@ -750,6 +750,39 @@ describe("加密雲端快照（ADR-0071）", () => {
     b.stop();
   });
 
+  it("關閉狀態對帳（審查修正 #6）：曾發佈快照、關閉後下次開機補發 purge", () => {
+    const kv = new Map<string, string>();
+    (globalThis as Record<string, unknown>).localStorage = {
+      getItem: (k: string) => kv.get(k) ?? null,
+      setItem: (k: string, v: string) => void kv.set(k, v),
+      removeItem: (k: string) => void kv.delete(k),
+    };
+    try {
+      kv.set("nb.deviceId", "dev"); // 對帳與發佈使用同一裝置 id
+      const net = createInMemoryRelayNetwork();
+      const storeA = new MemoryStorage();
+      const spied: NostrEvent[] = [];
+      const spy = net.connect("spy", { onEvent: (_s, e) => spied.push(e) });
+      spy.subscribe("s", [{ kinds: [30078] } as never]);
+
+      const a1 = new RelayChatBackend(storeA, (h) => net.connect("a1", h), "Alice", {
+        cloudSync: { mode: "basic", deviceId: "dev" },
+      });
+      a1.start(noop);
+      a1.stop();
+      expect(spied.filter((e) => e.content !== "")).toHaveLength(1); // 開機發佈（節流已記錄）
+
+      // 使用者切關（假設 purge 因競態沒送出）→ 下次開機對帳補發
+      const a2 = new RelayChatBackend(storeA, (h) => net.connect("a2", h), "Alice");
+      a2.start(noop);
+      a2.stop();
+      expect(spied.some((e) => e.content === "")).toBe(true); // purge 補發
+      expect([...kv.keys()].some((k) => k.startsWith("nb.snapPub."))).toBe(false); // 節流記錄清除
+    } finally {
+      delete (globalThis as Record<string, unknown>).localStorage;
+    }
+  });
+
   it("基本模式不含訊息；快照事件對第三者只是密文", () => {
     const net = createInMemoryRelayNetwork();
     const storeA = new MemoryStorage();
