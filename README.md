@@ -64,6 +64,7 @@ M1–M5 的**核心邏輯已實作並通過測試**（pnpm monorepo、TypeScript
 - **可眼見**：桌面前端（`/`）是一套還原早期即時通體驗的客戶端（登入、聯絡人分組、對話視窗、表情、Nudge 震動、輸入中、音樂狀態）；另有端到端 `demo.html` 與真實 WebRTC `webrtc.html`。皆已用 Playwright 實機驗證。
 - **尚待執行期環境**（⏳）：真實 WebRTC（`RTCPeerConnection`/ICE/TURN）、Tauri GUI 與 Rust 背景連線、OS 金鑰儲存、Cloudflare Worker 部署。詳見 [`ARCHITECTURE.md`](./ARCHITECTURE.md) §7 與 [`docs/adr/`](./docs/adr)。
 - **完整施工計畫**（現況、各平台待辦、M6–M9 進階功能、相依順序）：見 [`docs/ROADMAP.md`](./docs/ROADMAP.md)。
+- **使用者教學**（給一般使用者：身分與鑰匙、加好友、本地密碼、換裝置三條路、搬家、常見問題）：見 [`docs/使用手冊_User-Guide.md`](./docs/使用手冊_User-Guide.md)。
 
 ## 開發指令
 
