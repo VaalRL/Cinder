@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { StorageSnapshot } from "../storage/types.js";
+import type { StorageSnapshot } from "@cinder/engine";
 import { type StoreIo, TauriStorage } from "./tauri-storage.js";
 
 /** 記憶體 fake IO：模擬 Rust 加密 blob 的 load/save（以 namespace 為鍵）。 */

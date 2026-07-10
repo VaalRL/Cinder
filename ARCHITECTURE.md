@@ -43,10 +43,11 @@
 
 | 模組 | 目錄 | 職責 |
 | --- | --- | --- |
-| 共用核心 | `packages/core/` | Nostr 事件建構/驗證、簽章（secp256k1 Schnorr, BIP-340）、加密（NIP-44）、SQLite schema 與型別、事件 Kind 常數。跨平台共用，**SSOT 邏輯所在**。 |
-| 桌面前端 | `apps/desktop/src/` | React/TS UI：好友列表、對話視窗、狀態列、Nudge 動畫。 |
+| 共用核心 | `packages/core/` | Nostr 事件建構/驗證、簽章（secp256k1 Schnorr, BIP-340）、加密（NIP-44）、SQLite schema 與型別、事件 Kind 常數。跨平台共用，**SSOT 邏輯所在**。零 UI 依賴。 |
+| 通訊引擎 | `packages/engine/` | **可用的通訊後端（ADR-0074）**：`ChatBackend`/`ChatBackendEvents` 契約＋UI DTO、`RelayChatBackend`（真實 relay pool）/`BrowserChatBackend`（記憶體 demo）、WebRTC、`AppStorage`/`LocalStorage`、多身分/搬家/快照。與 UI 框架無關，供任意前端重用（desktop 與 mobile 皆消費）。 |
+| 桌面前端 | `apps/desktop/src/` | React/TS UI：好友列表、對話視窗、狀態列、Nudge 動畫。消費 `@cinder/engine`；平台基質（Tauri 金鑰庫/加密儲存）經 `AppStorage`/keyvault 介面注入。 |
 | 桌面原生橋 | `apps/desktop/src-tauri/` | Rust：原生 SQLite 讀寫、背景 Nostr WebSocket 長連線、WebRTC 資料通道、金鑰安全儲存、IPC。 |
-| 行動端 | `apps/mobile/`（預留） | React Native + SQLite；Silent Push 喚醒背景同步。 |
+| 行動端 | `apps/mobile/` | React Native（react-native-web 於此環境開發）：重用 `@cinder/core`/`@cinder/i18n`/`@cinder/engine`（`chat.ts` 已消費 `BrowserChatBackend`，實證跨前端重用）；SQLite/Silent Push 待 RN 工具鏈。 |
 | 中繼站 | `relay/` | Cloudflare Worker + D1：Nostr relay，處理 Ephemeral 轉發與 NIP-40 過期留言。 |
 | 測試 | `tests/` | 跨層整合測試與共用 fixture。 |
 | 文件 | `docs/` | 設計決策與流程補充。 |

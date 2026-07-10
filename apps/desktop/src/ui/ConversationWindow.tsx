@@ -5,7 +5,7 @@ import type { CallMedia, MentionCandidate } from "@cinder/core";
 import { applyMention, suggestMentions } from "./mention-suggest.js";
 import { mainMessages, replyCounts, threadMessages } from "./thread-util.js";
 import type { MessageKey } from "@cinder/i18n";
-import type { ChatMessage, Contact, MessageStatus, Self } from "../backend/types.js";
+import type { ChatMessage, Contact, MessageStatus, Self } from "@cinder/engine";
 import {
   formatCustomSticker,
   formatSticker,

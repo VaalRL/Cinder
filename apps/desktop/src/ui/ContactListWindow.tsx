@@ -1,7 +1,7 @@
 import type { MessageKey } from "@cinder/i18n";
 import { Fragment, useEffect, useRef, useState } from "react";
 import { useI18n } from "../i18n.js";
-import type { BlockedContact, ConnectionState, Contact, Group, Self, Status } from "../backend/types.js";
+import type { BlockedContact, ConnectionState, Contact, Group, Self, Status } from "@cinder/engine";
 import { qrDataUri } from "../qr.js";
 import { CinderMascot } from "./Brand.js";
 import { hasRichStatus, renderStatus } from "./status-text.js";

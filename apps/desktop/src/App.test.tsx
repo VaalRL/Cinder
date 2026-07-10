@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { AddIdentityModal, relayChangeTarget } from "./App.js";
-import type { Profile } from "./storage/profiles.js";
+import type { Profile } from "@cinder/engine";
 
 describe("AddIdentityModal", () => {
   it("relay 欄位預填目前作用中身分的網址（可改）", () => {

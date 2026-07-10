@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { ACCENT_PRESETS, useAccent } from "../accent.js";
 import { useI18n } from "../i18n.js";
 import { qrSvg } from "../qr.js";
-import type { CloudSyncMode } from "../storage/cloud-snapshot.js";
+import type { CloudSyncMode } from "@cinder/engine";
 import {
   type AiProvider,
   hasApiKey,

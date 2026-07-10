@@ -2,7 +2,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { I18nProvider } from "../i18n.js";
 import { ThemeProvider } from "../theme.js";
-import type { ChatMessage, Contact, MessageStatus, Self } from "../backend/types.js";
+import type { ChatMessage, Contact, MessageStatus, Self } from "@cinder/engine";
 import { ConversationWindow } from "./ConversationWindow.js";
 
 const self: Self = { pubkey: "aa", name: "我", status: "online", statusMessage: "" };

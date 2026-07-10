@@ -41,7 +41,7 @@ Cinder 刻意把「協定/加密」「通訊引擎」「畫面」分成三層。
 | 本機儲存 | `AppStorage` 介面＋`LocalStorage`（瀏覽器）／自訂 | 用現成的，或依介面接你的儲存 |
 | **畫面** | — | **這才是你要寫的**：登入、聯絡人、對話視窗、設定… |
 
-> 📦 **目前的封裝現況（重要）**：`@cinder/core` 與 `@cinder/i18n` 已是獨立套件、可直接依賴。**通訊後端（`ChatBackend`＋實作＋`AppStorage`）目前仍在 `apps/desktop/src/{backend,storage}/` 內**，尚未抽成獨立套件。ROADMAP **Phase K2** 會把它抽成 **`@cinder/engine`**——屆時你 `import { RelayChatBackend } from "@cinder/engine"` 即可。在那之前，最省事的做法是**以 `apps/desktop` 為範本 fork**，或把 `backend/` + `storage/` 目錄複製進你的專案（它們本身不依賴 React）。
+> 📦 **封裝現況**：三層都已是獨立 workspace 套件、可直接依賴——`@cinder/core`（協定/加密）、`@cinder/i18n`（翻譯）、**`@cinder/engine`（通訊後端＋儲存抽象，ADR-0074 K2 已完成）**。你 `import { RelayChatBackend, LocalStorage, type ChatBackend } from "@cinder/engine"` 即可，不必 fork desktop、不會拖入 React/Tauri。平台特有基質（Tauri 金鑰庫/加密儲存）留在各 app，經 `AppStorage` 介面注入。
 
 ---
 
@@ -60,8 +60,7 @@ const npub = npubEncode(getPublicKey(sk)); // 給別人加你用的公開 ID
 ### ② 建立通訊後端（重用 engine）
 
 ```ts
-import { RelayChatBackend, webSocketConnector } from "<engine>"; // K2 後為 @cinder/engine
-import { LocalStorage } from "<engine>";
+import { RelayChatBackend, webSocketConnector, LocalStorage } from "@cinder/engine";
 
 const storage = new LocalStorage("");                 // 命名空間隔離多身分（空=預設）
 const backend = new RelayChatBackend(
@@ -98,7 +97,7 @@ backend.setStatus("online", "在忙");
 
 ## 4. `ChatBackend` 介面速查
 
-介面定義在 `apps/desktop/src/backend/types.ts`（K2 後移入 `@cinder/engine`）。設計成「少數必要、多數可選」，讓你能只實作/消費需要的部分。
+介面定義在 `@cinder/engine`（`packages/engine/src/backend/types.ts`）。設計成「少數必要、多數可選」，讓你能只實作/消費需要的部分。
 
 **必要成員**（每個後端一定有）：
 `self`（自己的身分）、`start(handlers)`、`stop()`、`setStatus`、`setNowPlaying`、`sendMessage`、`sendTyping`、`sendNudge`。
@@ -118,10 +117,9 @@ backend.setStatus("online", "在忙");
 
 想看「非桌面前端怎麼接」，直接讀 `apps/mobile`：
 
-- `apps/mobile/package.json`：依賴 `@cinder/core` + `@cinder/i18n` + `react-native-web`，**不依賴 `@cinder/desktop`**。
+- `apps/mobile/package.json`：依賴 `@cinder/core` + `@cinder/i18n` + `@cinder/engine` + `react-native-web`，**不依賴 `@cinder/desktop`**。
 - `apps/mobile/src/screens/ContactListScreen.tsx`：用 RN 元件（`View`/`Text`）撰寫，重用 core 的 `npubEncode` 與 i18n 的 `translate`——純呈現層。
-
-> 註：mobile 目前只接了 core/i18n、還沒接 `ChatBackend`（Phase K2 會把後端抽成套件並讓 mobile 接上，屆時它就是「接了後端的完整範本」）。
+- `apps/mobile/src/chat.ts` ＋ `chat.test.ts`：**用 `@cinder/engine` 的 `BrowserChatBackend` 驅動通訊**——這就是「非桌面前端消費同一套引擎」的活實證（測試會斷言 start 後收到聯絡人）。
 
 ---
 
@@ -164,4 +162,4 @@ Cinder 是 **AGPL-3.0**。這對你的自訂前端意味著：
 - [ ] 多身分靠 `AppStorage` 的命名空間隔離。
 - [ ] 你的衍生前端必須維持 AGPL 開源。
 
-有問題、或希望 Phase K2 的 `@cinder/engine` 優先抽出來讓你更好接，回報給維護者。
+有問題或想要更多範本（例如 Vue/Svelte 起手），回報給維護者。

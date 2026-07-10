@@ -201,8 +201,8 @@
 
 | # | 任務 | 環境 | 說明 / 驗證 |
 | --- | --- | --- | --- |
-| K1 | 前端開發指南（零程式） | 🌐 | 📋 `docs/` 寫「如何接自己的前端」——三層心智模型、要裝哪些 package、實作/消費 `ChatBackend`、以 `apps/mobile` 為範本。風險零、立即可用。 |
-| K2 | 抽 `@cinder/engine` | 🌐 | 📋 新 workspace 套件：上移 `ChatBackend`/`ChatBackendEvents`＋DTO＋`RelayChatBackend`/`BrowserChatBackend`＋`AppStorage`/`LocalStorage`＋`RelayConnector`/`webSocketConnector`。平台基質（TauriStorage/keyvault）留 desktop 經介面注入。desktop 與 mobile 改接——**mobile 接上後端即實證跨前端重用**（順清 ADR-0063 技術債）。TDD/typecheck 全綠護欄、分批搬移。 |
+| K1 | 前端開發指南（零程式） | 🌐 | ✅ **完成**：`docs/前端開發指南_Frontend-Guide.md`——三層心智模型、重用 core/i18n、實作/消費 `ChatBackend` 三步、介面速查、`apps/mobile` 活範本、主題/i18n、AGPL 含意。 |
+| K2 | 抽 `@cinder/engine` | 🌐 | ✅ **完成**：新 workspace 套件 `@cinder/engine`——整組上移 `backend/`（ChatBackend/DTO/RelayChatBackend/BrowserChatBackend/connector/WebRTC/配對）＋`storage/`（AppStorage/LocalStorage/MemoryStorage/profiles/快照）。依賴方向 `engine→relay→core` 無環；平台基質（TauriStorage/keyvault）留 desktop 經介面注入。desktop 12 檔改接、**mobile 新增 `chat.ts` 用 `BrowserChatBackend` 驅動——跨前端重用已實證**。零測試遺失（engine 104＋desktop 234＝原 338）；全 workspace typecheck 綠。 |
 | K3 | 執行期語系/主題包（選配） | 🌐 | 📋 `Locale` 放寬為可註冊、主題資料驅動，社群 drop-in 語系/配色免重編。 |
 | K4 | 前端外掛/插槽（選配，另立 ADR） | 🌐 | 📋 第三方在同一 app 注入自訂 UI（不 fork）；涉第三方程式碼載入的安全邊界，單獨立 ADR。 |
 

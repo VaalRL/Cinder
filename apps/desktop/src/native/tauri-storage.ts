@@ -3,7 +3,7 @@
 // 記憶體 + **防抖**持久化（store_save）。同步介面不變＝後端零改（解 async/sync 摩擦）。
 
 import { invoke } from "@tauri-apps/api/core";
-import { MemoryStorage } from "../storage/memory.js";
+import { MemoryStorage } from "@cinder/engine";
 import type {
   AppStorage,
   MessageStatus,
@@ -13,7 +13,7 @@ import type {
   StoredIdentity,
   StoredMessage,
   StoredReaction,
-} from "../storage/types.js";
+} from "@cinder/engine";
 
 /** 加密 blob 的載入/儲存管道（可注入以利測試）。 */
 export interface StoreIo {

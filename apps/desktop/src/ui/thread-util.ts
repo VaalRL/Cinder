@@ -1,6 +1,6 @@
 // 對話串聚合（ADR-0051）：純函式，供主頻道／串面板切分與回覆數彙整。
 
-import type { ChatMessage } from "../backend/types.js";
+import type { ChatMessage } from "@cinder/engine";
 
 /** 訊息所屬串的根 id：回覆取 replyTo，否則自身即為根。 */
 export const rootIdOf = (m: ChatMessage): string => m.replyTo ?? m.id;

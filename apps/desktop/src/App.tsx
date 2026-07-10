@@ -17,8 +17,8 @@ import {
 } from "@cinder/core";
 import { isTauri } from "@tauri-apps/api/core";
 import { useEffect, useRef, useState } from "react";
-import { BrowserChatBackend } from "./backend/browser-backend.js";
-import { normalizeRelayUrl, RelayChatBackend, webSocketConnector } from "./backend/relay-backend.js";
+import { BrowserChatBackend } from "@cinder/engine";
+import { normalizeRelayUrl, RelayChatBackend, webSocketConnector } from "@cinder/engine";
 import { getKeyVault } from "./native/keyvault.js";
 import { isWrappedValue, passChange, passDisable, passEnable, passLock, passRescue, passUnlock } from "./native/passlock.js";
 import {
@@ -36,9 +36,9 @@ import {
   setProfileSecurity,
   upsertProfile,
   visibleProfiles,
-} from "./storage/profiles.js";
-import { getDeviceId } from "./storage/device-id.js";
-import type { CloudSyncMode } from "./storage/cloud-snapshot.js";
+} from "@cinder/engine";
+import { getDeviceId } from "@cinder/engine";
+import type { CloudSyncMode } from "@cinder/engine";
 import type {
   BlockedContact,
   ChatBackend,
@@ -49,10 +49,10 @@ import type {
   OrgPolicy,
   Self,
   Status,
-} from "./backend/types.js";
-import { LocalStorage } from "./storage/local.js";
+} from "@cinder/engine";
+import { LocalStorage } from "@cinder/engine";
 import { TauriStorage } from "./native/tauri-storage.js";
-import type { AppStorage } from "./storage/types.js";
+import type { AppStorage } from "@cinder/engine";
 import { cleanOnPasteEnabled, setCleanOnPasteEnabled } from "./ui/url-hygiene.js";
 import {
   allLabels,
@@ -78,8 +78,8 @@ import {
   ollamaSummarize,
   type OllamaConfig,
 } from "./native/ollama.js";
-import { createPairingOffer, runPairSource, runPairTarget, webRtcPairTransport } from "./backend/pairing-session.js";
-import { applyPairBundle } from "./storage/pair-bundle.js";
+import { createPairingOffer, runPairSource, runPairTarget, webRtcPairTransport } from "@cinder/engine";
+import { applyPairBundle } from "@cinder/engine";
 import { PairDeviceModal, type PairPhase } from "./ui/PairDeviceModal.js";
 import { SettingsPanel } from "./ui/SettingsPanel.js";
 import { RELAY_URL_KEY, SignIn } from "./ui/SignIn.js";

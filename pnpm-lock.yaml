@@ -13,6 +13,9 @@ importers:
       '@cinder/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@cinder/engine':
+        specifier: workspace:*
+        version: link:../../packages/engine
       '@cinder/i18n':
         specifier: workspace:*
         version: link:../../packages/i18n
@@ -59,6 +62,9 @@ importers:
       '@cinder/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@cinder/engine':
+        specifier: workspace:*
+        version: link:../../packages/engine
       '@cinder/i18n':
         specifier: workspace:*
         version: link:../../packages/i18n
@@ -102,6 +108,25 @@ importers:
       nostr-tools:
         specifier: ^2.23.8
         version: 2.23.8(typescript@5.9.3)
+    devDependencies:
+      '@types/node':
+        specifier: ^22.10.2
+        version: 22.20.0
+      typescript:
+        specifier: ^5.6.3
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.8
+        version: 2.1.9(@types/node@22.20.0)
+
+  packages/engine:
+    dependencies:
+      '@cinder/core':
+        specifier: workspace:*
+        version: link:../core
+      '@cinder/relay':
+        specifier: workspace:*
+        version: link:../../relay
     devDependencies:
       '@types/node':
         specifier: ^22.10.2
