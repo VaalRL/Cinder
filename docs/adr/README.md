@@ -89,3 +89,4 @@
 | [0072](./0072-desktop-pairing-clone.md) | 桌面配對克隆（D4a：一次性 P2P 全量搬家＋SAS 互認） | 已接受 |
 | [0073](./0073-forgotten-password-nsec-rescue.md) | 忘記密碼救援：nsec 解鎖並重設密碼（雙重包裹） | 已接受 |
 | [0074](./0074-frontend-extensibility-engine-package.md) | 社群自訂前端：三層封裝與 @cinder/engine 抽取 | 已接受 |
+| [0075](./0075-containerized-relay-self-hosting.md) | 容器化中繼站自架（Dockerfile＋HTTP 健康端點） | 已接受 |

@@ -165,7 +165,7 @@
 ## Phase I — Relay 自動分配與自動搬家（🌐 可在此環境推進；實效需營運前提）
 
 > 決策：ADR-0069（簽章清單驅動、分級觸發；否決「接近額度即搬」與 relay 端指派）。
-> **營運前提**：立起 ≥2 座錨點 relay、填入 `bootstrap-config.ts` 的 `ANCHOR_RELAYS` 與 `MAINTAINER_PUBKEY`——機制可先施工並以測試驗證，實效等錨點上線。
+> **營運前提**：立起 ≥2 座錨點 relay、填入 `bootstrap-config.ts` 的 `ANCHOR_RELAYS` 與 `MAINTAINER_PUBKEY`。**現況（2026-07-10）**：`ANCHOR_RELAYS` **已填入生產站一座**（`cinder-relay.…workers.dev`）→ I4 自動選座已生效（登入自動預填）；`MAINTAINER_PUBKEY` 仍空（T3 退役休眠）。建議日後再立第二座錨點（不同平台/網域，如 Zeabur 自架）補齊單點風險。
 
 | # | 任務 | 環境 | 說明 / 驗證 |
 | --- | --- | --- | --- |
@@ -174,7 +174,7 @@
 | I3 | T3 清單退役撤離 | 🌐 | ✅ **完成**：清單標我的 home 為 draining/retired → 隨機延遲（預設 0–6h 防羊群、測試可注入）後撤離；目標＝清單序首個 accepting ok 在線座（決定性防 split-brain）＋錨點保底；`accepting:false` 僅擋新分配。 |
 | I4 | SignIn 自動選座 | 🌐 | ✅ **完成**：欄位無預設值時自錨點加權隨機＋WebSocket 探測依序備援預填（可改可清）；`?relay=`>上次記憶>自動選座；無錨點＝行為不變（示範模式保留）。 |
 
-**完成定義**：新帳號免填網址上線；relay 死亡/退役對用戶透明，遷移一次到位不重演。✅ **機制已達成**——實效待錨點營運前提（OPERATOR-TODO §A：填 `ANCHOR_RELAYS`/`MAINTAINER_PUBKEY`、立 ≥2 座）。
+**完成定義**：新帳號免填網址上線；relay 死亡/退役對用戶透明，遷移一次到位不重演。✅ **已達成**（生產站設為錨點、I4 自動選座生效）——完整容錯待第二座錨點與 `MAINTAINER_PUBKEY`（OPERATOR-TODO §A）。
 
 ---
 

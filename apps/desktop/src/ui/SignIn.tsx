@@ -1,5 +1,5 @@
 import { listEntries, weightedOrder } from "@cinder/core";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ANCHOR_RELAYS } from "../bootstrap-config.js";
 import { useI18n } from "../i18n.js";
 import { CinderMark } from "./Brand.js";
@@ -89,6 +89,8 @@ export function SignIn({
   const [relay, setRelay] = useState(initialRelay);
   // relay 欄預設收起（已自動填好預設站）；點「使用其他中繼站」才展開輸入（ADR-0069）。
   const [showRelay, setShowRelay] = useState(false);
+  // 使用者已動過 relay 欄（展開或編輯）→ 自動選座的慢 probe 不再覆寫（審查 L2）。
+  const relayTouched = useRef(false);
   const relayHost = hostOf(relay);
   // 配對匯入（新機）：貼上載荷 → 顯示 SAS 供與舊機比對 → 舊機確認後自動完成。
   const [pairOpen, setPairOpen] = useState(false);
@@ -116,13 +118,13 @@ export function SignIn({
     void (async () => {
       for (const url of candidates) {
         const ok = await probeRelay(url, 3000);
-        if (cancelled) return;
+        if (cancelled || relayTouched.current) return; // 使用者已動過欄位（含刻意清空）→ 不覆寫
         if (ok) {
-          setRelay((cur) => cur || url); // 使用者已手填則不覆蓋
+          setRelay((cur) => cur || url);
           return;
         }
       }
-      if (!cancelled) setRelay((cur) => cur || candidates[0] || ""); // 全滅仍給首選（清單機制會自癒）
+      if (!cancelled && !relayTouched.current) setRelay((cur) => cur || candidates[0] || ""); // 全滅仍給首選
     })();
     return () => {
       cancelled = true;
@@ -157,7 +159,10 @@ export function SignIn({
               <input
                 aria-label={t("signIn_relayUrl")}
                 value={relay}
-                onChange={(e) => setRelay(e.target.value)}
+                onChange={(e) => {
+                  relayTouched.current = true; // 使用者編輯（含清空）→ 鎖住自動選座
+                  setRelay(e.target.value);
+                }}
                 onKeyDown={(e) => e.key === "Enter" && submit()}
                 placeholder={t("signIn_relayUrl")}
                 autoFocus
@@ -171,7 +176,15 @@ export function SignIn({
               <span data-testid="relay-status">
                 {relayHost ? t("signIn_relayUsing", { host: relayHost }) : t("signIn_relayDemo")}
               </span>
-              <button type="button" className="signin__relaytoggle" data-testid="relay-change" onClick={() => setShowRelay(true)}>
+              <button
+                type="button"
+                className="signin__relaytoggle"
+                data-testid="relay-change"
+                onClick={() => {
+                  relayTouched.current = true; // 展開＝有意自訂→鎖住自動選座覆寫
+                  setShowRelay(true);
+                }}
+              >
                 {t("signIn_relayChange")}
               </button>
             </p>

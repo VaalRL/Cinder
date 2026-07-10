@@ -1,0 +1,9 @@
+{
+  "name": "cinder-relay-runtime",
+  "private": true,
+  "type": "module",
+  "description": "node-relay 容器 runtime 的最小 package.json：type:module 讓 ESM bundle 正確執行、並鎖定 ws 版本（見 relay/Dockerfile）",
+  "dependencies": {
+    "ws": "8.18.0"
+  }
+}

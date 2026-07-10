@@ -99,9 +99,12 @@ pub fn is_wrapped(value: &str) -> bool {
 
 /// 自 nsec 衍生救援金鑰：域分隔雜湊即可——nsec 已是 256-bit 高熵，
 /// 不需 Argon2 那種慢雜湊（慢雜湊是給低熵密碼防離線暴力的）。
+///
+/// nsec 先 trim＋轉小寫正規化：bech32 大小寫不敏感、canonical 為小寫，故使用者手貼
+/// 大寫 nsec 仍能救援（審查 F1）。canonical 小寫輸入下 to_lowercase 為 no-op，向後相容。
 fn rescue_key(nsec: &str) -> [u8; encstore::KEY_LEN] {
     let mut h = Sha256::new();
-    h.update(nsec.trim().as_bytes());
+    h.update(nsec.trim().to_lowercase().as_bytes());
     h.update(b"cinder-rescue-v1");
     let digest = h.finalize();
     let mut out = [0u8; encstore::KEY_LEN];
@@ -204,10 +207,11 @@ mod tests {
     }
 
     #[test]
-    fn rescue_key_normalizes_whitespace() {
-        // 使用者貼上的 nsec 可能帶前後空白；trim 後應與原始一致
+    fn rescue_key_normalizes_whitespace_and_case() {
+        // 使用者貼上的 nsec 可能帶前後空白或大寫（bech32 大小寫不敏感）；正規化後應一致
         let blob = rescue_wrap("nsec1abc", "key").unwrap();
         assert_eq!(rescue_unwrap("  nsec1abc\n", &blob).unwrap(), "key");
+        assert_eq!(rescue_unwrap("NSEC1ABC", &blob).unwrap(), "key"); // 審查 F1：大寫也救得回
     }
 
     #[test]

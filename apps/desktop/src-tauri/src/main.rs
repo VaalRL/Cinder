@@ -202,6 +202,24 @@ fn pass_unlock(namespace: String, pubkey: String, password: String) -> Result<St
                     let _ = cinder_desktop::keyvault::set_key(&rescue_account, &blob);
                 }
             }
+        } else {
+            // 審查 F2：pass_enable 半套中斷（nsec 已包裹、db 尚未包裹）→ db 金鑰明文躺在
+            // 金鑰庫（繞過密碼可讀）、且救援永不補建。此時（密碼已驗證＋db 明文在手）
+            // 重新包裹 db 並補建 rescue，把這個窗口關掉。`kb` 即明文 db 金鑰 b64。
+            let key_b64 = kb;
+            if let Ok(wrapped) = cinder_desktop::passlock::wrap(&password, &key_b64) {
+                let _ = cinder_desktop::keyvault::set_key(&account, &wrapped);
+            }
+            let bytes = STANDARD.decode(&key_b64).map_err(|e| e.to_string())?;
+            let key: [u8; encstore::KEY_LEN] =
+                bytes.as_slice().try_into().map_err(|_| "DB 金鑰長度不符".to_string())?;
+            unlocked_keys().lock().unwrap().insert(namespace.clone(), key);
+            let rescue_account = format!("rescue:{namespace}");
+            if cinder_desktop::keyvault::get_key(&rescue_account).map_err(|e| e.to_string())?.is_none() {
+                if let Ok(blob) = cinder_desktop::passlock::rescue_wrap(&nsec, &key_b64) {
+                    let _ = cinder_desktop::keyvault::set_key(&rescue_account, &blob);
+                }
+            }
         }
     }
     Ok(nsec)

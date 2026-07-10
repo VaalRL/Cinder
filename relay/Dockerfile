@@ -17,7 +17,11 @@ RUN pnpm --filter @cinder/relay build:node-relay
 # ── 執行：只帶 bundle 與唯一 runtime 依賴 ws，映像精簡 ─────────────────────────
 FROM node:22-slim AS runtime
 WORKDIR /app
-RUN npm install ws@^8 --omit=dev --no-audit --no-fund
+# bundle 是 ESM（esbuild --format=esm，含 import/import.meta）——runtime 目錄必須有
+# `"type":"module"` 的 package.json，否則 Node 依 .js 當 CommonJS → 開機即 SyntaxError。
+# 同一份 package.json 也把 ws 版本鎖死（可重現建置），npm install 只裝這一個 runtime 依賴。
+COPY relay/docker-runtime.package.json ./package.json
+RUN npm install --omit=dev --no-audit --no-fund
 COPY --from=builder /app/relay/dist/node-relay.js ./node-relay.js
 # 離線留言 SQLite 檔預設放持久化 volume（Zeabur 掛載 /data）；未掛載則存容器內、重啟即失。
 ENV DB_PATH=/data/cinder-relay.db
