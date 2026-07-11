@@ -18,8 +18,8 @@ describe("行動端登入畫面（ADR-0081）", () => {
         accent2="#e2632b"
       />,
     );
-    expect(html).toContain("Sign in with secret key"); // msignin_title
-    expect(html).toContain("Import from old device instead"); // msignin_toPair
+    expect(html).toContain("Sign in with secret key"); // mobileSignIn_title
+    expect(html).toContain("Import from old device instead"); // mobileSignIn_toPair
   });
 
   it("PairImportScreen（B）：渲染標題與切換金鑰入口（zh）", () => {
@@ -32,7 +32,7 @@ describe("行動端登入畫面（ADR-0081）", () => {
         theme="light"
       />,
     );
-    expect(html).toContain("從舊裝置匯入"); // mpair_title
-    expect(html).toContain("改用私鑰登入"); // mpair_toNsec
+    expect(html).toContain("從舊裝置匯入"); // mobilePair_title
+    expect(html).toContain("改用私鑰登入"); // mobilePair_toNsec
   });
 });

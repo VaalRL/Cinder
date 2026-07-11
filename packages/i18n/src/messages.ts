@@ -26,27 +26,27 @@ export interface Messages {
   signIn_relayUrl: string;
   signIn_button: string;
   // ── 行動端登入（ADR-0081）：nsec 匯入（A）＋配對匯入（B）──
-  msignin_title: string;
-  msignin_nameLabel: string;
-  msignin_nsecLabel: string;
-  msignin_nsecPlaceholder: string;
-  msignin_derived: string;
-  msignin_button: string;
-  msignin_errName: string;
-  msignin_errNsec: string;
-  msignin_hint: string;
-  msignin_toPair: string;
-  mpair_title: string;
-  mpair_codeLabel: string;
-  mpair_codePlaceholder: string;
-  mpair_connect: string;
-  mpair_relayVia: string;
-  mpair_sasHint: string;
-  mpair_waiting: string;
-  mpair_errCode: string;
-  mpair_errNoIdentity: string;
-  mpair_restored: string;
-  mpair_toNsec: string;
+  mobileSignIn_title: string;
+  mobileSignIn_nameLabel: string;
+  mobileSignIn_nsecLabel: string;
+  mobileSignIn_nsecPlaceholder: string;
+  mobileSignIn_derived: string;
+  mobileSignIn_button: string;
+  mobileSignIn_errName: string;
+  mobileSignIn_errNsec: string;
+  mobileSignIn_hint: string;
+  mobileSignIn_toPair: string;
+  mobilePair_title: string;
+  mobilePair_codeLabel: string;
+  mobilePair_codePlaceholder: string;
+  mobilePair_connect: string;
+  mobilePair_relayVia: string;
+  mobilePair_sasHint: string;
+  mobilePair_waiting: string;
+  mobilePair_errCode: string;
+  mobilePair_errNoIdentity: string;
+  mobilePair_restored: string;
+  mobilePair_toNsec: string;
   // ── 新增身分小視窗（ADR-0045；D 補 i18n）──
   addId_title: string;
   addId_close: string;
@@ -386,27 +386,27 @@ const zhHant: Messages = {
   signIn_displayName: "顯示名稱",
   signIn_relayUrl: "中繼站網址（留空使用示範模式）",
   signIn_button: "登入",
-  msignin_title: "用私鑰登入",
-  msignin_nameLabel: "顯示名稱",
-  msignin_nsecLabel: "私鑰（nsec）",
-  msignin_nsecPlaceholder: "貼上 nsec1…",
-  msignin_derived: "身分",
-  msignin_button: "登入",
-  msignin_errName: "請輸入顯示名稱",
-  msignin_errNsec: "nsec 格式不正確",
-  msignin_hint: "在桌面版「設定 → 身分備份」複製你的 nsec；只存在本機、絕不外流。",
-  msignin_toPair: "改用從舊裝置匯入",
-  mpair_title: "從舊裝置匯入",
-  mpair_codeLabel: "配對碼",
-  mpair_codePlaceholder: "貼上舊裝置顯示的配對碼",
-  mpair_connect: "連線",
-  mpair_relayVia: "會合中繼站",
-  mpair_sasHint: "確認兩台裝置顯示相同數字",
-  mpair_waiting: "等待舊裝置確認…",
-  mpair_errCode: "配對碼無效或已過期",
-  mpair_errNoIdentity: "配對資料不含身分",
-  mpair_restored: "已還原身分",
-  mpair_toNsec: "改用私鑰登入",
+  mobileSignIn_title: "用私鑰登入",
+  mobileSignIn_nameLabel: "顯示名稱",
+  mobileSignIn_nsecLabel: "私鑰（nsec）",
+  mobileSignIn_nsecPlaceholder: "貼上 nsec1…",
+  mobileSignIn_derived: "身分",
+  mobileSignIn_button: "登入",
+  mobileSignIn_errName: "請輸入顯示名稱",
+  mobileSignIn_errNsec: "nsec 格式不正確",
+  mobileSignIn_hint: "在桌面版「設定 → 身分備份」複製你的 nsec；只存在本機、絕不外流。",
+  mobileSignIn_toPair: "改用從舊裝置匯入",
+  mobilePair_title: "從舊裝置匯入",
+  mobilePair_codeLabel: "配對碼",
+  mobilePair_codePlaceholder: "貼上舊裝置顯示的配對碼",
+  mobilePair_connect: "連線",
+  mobilePair_relayVia: "會合中繼站",
+  mobilePair_sasHint: "確認兩台裝置顯示相同數字",
+  mobilePair_waiting: "等待舊裝置確認…",
+  mobilePair_errCode: "配對碼無效或已過期",
+  mobilePair_errNoIdentity: "配對資料不含身分",
+  mobilePair_restored: "已還原身分",
+  mobilePair_toNsec: "改用私鑰登入",
   addId_title: "新增身分",
   addId_close: "關閉",
   addId_relay: "relay 網址（wss://…）",
@@ -745,27 +745,27 @@ const en: Messages = {
   signIn_displayName: "Display name",
   signIn_relayUrl: "Relay URL (leave blank for demo mode)",
   signIn_button: "Sign in",
-  msignin_title: "Sign in with secret key",
-  msignin_nameLabel: "Display name",
-  msignin_nsecLabel: "Private key (nsec)",
-  msignin_nsecPlaceholder: "Paste nsec1…",
-  msignin_derived: "Identity",
-  msignin_button: "Sign in",
-  msignin_errName: "Enter a display name",
-  msignin_errNsec: "Invalid nsec key",
-  msignin_hint: "Copy your nsec from Desktop → Settings → Identity backup. It stays on this device and is never uploaded.",
-  msignin_toPair: "Import from old device instead",
-  mpair_title: "Import from old device",
-  mpair_codeLabel: "Pairing code",
-  mpair_codePlaceholder: "Paste the code shown on your old device",
-  mpair_connect: "Connect",
-  mpair_relayVia: "Meet via relay",
-  mpair_sasHint: "Confirm both devices show the same number",
-  mpair_waiting: "Waiting for the old device…",
-  mpair_errCode: "Invalid or expired pairing code",
-  mpair_errNoIdentity: "Pairing data has no identity",
-  mpair_restored: "Identity restored",
-  mpair_toNsec: "Use secret key sign-in",
+  mobileSignIn_title: "Sign in with secret key",
+  mobileSignIn_nameLabel: "Display name",
+  mobileSignIn_nsecLabel: "Private key (nsec)",
+  mobileSignIn_nsecPlaceholder: "Paste nsec1…",
+  mobileSignIn_derived: "Identity",
+  mobileSignIn_button: "Sign in",
+  mobileSignIn_errName: "Enter a display name",
+  mobileSignIn_errNsec: "Invalid nsec key",
+  mobileSignIn_hint: "Copy your nsec from Desktop → Settings → Identity backup. It stays on this device and is never uploaded.",
+  mobileSignIn_toPair: "Import from old device instead",
+  mobilePair_title: "Import from old device",
+  mobilePair_codeLabel: "Pairing code",
+  mobilePair_codePlaceholder: "Paste the code shown on your old device",
+  mobilePair_connect: "Connect",
+  mobilePair_relayVia: "Meet via relay",
+  mobilePair_sasHint: "Confirm both devices show the same number",
+  mobilePair_waiting: "Waiting for the old device…",
+  mobilePair_errCode: "Invalid or expired pairing code",
+  mobilePair_errNoIdentity: "Pairing data has no identity",
+  mobilePair_restored: "Identity restored",
+  mobilePair_toNsec: "Use secret key sign-in",
   addId_title: "Add identity",
   addId_close: "Close",
   addId_relay: "Relay URL (wss://…)",

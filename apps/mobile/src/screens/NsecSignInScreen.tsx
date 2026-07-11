@@ -79,39 +79,39 @@ export function NsecSignInScreen({
   return (
     <View style={styles.root}>
       <View style={styles.card}>
-        <Text style={styles.title}>{T("msignin_title")}</Text>
-        <Text style={styles.hint}>{T("msignin_hint")}</Text>
+        <Text style={styles.title}>{T("mobileSignIn_title")}</Text>
+        <Text style={styles.hint}>{T("mobileSignIn_hint")}</Text>
 
-        <Text style={styles.label}>{T("msignin_nameLabel")}</Text>
-        <TextInput style={styles.input} value={name} onChangeText={setName} aria-label={T("msignin_nameLabel")} />
+        <Text style={styles.label}>{T("mobileSignIn_nameLabel")}</Text>
+        <TextInput style={styles.input} value={name} onChangeText={setName} aria-label={T("mobileSignIn_nameLabel")} />
 
-        <Text style={styles.label}>{T("msignin_nsecLabel")}</Text>
+        <Text style={styles.label}>{T("mobileSignIn_nsecLabel")}</Text>
         <TextInput
           style={styles.input}
           value={nsec}
           onChangeText={setNsec}
-          placeholder={T("msignin_nsecPlaceholder")}
+          placeholder={T("mobileSignIn_nsecPlaceholder")}
           placeholderTextColor={tk.muted}
           secureTextEntry
           autoCapitalize="none"
           autoCorrect={false}
-          aria-label={T("msignin_nsecLabel")}
+          aria-label={T("mobileSignIn_nsecLabel")}
         />
 
         {npub ? (
           <Text style={styles.npub}>
-            {T("msignin_derived")}: {npub.slice(0, 20)}…
+            {T("mobileSignIn_derived")}: {npub.slice(0, 20)}…
           </Text>
         ) : null}
         {error ? <Text style={styles.error}>{T(error)}</Text> : null}
 
         <Pressable style={styles.button} onPress={submit} accessibilityRole="button">
-          <Text style={styles.buttonText}>{T("msignin_button")}</Text>
+          <Text style={styles.buttonText}>{T("mobileSignIn_button")}</Text>
         </Pressable>
 
         {onUsePairing ? (
           <Pressable onPress={onUsePairing} accessibilityRole="button">
-            <Text style={styles.link}>{T("msignin_toPair")}</Text>
+            <Text style={styles.link}>{T("mobileSignIn_toPair")}</Text>
           </Pressable>
         ) : null}
       </View>

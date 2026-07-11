@@ -99,7 +99,7 @@ export function PairImportScreen({
         onSignIn(r.identity);
       })
       .catch(() => {
-        setError("mpair_errCode");
+        setError("mobilePair_errCode");
         setBusy(false);
       });
   };
@@ -107,44 +107,44 @@ export function PairImportScreen({
   return (
     <View style={styles.root}>
       <View style={styles.card}>
-        <Text style={styles.title}>{T("mpair_title")}</Text>
+        <Text style={styles.title}>{T("mobilePair_title")}</Text>
 
-        <Text style={styles.label}>{T("mpair_codeLabel")}</Text>
+        <Text style={styles.label}>{T("mobilePair_codeLabel")}</Text>
         <TextInput
           style={styles.input}
           value={code}
           onChangeText={setCode}
-          placeholder={T("mpair_codePlaceholder")}
+          placeholder={T("mobilePair_codePlaceholder")}
           placeholderTextColor={tk.muted}
           autoCapitalize="none"
           autoCorrect={false}
           editable={!busy}
           multiline
-          aria-label={T("mpair_codeLabel")}
+          aria-label={T("mobilePair_codeLabel")}
         />
         {preview && preview.ok && preview.relayHost ? (
           <Text style={styles.relay}>
-            {T("mpair_relayVia")}: {preview.relayHost}
+            {T("mobilePair_relayVia")}: {preview.relayHost}
           </Text>
         ) : null}
 
         {sas ? (
           <View style={styles.sasWrap}>
-            <Text style={styles.sasHint}>{T("mpair_sasHint")}</Text>
+            <Text style={styles.sasHint}>{T("mobilePair_sasHint")}</Text>
             <Text style={styles.sas}>{sas}</Text>
           </View>
         ) : busy ? (
-          <Text style={styles.waiting}>{T("mpair_waiting")}</Text>
+          <Text style={styles.waiting}>{T("mobilePair_waiting")}</Text>
         ) : null}
         {error ? <Text style={styles.error}>{T(error)}</Text> : null}
 
         <Pressable style={styles.button} onPress={connect} disabled={busy} accessibilityRole="button">
-          <Text style={styles.buttonText}>{T("mpair_connect")}</Text>
+          <Text style={styles.buttonText}>{T("mobilePair_connect")}</Text>
         </Pressable>
 
         {onUseNsec ? (
           <Pressable onPress={onUseNsec} accessibilityRole="button">
-            <Text style={styles.link}>{T("mpair_toNsec")}</Text>
+            <Text style={styles.link}>{T("mobilePair_toNsec")}</Text>
           </Pressable>
         ) : null}
       </View>

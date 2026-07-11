@@ -34,14 +34,14 @@ export function npubFromNsec(nsec: string): string | null {
 /** A：由 nsec＋顯示名稱組出身分。名稱空白或 nsec 非法皆回錯誤鍵。 */
 export function identityFromNsec(nsec: string, name: string): SignInResult {
   const nm = name.trim();
-  if (!nm) return { ok: false, error: "msignin_errName" };
+  if (!nm) return { ok: false, error: "mobileSignIn_errName" };
   let sk: SecretKey;
   let pubkey: PubkeyHex;
   try {
     sk = nsecDecode(nsec.trim());
     pubkey = getPublicKey(sk);
   } catch {
-    return { ok: false, error: "msignin_errNsec" };
+    return { ok: false, error: "mobileSignIn_errNsec" };
   }
   return { ok: true, identity: { sk, pubkey, npub: npubEncode(pubkey), nsec: nsecEncode(sk), name: nm } };
 }
@@ -49,7 +49,7 @@ export function identityFromNsec(nsec: string, name: string): SignInResult {
 /** B：由配對捆包萃取身分（同帳號）；捆包無身分回錯誤鍵。名稱優先用覆寫，其次捆包內名稱。 */
 export function identityFromPairBundle(bundle: PairBundle, overrideName?: string): SignInResult {
   const id = bundle.snapshot.identity;
-  if (!id || typeof id.nsec !== "string" || !id.nsec) return { ok: false, error: "mpair_errNoIdentity" };
+  if (!id || typeof id.nsec !== "string" || !id.nsec) return { ok: false, error: "mobilePair_errNoIdentity" };
   const name = (overrideName?.trim() || id.name || "").trim();
   return identityFromNsec(id.nsec, name);
 }
@@ -73,6 +73,6 @@ export function previewPairing(code: string): PairPreview {
     const { payload } = parsePairing(code.trim());
     return { ok: true, relayHost: hostOf(payload.relay ?? "") };
   } catch {
-    return { ok: false, error: "mpair_errCode" };
+    return { ok: false, error: "mobilePair_errCode" };
   }
 }

@@ -33,10 +33,10 @@ describe("行動端登入 A：nsec 匯入（ADR-0081）", () => {
     expect(r.identity.name).toBe("夜");
   });
 
-  it("名稱空白 → msignin_errName；nsec 非法/前綴錯 → msignin_errNsec", () => {
-    expect(identityFromNsec(nsec, "   ")).toEqual({ ok: false, error: "msignin_errName" });
-    expect(identityFromNsec("nsec1garbage", "夜")).toEqual({ ok: false, error: "msignin_errNsec" });
-    expect(identityFromNsec(npubEncode(pubkey), "夜")).toEqual({ ok: false, error: "msignin_errNsec" }); // npub 前綴
+  it("名稱空白 → mobileSignIn_errName；nsec 非法/前綴錯 → mobileSignIn_errNsec", () => {
+    expect(identityFromNsec(nsec, "   ")).toEqual({ ok: false, error: "mobileSignIn_errName" });
+    expect(identityFromNsec("nsec1garbage", "夜")).toEqual({ ok: false, error: "mobileSignIn_errNsec" });
+    expect(identityFromNsec(npubEncode(pubkey), "夜")).toEqual({ ok: false, error: "mobileSignIn_errNsec" }); // npub 前綴
   });
 
   it("npubFromNsec（預覽用）：有效回 npub、非法回 null", () => {
@@ -57,15 +57,15 @@ describe("行動端登入 B：配對匯入（ADR-0081）", () => {
     expect(r2.ok && r2.identity.name).toBe("新名");
   });
 
-  it("捆包無身分 → mpair_errNoIdentity", () => {
+  it("捆包無身分 → mobilePair_errNoIdentity", () => {
     const empty = { snapshot: { identity: null } } as unknown as PairBundle;
-    expect(identityFromPairBundle(empty)).toEqual({ ok: false, error: "mpair_errNoIdentity" });
+    expect(identityFromPairBundle(empty)).toEqual({ ok: false, error: "mobilePair_errNoIdentity" });
   });
 
-  it("previewPairing：有效碼取會合中繼站主機名、非法碼 → mpair_errCode", () => {
+  it("previewPairing：有效碼取會合中繼站主機名、非法碼 → mobilePair_errCode", () => {
     const code = encodePairing(createPairing("", "webrtc", "wss://meet.example").payload);
     expect(previewPairing(code)).toEqual({ ok: true, relayHost: "meet.example" });
-    expect(previewPairing("not-json")).toEqual({ ok: false, error: "mpair_errCode" });
+    expect(previewPairing("not-json")).toEqual({ ok: false, error: "mobilePair_errCode" });
   });
 
   it("整合：真實配對協定產出的捆包 → identityFromPairBundle 得同帳號", async () => {
