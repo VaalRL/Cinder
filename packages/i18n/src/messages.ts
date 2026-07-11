@@ -25,6 +25,28 @@ export interface Messages {
   signIn_displayName: string;
   signIn_relayUrl: string;
   signIn_button: string;
+  // ── 行動端登入（ADR-0081）：nsec 匯入（A）＋配對匯入（B）──
+  msignin_title: string;
+  msignin_nameLabel: string;
+  msignin_nsecLabel: string;
+  msignin_nsecPlaceholder: string;
+  msignin_derived: string;
+  msignin_button: string;
+  msignin_errName: string;
+  msignin_errNsec: string;
+  msignin_hint: string;
+  msignin_toPair: string;
+  mpair_title: string;
+  mpair_codeLabel: string;
+  mpair_codePlaceholder: string;
+  mpair_connect: string;
+  mpair_relayVia: string;
+  mpair_sasHint: string;
+  mpair_waiting: string;
+  mpair_errCode: string;
+  mpair_errNoIdentity: string;
+  mpair_restored: string;
+  mpair_toNsec: string;
   contact_myId: string;
   contact_addPlaceholder: string;
   contact_add: string;
@@ -357,6 +379,27 @@ const zhHant: Messages = {
   signIn_displayName: "顯示名稱",
   signIn_relayUrl: "中繼站網址（留空使用示範模式）",
   signIn_button: "登入",
+  msignin_title: "以金鑰登入",
+  msignin_nameLabel: "顯示名稱",
+  msignin_nsecLabel: "私鑰（nsec）",
+  msignin_nsecPlaceholder: "貼上 nsec1…",
+  msignin_derived: "身分",
+  msignin_button: "登入",
+  msignin_errName: "請輸入顯示名稱",
+  msignin_errNsec: "nsec 格式不正確",
+  msignin_hint: "在桌面版「設定 → 身分備份」複製你的 nsec；只存在本機、絕不外流。",
+  msignin_toPair: "改用配對匯入",
+  mpair_title: "配對匯入",
+  mpair_codeLabel: "配對碼",
+  mpair_codePlaceholder: "貼上舊機顯示的配對碼",
+  mpair_connect: "連線",
+  mpair_relayVia: "會合中繼站",
+  mpair_sasHint: "確認兩台裝置顯示相同數字",
+  mpair_waiting: "等待舊機確認…",
+  mpair_errCode: "配對碼無效或已過期",
+  mpair_errNoIdentity: "配對資料不含身分",
+  mpair_restored: "已還原身分",
+  mpair_toNsec: "改用金鑰登入",
   contact_myId: "我的 ID",
   contact_addPlaceholder: "貼上好友的 npub…（可附 @wss://中繼）",
   contact_add: "加好友",
@@ -689,6 +732,27 @@ const en: Messages = {
   signIn_displayName: "Display name",
   signIn_relayUrl: "Relay URL (leave blank for demo mode)",
   signIn_button: "Sign in",
+  msignin_title: "Sign in with key",
+  msignin_nameLabel: "Display name",
+  msignin_nsecLabel: "Private key (nsec)",
+  msignin_nsecPlaceholder: "Paste nsec1…",
+  msignin_derived: "Identity",
+  msignin_button: "Sign in",
+  msignin_errName: "Enter a display name",
+  msignin_errNsec: "Invalid nsec key",
+  msignin_hint: "Copy your nsec from Desktop → Settings → Identity backup. It stays on this device and is never uploaded.",
+  msignin_toPair: "Use pairing instead",
+  mpair_title: "Pair import",
+  mpair_codeLabel: "Pairing code",
+  mpair_codePlaceholder: "Paste the code shown on your old device",
+  mpair_connect: "Connect",
+  mpair_relayVia: "Meet via relay",
+  mpair_sasHint: "Confirm both devices show the same number",
+  mpair_waiting: "Waiting for the old device…",
+  mpair_errCode: "Invalid or expired pairing code",
+  mpair_errNoIdentity: "Pairing data has no identity",
+  mpair_restored: "Identity restored",
+  mpair_toNsec: "Use key sign-in",
   contact_myId: "My ID",
   contact_addPlaceholder: "Paste a buddy's npub… (optionally @wss://relay)",
   contact_add: "Add",

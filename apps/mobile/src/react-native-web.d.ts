@@ -13,8 +13,32 @@ declare module "react-native-web" {
     style?: Style;
     children?: ReactNode;
   }
+  export interface TextInputProps {
+    style?: Style;
+    value?: string;
+    placeholder?: string;
+    placeholderTextColor?: string;
+    secureTextEntry?: boolean;
+    editable?: boolean;
+    multiline?: boolean;
+    autoCapitalize?: "none" | "sentences" | "words" | "characters";
+    autoCorrect?: boolean;
+    onChangeText?: (text: string) => void;
+    "aria-label"?: string;
+  }
+  export interface PressableProps {
+    style?: Style;
+    onPress?: () => void;
+    disabled?: boolean;
+    children?: ReactNode;
+    accessibilityRole?: string;
+    "aria-label"?: string;
+    testID?: string;
+  }
   export const View: ComponentType<ViewProps>;
   export const Text: ComponentType<TextProps>;
+  export const TextInput: ComponentType<TextInputProps>;
+  export const Pressable: ComponentType<PressableProps>;
   export const StyleSheet: {
     create<T extends Record<string, StyleValue>>(styles: T): T;
   };
