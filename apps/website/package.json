@@ -1,0 +1,31 @@
+{
+  "name": "@cinder/website",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Cinder 官方網站（ADR-0090）：靜態站——開源/永久免費/隱私主張、下載、捐款導流、簽章透明度（funds.json 前端驗簽＋runway）。與 E2E 通訊平面硬隔離、零追蹤。",
+  "license": "AGPL-3.0-only",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "sign-funds": "node --experimental-strip-types scripts/sign-funds.ts",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@cinder/core": "workspace:*",
+    "@cinder/i18n": "workspace:*",
+    "@cinder/theme": "workspace:*",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.4",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.11",
+    "vitest": "^2.1.8"
+  }
+}

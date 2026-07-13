@@ -48,6 +48,7 @@
 | 桌面前端 | `apps/desktop/src/` | React/TS UI：好友列表、對話視窗、狀態列、Nudge 動畫。消費 `@cinder/engine`；平台基質（Tauri 金鑰庫/加密儲存）經 `AppStorage`/keyvault 介面注入。 |
 | 桌面原生橋 | `apps/desktop/src-tauri/` | Rust：原生 SQLite 讀寫、背景 Nostr WebSocket 長連線、WebRTC 資料通道、金鑰安全儲存、IPC。 |
 | 行動端 | `apps/mobile/` | React Native（react-native-web 於此環境開發）：重用 `@cinder/core`/`@cinder/i18n`/`@cinder/engine`（`chat.ts` 已消費 `BrowserChatBackend`，實證跨前端重用）；SQLite/Silent Push 待 RN 工具鏈。 |
+| 官方網站 | `apps/website/` | 純靜態站（Vite+React；ADR-0090）：開源/永久免費/隱私主張、下載、捐款導流、**簽章式資金透明度**（`funds.json` 前端 `verifyFunds` 對釘死透明度公鑰驗簽＋算 runway，fail-closed）。**與通訊平面硬隔離、零追蹤、無常駐後台**；重用 `@cinder/core`（驗簽）/`@cinder/theme`/`@cinder/i18n`。 |
 | 中繼站 | `relay/` | Cloudflare Worker + D1：Nostr relay，處理 Ephemeral 轉發與 NIP-40 過期留言。 |
 | 測試 | `tests/` | 跨層整合測試與共用 fixture。 |
 | 文件 | `docs/` | 設計決策與流程補充。 |

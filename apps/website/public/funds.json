@@ -1,0 +1,9 @@
+{
+  "kind": 30088,
+  "created_at": 1783814400,
+  "tags": [],
+  "content": "{\"balance\":1240.5,\"currency\":\"USD\",\"monthlyBurn\":210,\"updatedAt\":\"2026-07-12T00:00:00Z\",\"allocations\":[{\"period\":\"2026-06\",\"nodeOps\":180,\"bonuses\":120,\"other\":0,\"note\":\"示範資料（佔位）\"},{\"period\":\"2026-05\",\"nodeOps\":175,\"bonuses\":90,\"other\":15}]}",
+  "pubkey": "7fb989c676cce640d545919144ef1f9a65009a79c573cea451e822bd16b5f5a3",
+  "id": "fe85d78d0deb938d95ecf6374e0fcdbfb0f51fd3fe718800240f979d59c79f25",
+  "sig": "e6e6de8676a0cd1b504600daedaa64bca30816b329667e966c4abbdada002452aee6a5c24937b997581698fee32918f8058f52d05f5882c06ede2b1c1e3ea6ba"
+}
