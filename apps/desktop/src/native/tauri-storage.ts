@@ -153,6 +153,10 @@ export class TauriStorage implements AppStorage {
     this.mem.setFileSavedPath(contactPubkey, messageId, savedPath);
     this.persist();
   }
+  setFileThumb(contactPubkey: string, messageId: string, thumb: string): void {
+    this.mem.setFileThumb(contactPubkey, messageId, thumb);
+    this.persist();
+  }
   setMessageReceipt(
     convoKey: string,
     messageId: string,

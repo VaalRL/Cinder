@@ -63,7 +63,100 @@ import { avatarColor, EMOTICONS, initial } from "./util.js";
 import { EditableAvatar, usePersonalizeTick } from "./Avatar.js";
 import { ChatBgPicker } from "./ChatBgPicker.js";
 import { MsgStatusIcon } from "./MsgStatusIcon.js";
+import { readOriginal, relocateOriginal } from "../native/save-file.js";
 import { chatBgCss, getChatBg, getConvoSize, setConvoSize } from "./personalize.js";
+
+/**
+ * 燈箱項目（ADR-0102）：`preview` 是立刻能顯示的東西（本 session 的原圖 blob，或跨 session 存活的縮圖）；
+ * `hasOriginal` 表示 `preview` 本身就是原圖（不需再去讀檔）。
+ */
+export interface LightboxItem {
+  id: string;
+  name: string;
+  mime: string;
+  preview: string;
+  hasOriginal: boolean;
+  savedPath?: string | undefined;
+}
+
+/** 由檔案訊息建燈箱項目；原圖優先，否則用縮圖。 */
+function lightboxItem(m: ChatMessage): LightboxItem {
+  const f = m.file!;
+  return {
+    id: m.id,
+    name: f.name,
+    mime: f.mime,
+    preview: f.url ?? f.thumb ?? "",
+    hasOriginal: !!f.url,
+    savedPath: f.savedPath,
+  };
+}
+
+/**
+ * 燈箱（ADR-0102）：先顯示能顯示的（原圖或縮圖），再嘗試從 `savedPath` **讀回原圖**。
+ * 讀不到（使用者把檔案搬走/刪了）→ 顯示縮圖並提供「重新指定位置」，由使用者**主動**選新路徑
+ * （點縮圖不該無預警彈出檔案總管）。瀏覽器無法讀回原檔 → 只顯示縮圖。
+ */
+function Lightbox({
+  item,
+  onClose,
+  onRelocated,
+}: {
+  item: LightboxItem;
+  onClose: () => void;
+  onRelocated: (messageId: string, newPath: string) => void;
+}): JSX.Element {
+  const { t } = useI18n();
+  const [src, setSrc] = useState(item.preview);
+  const [state, setState] = useState<"ok" | "loading" | "missing" | "unsupported">(
+    item.hasOriginal ? "ok" : "loading",
+  );
+
+  useEffect(() => {
+    if (item.hasOriginal) return; // 本 session 就有原圖
+    let cancelled = false;
+    void readOriginal(item.savedPath, item.mime).then((r) => {
+      if (cancelled) return;
+      if (r.ok) {
+        setSrc(r.url);
+        setState("ok");
+      } else {
+        setState(r.reason);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [item.id, item.hasOriginal, item.savedPath, item.mime]);
+
+  const relocate = (): void => {
+    void relocateOriginal(item.name, item.mime).then((r) => {
+      if (!r) return;
+      setSrc(r.url);
+      setState("ok");
+      onRelocated(item.id, r.newPath); // 更新 savedPath，下次就直接讀得到
+    });
+  };
+
+  return (
+    <div className="lightbox" role="dialog" aria-modal="true" onClick={onClose}>
+      {src ? <img src={src} alt={t("image_alt")} /> : null}
+      {state === "missing" ? (
+        <div className="lightbox__note" onClick={(e) => e.stopPropagation()}>
+          <span>{t("image_originalMissing")}</span>
+          <button className="lightbox__btn" data-testid="relocate-original" onClick={relocate}>
+            {t("image_relocate")}
+          </button>
+        </div>
+      ) : null}
+      {state === "unsupported" ? (
+        <div className="lightbox__note" onClick={(e) => e.stopPropagation()}>
+          <span>{t("image_thumbOnly")}</span>
+        </div>
+      ) : null}
+    </div>
+  );
+}
 
 /** 群組已讀呈現（ADR-0095）：`list`＝顯示誰已讀（≤5 人）；`count`＝只顯示 M/N（6–10 人）。 */
 interface GroupRead {
@@ -123,6 +216,8 @@ export interface ConversationProps {
   onLeaveGroup?: () => void;
   /** 導出此對話紀錄（ADR-0094）；未提供則不顯示。 */
   onExport?: () => void;
+  /** 使用者重新指定原圖位置後回寫 savedPath（ADR-0102）。 */
+  onFileRelocated?: (messageId: string, newPath: string) => void;
   /**
    * 外部插入文字到草稿（ADR-0097 右欄計算機）：`nonce` 變動時把 `text` 附加到 composer。
    * 用單向指令而非把草稿狀態上提，避免動到既有 composer 狀態機（@提及建議、串內 composer 等）。
@@ -229,7 +324,8 @@ export function ConversationWindow(props: ConversationProps): JSX.Element {
   const [threadMenDismissed, setThreadMenDismissed] = useState(false);
   const [showAlbum, setShowAlbum] = useState(false);
   const [showMembers, setShowMembers] = useState(false);
-  const [lightbox, setLightbox] = useState<string | null>(null);
+  // 燈箱（ADR-0102）：帶著訊息資訊，才能在只有縮圖時嘗試讀回原檔／讓使用者重新指定位置。
+  const [lightbox, setLightbox] = useState<LightboxItem | null>(null);
   const [ttl, setTtl] = useState(0);
   const [dragging, setDragging] = useState(false);
   const logRef = useRef<HTMLDivElement>(null);
@@ -320,10 +416,10 @@ export function ConversationWindow(props: ConversationProps): JSX.Element {
     };
   };
 
-  // 相簿：本對話中收發過、可顯示的圖片。
+  // 相簿（ADR-0023／0102）：可顯示＝有原圖 blob（本 session）**或有縮圖**（跨 session 存活）。
   const images = messages
-    .filter((m) => m.file?.mime.startsWith("image/") && m.file.url)
-    .map((m) => ({ id: m.id, name: m.file!.name, url: m.file!.url! }));
+    .filter((m) => m.file?.mime.startsWith("image/") && (m.file.url || m.file.thumb))
+    .map((m) => lightboxItem(m));
 
   // 貼圖偏好：開啟選擇器時載入「最近／最愛」。
   useEffect(() => {
@@ -1105,8 +1201,8 @@ export function ConversationWindow(props: ConversationProps): JSX.Element {
                 <div className="album__empty">{t("album_empty")}</div>
               ) : (
                 images.map((img) => (
-                  <button key={img.id} className="album__item" onClick={() => setLightbox(img.url)}>
-                    <img src={img.url} alt={img.name || t("image_alt")} />
+                  <button key={img.id} className="album__item" onClick={() => setLightbox(img)}>
+                    <img src={img.preview} alt={img.name || t("image_alt")} />
                   </button>
                 ))
               )}
@@ -1116,9 +1212,11 @@ export function ConversationWindow(props: ConversationProps): JSX.Element {
       )}
 
       {lightbox && (
-        <div className="lightbox" role="dialog" aria-modal="true" onClick={() => setLightbox(null)}>
-          <img src={lightbox} alt={t("image_alt")} />
-        </div>
+        <Lightbox
+          item={lightbox}
+          onClose={() => setLightbox(null)}
+          onRelocated={(id, path) => props.onFileRelocated?.(id, path)}
+        />
       )}
 
       {showMembers && props.groupMembers && (
@@ -1385,7 +1483,7 @@ function MessageLine({
   expired: boolean;
   onReact?: ((messageId: string, emoji: string) => void) | undefined;
   onUnsend?: ((messageId: string) => void) | undefined;
-  onView?: ((url: string) => void) | undefined;
+  onView?: ((item: LightboxItem) => void) | undefined;
   ownedIds: Set<string>;
   onOwnSticker: (label: string, svg: string) => void;
   /** 此訊息作為串根的回覆數（ADR-0051）。 */
@@ -1550,7 +1648,7 @@ function FileLine({
 }: {
   message: ChatMessage;
   who: string;
-  onView?: ((url: string) => void) | undefined;
+  onView?: ((item: LightboxItem) => void) | undefined;
 }): JSX.Element {
   const { t } = useI18n();
   const file = message.file!;
@@ -1564,9 +1662,10 @@ function FileLine({
     <div className={`line ${message.outgoing ? "out" : "in"}`}>
       <span className="who">{who}</span>
       <span className="time">{new Date(message.at).toLocaleTimeString()}</span>
-      {isImage && file.url ? (
-        <button className="imgthumb" data-testid="imgthumb" onClick={() => onView?.(file.url!)}>
-          <img src={file.url} alt={file.name || t("image_alt")} />
+      {isImage && (file.url || file.thumb) ? (
+        // ADR-0102：縮圖跨 session 存活，故重載後圖片仍是圖片（不再退化成灰色檔案卡）。
+        <button className="imgthumb" data-testid="imgthumb" onClick={() => onView?.(lightboxItem(message))}>
+          <img src={file.url ?? file.thumb} alt={file.name || t("image_alt")} />
         </button>
       ) : isVoice && file.url ? (
         <span className="voice" data-testid="voice">

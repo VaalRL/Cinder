@@ -5,7 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { AppStorage, ChatBackend, ChatMessage, CloudSyncMode, Contact, Group, Status } from "@cinder/engine";
 import { exportExtension, exportMime, type ExportFormat, exportRecords, getDeviceId, LocalStorage } from "@cinder/engine";
 import type { CallMedia, CallState } from "@cinder/core";
-import { pickFile, saveFile } from "./native/files.js";
+import { makeThumbnail, pickFile, saveFile } from "./native/files.js";
 import { hasCallSupport } from "./native/call-media.js";
 import { CallScreen } from "./screens/CallScreen.js";
 import { type Locale, type MessageKey, translate } from "@cinder/i18n";
@@ -178,6 +178,10 @@ export function MobileApp({
         }),
       // 收到檔案位元組（ADR-0093）：另存到裝置，App 不保管本體；訊息本身由 backend 建好。
       onFileBytes: (pk, messageId, file) => {
+        // 圖片縮圖（ADR-0102）：跨 session 存活，重載後圖片仍是圖片。
+        void makeThumbnail(file.bytes, file.mime).then((thumb) => {
+          if (thumb) backend.setFileThumb?.(pk, messageId, thumb);
+        });
         const url = saveFile(file.name, file.mime, file.bytes);
         setConvos((c) => {
           const cur = c[pk];
@@ -192,6 +196,16 @@ export function MobileApp({
           };
         });
       },
+      // 縮圖產生完成（ADR-0102）：即時打進 UI。
+      onFileThumb: (pk, messageId, thumb) =>
+        setConvos((c) => {
+          const cur = c[pk];
+          if (!cur) return c;
+          return {
+            ...c,
+            [pk]: cur.map((m) => (m.id === messageId && m.file ? { ...m, file: { ...m.file, thumb } } : m)),
+          };
+        }),
       // ADR-0071：還原時採用快照傳播的備份模式（僅本機從未設定時）。
       onCloudSyncMode: (mode) => {
         if (readCloudSync() === "off") changeCloudSync(mode);
@@ -249,8 +263,10 @@ export function MobileApp({
     const b = backendRef.current;
     const pk = activeIdRef.current;
     if (!b?.sendFile || !pk) return;
-    void pickFile().then((f) => {
-      if (f) b.sendFile?.(pk, f);
+    void pickFile().then(async (f) => {
+      if (!f) return;
+      const thumb = await makeThumbnail(f.bytes, f.mime); // ADR-0102：只存本機、不外送
+      b.sendFile?.(pk, f, thumb ?? undefined);
     });
   };
 

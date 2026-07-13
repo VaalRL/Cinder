@@ -150,3 +150,32 @@ describe("ConversationWindow 長訊息截斷 + 展開全文", () => {
     expect(html).toContain("短訊息");
   });
 });
+
+describe("圖片跨 session（ADR-0023／0102）", () => {
+  const THUMB = "data:image/jpeg;base64,ZZZ";
+  const imgMsg = (extra: { url?: string; thumb?: string } = {}): ChatMessage => ({
+    id: "i1",
+    outgoing: false,
+    text: "",
+    at: 1,
+    file: { id: "t1", name: "cat.png", mime: "image/png", size: 900, sent: 900, incoming: true, ...extra },
+  });
+
+  it("重載後只剩縮圖（無 blob url）：仍渲染為圖片，不再退化成灰色檔案卡", () => {
+    const html = render([imgMsg({ thumb: THUMB })]);
+    expect(html).toContain('data-testid="imgthumb"'); // 圖片縮圖，而非 filecard
+    expect(html).toContain(THUMB);
+    expect(html).not.toContain('data-testid="filecard"');
+  });
+
+  it("本 session 有原圖時優先顯示原圖（縮圖只是備援）", () => {
+    const html = render([imgMsg({ url: "blob:orig", thumb: THUMB })]);
+    expect(html).toContain("blob:orig");
+  });
+
+  it("既無原圖也無縮圖（如非圖片/縮圖超限）→ 仍走一般檔案卡", () => {
+    const html = render([imgMsg()]);
+    expect(html).toContain('data-testid="filecard"');
+    expect(html).not.toContain('data-testid="imgthumb"');
+  });
+});

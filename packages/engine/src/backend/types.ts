@@ -59,6 +59,8 @@ export interface ChatFile {
   url?: string;
   /** 收檔後使用者選定的本機儲存路徑（Tauri 另存；瀏覽器下載無法得知則省略，ADR-0093）。 */
   savedPath?: string;
+  /** 圖片縮圖 data URL（ADR-0102）：跨 session 存活，讓相簿/內嵌縮圖在重載後仍在。 */
+  thumb?: string;
 }
 
 export interface ChatMessage {
@@ -126,6 +128,8 @@ export interface ChatBackendEvents {
    * 發出的檔案訊息（backend 已先建好該訊息，metadata-only）。App 不保管位元組本體。
    */
   onFileBytes?(contact: PubkeyHex, messageId: string, file: ReceivedFile): void;
+  /** 某圖片訊息的縮圖已產生/更新（ADR-0102）：UI 據此即時顯示，不必等重載。 */
+  onFileThumb?(contact: PubkeyHex, messageId: string, thumb: string): void;
   /** 檔案傳輸錯誤。 */
   onFileError?(contact: PubkeyHex, reason: string): void;
   /** 群組清單更新（M9）。 */
@@ -173,8 +177,13 @@ export interface ChatBackend {
   markRead?(contact: PubkeyHex): void;
   /** 設定已讀回條開關（opt-in + 互惠；ADR-0058）。 */
   setReadReceipts?(enabled: boolean): void;
-  /** 以 WebRTC P2P 傳送檔案（不經中繼），回傳追蹤用的傳輸 id。 */
-  sendFile?(to: PubkeyHex, file: OutgoingFile): string;
+  /**
+   * 以 WebRTC P2P 傳送檔案（不經中繼），回傳追蹤用的傳輸 id。
+   * `thumb`（ADR-0102）：圖片的縮圖 data URL——由前端產生（需 canvas），持久化供跨 session 顯示。
+   */
+  sendFile?(to: PubkeyHex, file: OutgoingFile, thumb?: string): string;
+  /** 記錄某圖片訊息的縮圖（ADR-0102）：收檔端產生縮圖後回填。 */
+  setFileThumb?(contact: PubkeyHex, messageId: string, thumb: string): void;
   /** 回填某檔案訊息收檔後的本機儲存路徑（ADR-0093）：App 另存完成後呼叫以持久化路徑。 */
   setFileSavedPath?(contact: PubkeyHex, messageId: string, savedPath: string): void;
   /** 開啟對話時主動建立 P2P 通道（F5：讓輸入中等狀態卸載中繼）。 */

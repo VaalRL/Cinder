@@ -8,6 +8,7 @@
 // 介面與呼叫端皆不變（比照桌面的 native/save-file.ts）。
 
 import type { OutgoingFile } from "@cinder/core";
+import { isThumbnailable, THUMB_MAX_BYTES, THUMB_MAX_EDGE, THUMB_QUALITY } from "@cinder/engine";
 
 /** 讓使用者選一個檔案；取消回 null。 */
 export async function pickFile(): Promise<OutgoingFile | null> {
@@ -35,6 +36,39 @@ export async function pickFile(): Promise<OutgoingFile | null> {
     document.body.appendChild(input);
     input.click();
   });
+}
+
+/**
+ * 由圖片位元組產生縮圖 data URL（ADR-0102）——衍生的小預覽圖，**不是原檔**（原檔位元組仍不保存）。
+ * 政策常數取自 @cinder/engine，與桌面同一份，不會漂移。
+ * 移植真 RN：改用 expo-image-manipulator（介面不變）。
+ */
+export async function makeThumbnail(bytes: Uint8Array, mime: string): Promise<string | null> {
+  if (!isThumbnailable(mime)) return null;
+  if (typeof document === "undefined" || typeof createImageBitmap === "undefined") return null;
+  let bitmap: ImageBitmap;
+  try {
+    bitmap = await createImageBitmap(new Blob([bytes as BlobPart], { type: mime }));
+  } catch {
+    return null;
+  }
+  try {
+    const scale = Math.min(1, THUMB_MAX_EDGE / Math.max(bitmap.width, bitmap.height));
+    const w = Math.max(1, Math.round(bitmap.width * scale));
+    const h = Math.max(1, Math.round(bitmap.height * scale));
+    const canvas = document.createElement("canvas");
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return null;
+    ctx.fillStyle = "#ffffff"; // 透明底轉 JPEG 會變黑
+    ctx.fillRect(0, 0, w, h);
+    ctx.drawImage(bitmap, 0, 0, w, h);
+    const url = canvas.toDataURL("image/jpeg", THUMB_QUALITY);
+    return url.length > THUMB_MAX_BYTES ? null : url;
+  } finally {
+    bitmap.close();
+  }
 }
 
 /** 收檔另存（ADR-0093：App 不保管位元組）。回傳可再下載的 URL；無 DOM 時回 null。 */

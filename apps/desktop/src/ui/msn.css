@@ -621,6 +621,18 @@ body { margin: 0; background: var(--bg-b); color: var(--ink); }
 .tick { display: inline-flex; align-items: center; color: var(--muted); margin-left: 4px; vertical-align: middle; }
 .tick--read { color: var(--accent); }
 .tick--failed { color: #dc2626; }
+/* 燈箱：原圖找不到時的提示與「重新指定位置」（ADR-0102）。 */
+.lightbox__note {
+  position: absolute; bottom: 32px; left: 50%; transform: translateX(-50%);
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 14px; border-radius: 10px;
+  background: rgba(20, 20, 24, .92); color: #f2f2f2; font-size: 12px;
+}
+.lightbox__btn {
+  font-size: 12px; padding: 5px 12px; border-radius: 6px; cursor: pointer;
+  border: 1px solid var(--accent); background: var(--accent); color: #fff;
+}
+
 /* 群組已讀（名單制/計數制）。 */
 .readby { font-size: 10px; color: var(--muted); margin-left: 5px; vertical-align: middle; }
 

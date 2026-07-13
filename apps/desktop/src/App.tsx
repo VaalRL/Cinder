@@ -22,6 +22,7 @@ import { normalizeRelayUrl, RelayChatBackend, webSocketConnector } from "@cinder
 import { getKeyVault } from "./native/keyvault.js";
 import { getNotifier, onNotificationClick } from "./native/notify.js";
 import { saveIncomingFile, saveTextFile } from "./native/save-file.js";
+import { makeThumbnail } from "./ui/thumbnail.js";
 import { useI18n } from "./i18n.js";
 import { type Layout, useLayout } from "./layout.js";
 import { isWrappedValue, passChange, passDisable, passEnable, passLock, passRescue, passUnlock } from "./native/passlock.js";
@@ -625,6 +626,10 @@ export function App(): JSX.Element {
           return changed ? { ...prev, [pk]: next } : prev;
         }),
       onFileBytes: (pk, messageId, file) => {
+        // 圖片縮圖（ADR-0102）：由位元組產生，持久化供跨 session 顯示（原檔位元組仍不保存）。
+        void makeThumbnail(file.bytes, file.mime).then((thumb) => {
+          if (thumb) backend.setFileThumb?.(pk, messageId, thumb);
+        });
         // 收到位元組（ADR-0093）：跳「另存新檔」讓使用者選位置。App 不保管檔案本體，只回填路徑；
         // 訊息本身（metadata）已由 backend 經 onMessage/onHistory 建好，這裡只更新該則的檔案欄位。
         void saveIncomingFile(file.name, file.mime, file.bytes).then((res) => {
@@ -639,6 +644,9 @@ export function App(): JSX.Element {
         });
         setOpen((prev) => (prev.includes(pk) ? prev : [...prev, pk]));
       },
+      // 縮圖產生完成（ADR-0102）：不等重載就顯示。
+      onFileThumb: (pk, messageId, thumb) =>
+        setConvos((prev) => patchFileByMsgId(prev, pk, messageId, { thumb })),
       onFileError: (pk, reason) => {
         const msg: ChatMessage = { id: uid("fe"), outgoing: false, text: `⚠️ ${reason}`, at: Date.now() };
         setConvos((prev) => ({ ...prev, [pk]: [...(prev[pk] ?? []), msg] }));
@@ -1138,8 +1146,10 @@ export function App(): JSX.Element {
     if (!activeBackend.sendFile) return;
     const bytes = new Uint8Array(await f.arrayBuffer());
     const mime = f.type || "application/octet-stream";
+    // 圖片縮圖（ADR-0102）：只存本機、不進 metadata 訊息、不上中繼。非圖片回 null。
+    const thumb = await makeThumbnail(bytes, mime);
     // backend 擁有檔案訊息（ADR-0093）：sendFile 會同步 emit onMessage（file.id＝傳輸 id）。
-    const tid = activeBackend.sendFile(pk, { name: f.name, mime, bytes });
+    const tid = activeBackend.sendFile(pk, { name: f.name, mime, bytes }, thumb ?? undefined);
     // 本機保留 blob URL：送出端也能重播/下載（語音訊息尤其需要）。以傳輸 id 併入剛 emit 的那則。
     const url = URL.createObjectURL(f);
     setConvos((prev) => patchFileByTid(prev, pk, tid, { url }));
@@ -1547,6 +1557,11 @@ export function App(): JSX.Element {
                 : {})}
               {...(storageRef.current ? { onExport: () => setExportPreselect([pk]) } : {})}
               {...(pendingInsert?.convo === pk ? { insert: { text: pendingInsert.text, nonce: pendingInsert.nonce } } : {})}
+              onFileRelocated={(messageId: string, newPath: string) => {
+                // ADR-0102：使用者重新指定原圖位置 → 回寫 savedPath，下次直接讀得到。
+                activeBackend.setFileSavedPath?.(pk, messageId, newPath);
+                setConvos((prev) => patchFileByMsgId(prev, pk, messageId, { savedPath: newPath }));
+              }}
               onClose={() => closeConvo(pk)}
             />
             </div>
@@ -1605,6 +1620,10 @@ export function App(): JSX.Element {
             onNudge={() => activeBackend.sendNudge(pk)}
             {...(storageRef.current ? { onExport: () => setExportPreselect([pk]) } : {})}
             {...(pendingInsert?.convo === pk ? { insert: { text: pendingInsert.text, nonce: pendingInsert.nonce } } : {})}
+            onFileRelocated={(messageId: string, newPath: string) => {
+              activeBackend.setFileSavedPath?.(pk, messageId, newPath);
+              setConvos((prev) => patchFileByMsgId(prev, pk, messageId, { savedPath: newPath }));
+            }}
             onClose={() => closeConvo(pk)}
           />
           </div>

@@ -42,6 +42,13 @@ declare module "react-native-web" {
     horizontal?: boolean;
     children?: ReactNode;
   }
+  /** 圖片（ADR-0102 縮圖顯示）；`source.uri` 可為 http(s)、blob: 或 data: URL。 */
+  export interface ImageProps {
+    style?: Style;
+    source: { uri: string | undefined };
+    accessibilityLabel?: string;
+  }
+  export const Image: ComponentType<ImageProps>;
   export const View: ComponentType<ViewProps>;
   export const Text: ComponentType<TextProps>;
   export const TextInput: ComponentType<TextInputProps>;

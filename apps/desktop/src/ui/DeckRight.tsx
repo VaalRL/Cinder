@@ -95,7 +95,8 @@ export function DeckRight(props: DeckRightProps): JSX.Element {
     pk === props.self.pubkey ? props.self.name : props.contacts.find((c) => c.pubkey === pk)?.name ?? `${pk.slice(0, 8)}…`;
 
   const members = group ? group.members : contact ? [props.self.pubkey, contact.pubkey] : [];
-  const images = msgs.filter((m) => m.file?.mime.startsWith("image/") && m.file.url);
+  // ADR-0023／0102：可顯示＝本 session 有原圖 blob **或**有跨 session 存活的縮圖。
+  const images = msgs.filter((m) => m.file?.mime.startsWith("image/") && (m.file.url || m.file.thumb));
   const threadRoots = [...replyCounts(msgs).entries()].filter(([, n]) => n > 0);
 
   const TABS: { key: AuxTab; label: string; count?: number }[] = [
@@ -157,11 +158,20 @@ export function DeckRight(props: DeckRightProps): JSX.Element {
             <div className="daux__empty">{t("aux_noMedia")}</div>
           ) : (
             <div className="daux__media">
-              {images.map((m) => (
-                <a key={m.id} href={m.file!.url} target="_blank" rel="noreferrer" className="daux__thumb">
-                  <img src={m.file!.url} alt={m.file!.name} />
-                </a>
-              ))}
+              {images.map((m) => {
+                // 縮圖一律顯示得出來（ADR-0102）；只有本 session 還握著原圖 blob 時才給「開新分頁看原圖」。
+                const src = m.file!.url ?? m.file!.thumb;
+                const inner = <img src={src} alt={m.file!.name} />;
+                return m.file!.url ? (
+                  <a key={m.id} href={m.file!.url} target="_blank" rel="noreferrer" className="daux__thumb">
+                    {inner}
+                  </a>
+                ) : (
+                  <span key={m.id} className="daux__thumb" title={m.file!.name}>
+                    {inner}
+                  </span>
+                );
+              })}
             </div>
           )
         ) : null}

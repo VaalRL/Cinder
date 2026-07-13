@@ -7,7 +7,7 @@ import type { CallMedia } from "@cinder/core";
 import type { ChatMessage, MessageStatus } from "@cinder/engine";
 import { type Locale, type MessageKey, translate } from "@cinder/i18n";
 import { resolveTheme, type Theme, type ThemeTokens } from "@cinder/theme";
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native-web";
+import { Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native-web";
 import { MsgStatusIcon } from "./MsgStatusIcon.js";
 
 /** 送出狀態的 i18n 標籤（ADR-0058／0095）；與桌面同鍵。 */
@@ -69,6 +69,7 @@ function makeStyles(tk: ThemeTokens) {
     attach: { paddingHorizontal: 6, paddingVertical: 6 },
     attachText: { fontSize: 20 },
     fileMeta: { fontSize: 11, marginTop: 2 },
+    thumb: { width: 180, height: 135, borderRadius: 8, marginBottom: 6, resizeMode: "cover" },
     calcchipEq: { fontSize: 12, color: tk.muted },
     calcchipVal: { fontSize: 13, fontWeight: "700", color: tk.accent },
     composer: {
@@ -217,6 +218,14 @@ export function ConversationScreen({
           <View key={m.id} style={m.outgoing ? styles.rowMine : styles.rowTheir}>
             {!m.outgoing && nameFor && m.sender ? <Text style={styles.sender}>{nameFor(m.sender)}</Text> : null}
             <View style={[styles.bubble, m.outgoing ? styles.bubbleMine : styles.bubbleTheir]}>
+              {/* 圖片縮圖（ADR-0102）：跨 session 存活——重載後圖片仍是圖片，不會退化成檔名。 */}
+              {m.file && (m.file.url ?? m.file.thumb) ? (
+                <Image
+                  source={{ uri: m.file.url ?? m.file.thumb }}
+                  style={styles.thumb}
+                  accessibilityLabel={m.file.name}
+                />
+              ) : null}
               <Text style={m.outgoing ? styles.textMine : styles.textTheir}>
                 {m.file ? `📎 ${m.file.name}` : m.text}
               </Text>

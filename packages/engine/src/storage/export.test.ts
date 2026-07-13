@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { MemoryStorage } from "./memory.js";
+import { isThumbnailable, THUMB_MAX_BYTES } from "./types.js";
 import { exportRecords } from "./export.js";
 
 /** 建一份含文字、檔案、群訊、回應、已收回的儲存作為測試素材。 */
@@ -79,5 +80,48 @@ describe("明文紀錄導出（ADR-0094）", () => {
     s.saveIdentity({ nsec: "nsec1SECRET", name: "me" });
     const all = exportRecords(s, "json", {});
     expect(all).not.toContain("nsec1SECRET");
+  });
+});
+
+describe("圖片縮圖持久化（ADR-0102）", () => {
+  const img = (thumb?: string) => ({
+    id: "p1",
+    contact: "bob",
+    outgoing: false,
+    text: "",
+    at: 1,
+    file: { tid: "t1", name: "a.png", size: 900, mime: "image/png", ...(thumb ? { thumb } : {}) },
+  });
+
+  it("縮圖跨 session 存活（重載後仍在）——這正是相簿空掉的根因修正", () => {
+    const s = new MemoryStorage();
+    s.addContact({ pubkey: "bob", name: "Bob" });
+    s.appendMessage(img());
+    s.setFileThumb("bob", "p1", "data:image/jpeg;base64,AAAA");
+    // 模擬重載：快照 export/import（等同 Tauri 加密 blob 的來回）
+    const restored = new MemoryStorage();
+    restored.importSnapshot(s.exportSnapshot());
+    expect(restored.loadMessages("bob")[0]?.file?.thumb).toBe("data:image/jpeg;base64,AAAA");
+  });
+
+  it("超過上限的縮圖不存（寧可沒縮圖，也不讓儲存膨脹）", () => {
+    const s = new MemoryStorage();
+    s.appendMessage(img());
+    s.setFileThumb("bob", "p1", "x".repeat(THUMB_MAX_BYTES + 1));
+    expect(s.loadMessages("bob")[0]?.file?.thumb).toBeUndefined();
+  });
+
+  it("原檔位元組**依然不保存**（ADR-0093 裁示不變）：只有 metadata 與縮圖", () => {
+    const s = new MemoryStorage();
+    s.appendMessage(img("data:image/jpeg;base64,AAAA"));
+    const f = s.loadMessages("bob")[0]?.file;
+    expect(Object.keys(f ?? {}).sort()).toEqual(["mime", "name", "size", "thumb", "tid"]);
+  });
+
+  it("isThumbnailable：只認點陣圖；SVG 排除（可執行標記，不必要的攻擊面）", () => {
+    expect(isThumbnailable("image/png")).toBe(true);
+    expect(isThumbnailable("image/jpeg")).toBe(true);
+    expect(isThumbnailable("image/svg+xml")).toBe(false);
+    expect(isThumbnailable("application/pdf")).toBe(false);
   });
 });

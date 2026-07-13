@@ -68,15 +68,44 @@ export interface StoredMessage {
   receipts?: Record<string, "delivered" | "read">;
 }
 
-/** 持久化的檔案附件 metadata（ADR-0093）：無位元組、無縮圖。 */
+/** 持久化的檔案附件 metadata（ADR-0093）：**無原檔位元組**；圖片可另存小縮圖（ADR-0102）。 */
 export interface StoredFileMeta {
   /** P2P 傳輸關聯 id（對應收發雙方的位元組傳輸與 metadata 訊息）。 */
   tid: string;
   name: string;
   size: number;
   mime: string;
-  /** 使用者選定的本機儲存路徑（收檔另存後才有；瀏覽器下載無法得知則省略）。 */
+  /**
+   * 使用者選定的本機儲存路徑（收檔另存後才有；瀏覽器下載無法得知則省略）。
+   * 使用者事後把檔案搬走時，UI 可重新指定並更新此值（ADR-0102）。
+   */
   savedPath?: string;
+  /**
+   * 圖片縮圖（ADR-0102）：`data:` URL，**縮小後的衍生預覽圖，不是原檔**。
+   * 為的是讓相簿與聊天內嵌縮圖能**跨 session 存活**——原檔位元組依然不存（ADR-0093 裁示不變）。
+   * 上限見 {@link THUMB_MAX_BYTES}；超過就不存（寧可沒縮圖，也不讓儲存膨脹）。
+   */
+  thumb?: string;
+}
+
+// ── 圖片縮圖政策（ADR-0102）：常數放這裡當單一來源，避免桌面/行動端各自漂移 ──
+
+/** 縮圖最長邊（像素）。夠當相簿格狀與聊天內嵌縮圖，不足以還原原圖。 */
+export const THUMB_MAX_EDGE = 256;
+/** 縮圖編碼品質（JPEG）。 */
+export const THUMB_QUALITY = 0.7;
+/** 縮圖位元組上限（data URL 字元數）；超過即不存縮圖。 */
+export const THUMB_MAX_BYTES = 64 * 1024;
+
+/**
+ * 此 mime 是否該產縮圖（ADR-0102）。
+ *
+ * 只認點陣圖，**排除 SVG**——SVG 是可執行的標記（可含 script/外部參照），
+ * 拿去餵 canvas 或當預覽圖都是不必要的攻擊面；本專案已有自製貼圖的 SVG 驗證管道，
+ * 一般檔案附件不走那條路，故直接不產縮圖。
+ */
+export function isThumbnailable(mime: string): boolean {
+  return mime.startsWith("image/") && mime !== "image/svg+xml";
 }
 
 /**
@@ -146,6 +175,8 @@ export interface AppStorage {
   setMessageStatus(contactPubkey: string, messageId: string, status: MessageStatus): void;
   /** 記錄某檔案訊息收檔後的本機儲存路徑（ADR-0093）；訊息不存在或無 file 則忽略。 */
   setFileSavedPath(contactPubkey: string, messageId: string, savedPath: string): void;
+  /** 記錄某圖片訊息的縮圖 data URL（ADR-0102）；超過上限或訊息不存在則忽略。 */
+  setFileThumb(contactPubkey: string, messageId: string, thumb: string): void;
   /**
    * 記錄群組某成員對某訊息的回條（ADR-0095）；只前進（delivered→read，不倒退）。
    * 訊息不存在則忽略。回傳更新後的回條表（供 UI 立即渲染）；無變更回 undefined。

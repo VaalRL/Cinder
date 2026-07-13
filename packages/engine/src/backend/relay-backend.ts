@@ -133,6 +133,7 @@ function storedToChat(m: StoredMessage): ChatMessage {
             sent: m.outgoing || m.file.savedPath ? m.file.size : 0,
             incoming: !m.outgoing,
             ...(m.file.savedPath ? { savedPath: m.file.savedPath } : {}),
+            ...(m.file.thumb ? { thumb: m.file.thumb } : {}), // ADR-0102：縮圖跨 session 存活
           },
         }
       : {}),
@@ -1562,17 +1563,25 @@ export class RelayChatBackend implements ChatBackend {
     this.handlers?.onUnsend?.(messageId);
   }
 
-  sendFile(to: PubkeyHex, file: OutgoingFile): string {
+  sendFile(to: PubkeyHex, file: OutgoingFile, thumb?: string): string {
     // 位元組走 P2P（不變）；另發一則加密 metadata 訊息讓對方所有裝置都知道有檔案（ADR-0093）。
+    // `thumb` 只存在本機（ADR-0102）——**不進 metadata 訊息、不上中繼**；對方自己從位元組產生。
     const tid = this.transfer.sendFile(to, file);
     const meta = { tid, name: file.name, size: file.bytes.length, mime: file.mime };
     const evt = wrapFileMessage(this.sk, to, meta, this.homeUrl ? { relayHint: this.homeUrl } : {});
     this.seenMsg.add(evt.id);
     // 訊息 id＝metadata 事件 id（供送達/已讀回條對得上，G3）；file.id＝tid（供進度/位元組關聯）。
     this.ensureFileMessage(to, meta, { msgId: evt.id, outgoing: true, sent: 0, status: "sending" });
+    if (thumb) this.setFileThumb(to, evt.id, thumb);
     this.awaitingSent.set(evt.id, to);
     this.publishReliable(evt);
     return tid;
+  }
+
+  /** 回填某圖片訊息的縮圖（ADR-0102）：由前端產生（需 canvas），只存本機、不外送。 */
+  setFileThumb(contact: PubkeyHex, messageId: string, thumb: string): void {
+    this.storage.setFileThumb(contact, messageId, thumb);
+    this.handlers?.onFileThumb?.(contact, messageId, thumb);
   }
 
   /**

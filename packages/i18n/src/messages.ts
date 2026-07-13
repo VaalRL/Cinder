@@ -119,6 +119,10 @@ export interface Messages {
   calc_insertHint: string;
   // 行動端雲端備份與檔案（ADR-0100）
   convo_attach: string;
+  // 相簿/原圖（ADR-0102）
+  image_originalMissing: string;
+  image_relocate: string;
+  image_thumbOnly: string;
   settings_readReceipts: string;
   settings_readReceiptsHint: string;
   // 保留上限與導出（ADR-0094）
@@ -536,6 +540,9 @@ const zhHant: Messages = {
   calc_insertResult: "只插入答案",
   calc_insertHint: "點一下把「= 答案」加到訊息",
   convo_attach: "傳送檔案",
+  image_originalMissing: "找不到原圖——檔案可能已被移動或刪除。",
+  image_relocate: "重新指定位置",
+  image_thumbOnly: "此處只能顯示縮圖（瀏覽器無法讀取本機原檔）。",
   settings_readReceipts: "已讀回條",
   settings_readReceiptsHint: "開啟後，你讀取訊息會通知對方；關閉則不送、也不顯示對方的已讀（互惠）。",
   settings_retention: "訊息保留上限",
@@ -949,6 +956,9 @@ const en: Messages = {
   calc_insertResult: "Insert answer only",
   calc_insertHint: "Click to append “= answer” to your message",
   convo_attach: "Send a file",
+  image_originalMissing: "Original not found — the file may have been moved or deleted.",
+  image_relocate: "Locate the file",
+  image_thumbOnly: "Only the thumbnail can be shown here (browsers can't read local originals).",
   settings_readReceipts: "Read receipts",
   settings_readReceiptsHint: "When on, others are told when you read their messages; off means you neither send yours nor see theirs (reciprocal).",
   settings_retention: "Message retention",

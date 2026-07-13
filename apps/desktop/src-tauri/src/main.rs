@@ -487,6 +487,32 @@ fn save_file(name: String, bytes: Vec<u8>) -> Result<Option<String>, String> {
     }
 }
 
+// ── 開啟原檔 / 重新指定位置（ADR-0102）──────────────────────────────────────────
+//
+// 縮圖跨 session 存活，但**原檔位元組不由 App 保存**（ADR-0093）——原檔就在使用者當初
+// 選定的 `savedPath`。要看原圖時從那裡讀回；使用者若把檔案搬走，就讓他重新指定新位置。
+
+/// 讀回已另存的原檔；路徑不存在（被搬走/刪除）回 `Ok(None)` 讓前端走「重新指定」流程。
+#[tauri::command]
+fn read_saved_file(path: String) -> Result<Option<Vec<u8>>, String> {
+    let p = std::path::Path::new(&path);
+    if !p.is_file() {
+        return Ok(None);
+    }
+    std::fs::read(p).map(Some).map_err(|e| e.to_string())
+}
+
+/// 開「選擇檔案」對話框讓使用者重新指定原檔位置；取消回 `None`。
+#[tauri::command]
+fn pick_existing_file(name: String) -> Option<String> {
+    let mut dlg = rfd::FileDialog::new();
+    // 以原檔名為起點，幫使用者更快找到。
+    if !name.is_empty() {
+        dlg = dlg.set_file_name(&name);
+    }
+    dlg.pick_file().map(|p| p.to_string_lossy().into_owned())
+}
+
 fn main() {
     tauri::Builder::default()
         // 桌面原生通知（ADR-0076）：可靠系統 toast、點擊 action 回跳；瀏覽器路徑另走 Web Notification。
@@ -555,7 +581,9 @@ fn main() {
             ai_models,
             ai_set_key,
             ai_has_key,
-            save_file
+            save_file,
+            read_saved_file,
+            pick_existing_file
         ])
         .run(tauri::generate_context!())
         .expect("執行 Tauri 應用程式時發生錯誤");

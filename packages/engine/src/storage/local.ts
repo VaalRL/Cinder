@@ -1,6 +1,7 @@
 import {
   advanceReceipt,
   type AppStorage,
+  THUMB_MAX_BYTES,
   MESSAGE_STATUS_RANK,
   type MessageStatus,
   type StoredBootstrapList,
@@ -192,6 +193,14 @@ export class LocalStorage implements AppStorage {
     const msg = list.find((m) => m.id === messageId);
     if (!msg?.file) return;
     msg.file = { ...msg.file, savedPath };
+    write(this.k("msgs." + contactPubkey), list);
+  }
+  setFileThumb(contactPubkey: string, messageId: string, thumb: string): void {
+    if (thumb.length > THUMB_MAX_BYTES) return; // 超上限寧可不存
+    const list = this.loadMessages(contactPubkey);
+    const msg = list.find((m) => m.id === messageId);
+    if (!msg?.file) return;
+    msg.file = { ...msg.file, thumb };
     write(this.k("msgs." + contactPubkey), list);
   }
   setMessageReceipt(

@@ -1,6 +1,7 @@
 import {
   advanceReceipt,
   type AppStorage,
+  THUMB_MAX_BYTES,
   MESSAGE_STATUS_RANK,
   type MessageStatus,
   type StorageSnapshot,
@@ -134,6 +135,12 @@ export class MemoryStorage implements AppStorage {
     const msg = this.messages.get(contactPubkey)?.find((m) => m.id === messageId);
     if (!msg?.file) return;
     msg.file = { ...msg.file, savedPath };
+  }
+  setFileThumb(contactPubkey: string, messageId: string, thumb: string): void {
+    if (thumb.length > THUMB_MAX_BYTES) return; // 超上限寧可不存（不讓儲存膨脹）
+    const msg = this.messages.get(contactPubkey)?.find((m) => m.id === messageId);
+    if (!msg?.file) return;
+    msg.file = { ...msg.file, thumb };
   }
   setMessageReceipt(
     convoKey: string,

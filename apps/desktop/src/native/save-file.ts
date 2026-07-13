@@ -39,6 +39,40 @@ export async function saveTextFile(name: string, mime: string, text: string): Pr
   return browserDownload(name, mime, bytes);
 }
 
+/** 讀回原檔的結果（ADR-0102）。 */
+export type ReadOriginalResult =
+  | { ok: true; url: string }
+  /** `missing`＝原檔已不在 `savedPath`（被搬走/刪除）；`unsupported`＝此平台無法讀回原檔（瀏覽器）。 */
+  | { ok: false; reason: "missing" | "unsupported" };
+
+function bytesToUrl(bytes: number[], mime: string): string {
+  return URL.createObjectURL(new Blob([new Uint8Array(bytes) as BlobPart], { type: mime || "application/octet-stream" }));
+}
+
+/**
+ * 讀回已另存的原檔（ADR-0102）——**不彈任何對話框**（點縮圖不該無預警跳檔案總管）。
+ * 原檔不由 App 保存，它在使用者當初選的 `savedPath`；讀不到就回 `missing`，
+ * 由 UI 顯示「重新指定位置」讓使用者**主動**觸發 {@link relocateOriginal}。
+ */
+export async function readOriginal(savedPath: string | undefined, mime: string): Promise<ReadOriginalResult> {
+  if (!isTauri()) return { ok: false, reason: "unsupported" }; // 瀏覽器無任意檔案系統存取
+  if (!savedPath) return { ok: false, reason: "missing" };
+  const bytes = await invoke<number[] | null>("read_saved_file", { path: savedPath });
+  return bytes ? { ok: true, url: bytesToUrl(bytes, mime) } : { ok: false, reason: "missing" };
+}
+
+/**
+ * 使用者把原檔搬走後，**主動**重新指定新位置（ADR-0102）：開「選擇檔案」對話框，
+ * 讀回內容並回傳新路徑供更新 `savedPath`。取消或讀不到回 null。
+ */
+export async function relocateOriginal(name: string, mime: string): Promise<{ url: string; newPath: string } | null> {
+  if (!isTauri()) return null;
+  const newPath = await invoke<string | null>("pick_existing_file", { name });
+  if (!newPath) return null;
+  const bytes = await invoke<number[] | null>("read_saved_file", { path: newPath });
+  return bytes ? { url: bytesToUrl(bytes, mime), newPath } : null;
+}
+
 /** 瀏覽器下載共用：以 <a download> 觸發，回傳可再下載的物件 URL。 */
 function browserDownload(name: string, mime: string, bytes: Uint8Array): SaveResult {
   const blob = new Blob([bytes as BlobPart], { type: mime || "application/octet-stream" });
