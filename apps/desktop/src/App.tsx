@@ -21,7 +21,8 @@ import { BrowserChatBackend } from "@cinder/engine";
 import { normalizeRelayUrl, RelayChatBackend, webSocketConnector } from "@cinder/engine";
 import { getKeyVault } from "./native/keyvault.js";
 import { getNotifier, onNotificationClick } from "./native/notify.js";
-import { pickFileToSend, saveIncomingFile, saveTextFile } from "./native/save-file.js";
+import { pickFileToSend, readFileAtPath, saveIncomingFile, saveTextFile } from "./native/save-file.js";
+import { onNativeFileDrop } from "./native/file-drop.js";
 import { makeThumbnail } from "./ui/thumbnail.js";
 import { useI18n } from "./i18n.js";
 import { type Layout, useLayout } from "./layout.js";
@@ -318,6 +319,9 @@ export function App(): JSX.Element {
   const [settingsOpen, setSettingsOpen] = useState(false);
   // 右欄計算機 → 主對話框的單向插入指令（ADR-0097）：nonce 變動即觸發，不接管草稿狀態。
   const [pendingInsert, setPendingInsert] = useState<{ convo: string; text: string; nonce: number } | null>(null);
+  // 原生拖放（ADR-0104）：拖曳中被命中的對話（highlight 用）。
+  const [dropTarget, setDropTarget] = useState<string | null>(null);
+  const dropSendRef = useRef<((pk: string, paths: string[]) => void) | null>(null);
   // 明文紀錄導出（ADR-0094）：null＝關；[]＝全部；[keys]＝預選某對話。
   const [exportPreselect, setExportPreselect] = useState<string[] | null>(null);
   const setExportOpen = (open: boolean) => setExportPreselect(open ? [] : null);
@@ -447,6 +451,26 @@ export function App(): JSX.Element {
   useEffect(() => {
     onStorageQuota(() => setStorageFull(true));
     return () => onStorageQuota(undefined);
+  }, []);
+  // 原生檔案拖放（ADR-0104）：Tauri 攔截 OS 拖放，HTML5 onDrop 不會觸發——沒有這條，
+  // 打包後的桌面版拖放傳檔是壞的。OS 拖放另給**真實路徑**，故也能記下 savedPath。
+  useEffect(() => {
+    /** 座標（CSS px）落在哪個對話視窗上；沒命中回 null。 */
+    const convoAt = (x: number, y: number): string | null => {
+      const el = document.elementFromPoint(x, y);
+      const win = (el as HTMLElement | null)?.closest?.("[data-convo]") as HTMLElement | null;
+      return win?.dataset.convo ?? null;
+    };
+    return onNativeFileDrop({
+      onHover: (x, y) => setDropTarget(convoAt(x, y)),
+      onLeave: () => setDropTarget(null),
+      onDrop: (paths, x, y) => {
+        setDropTarget(null);
+        // 掉在某個對話上就送那個；沒命中就送當前分頁（三欄常見情境）。
+        const pk = convoAt(x, y) ?? activeConvoRef.current;
+        if (pk) dropSendRef.current?.(pk, paths);
+      },
+    });
   }, []);
   /** 作用中身分的儲存實例（D4a 配對匯出用；示範模式為 null）。 */
   const storageRef = useRef<AppStorage | null>(null);
@@ -1173,6 +1197,17 @@ export function App(): JSX.Element {
     await sendFileBytes(pk, picked.name, picked.mime, picked.bytes, picked.path);
   };
 
+  // 原生拖放的送檔實作（ADR-0104）：監聽只註冊一次，故經 ref 取用**當前**這份（避免閉包陳舊）。
+  dropSendRef.current = (pk, paths) => {
+    if (!activeBackend.sendFile || policy.disableFiles) return; // 企業政策停用檔案時不放行
+    void (async () => {
+      for (const path of paths) {
+        const f = await readFileAtPath(path); // 資料夾/讀不到 → null，略過
+        if (f) await sendFileBytes(pk, f.name, f.mime, f.bytes, f.path);
+      }
+    })();
+  };
+
   // 明文紀錄導出（ADR-0094）：每個所選格式各產一份，經 save_file（Tauri）／下載（瀏覽器）寫出本機。
   const doExport = async (keys: string[], formats: ExportFormat[]): Promise<void> => {
     const storage = storageRef.current;
@@ -1573,6 +1608,8 @@ export function App(): JSX.Element {
                   }
                 : {})}
               {...(storageRef.current ? { onExport: () => setExportPreselect([pk]) } : {})}
+            {...(dropTarget === pk ? { dropActive: true } : {})}
+              {...(dropTarget === pk ? { dropActive: true } : {})}
               {...(pendingInsert?.convo === pk ? { insert: { text: pendingInsert.text, nonce: pendingInsert.nonce } } : {})}
               onFileRelocated={(messageId: string, newPath: string) => {
                 // ADR-0102：使用者重新指定原圖位置 → 回寫 savedPath，下次直接讀得到。

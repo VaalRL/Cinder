@@ -81,7 +81,15 @@ export interface PickedFile {
 export async function pickFileToSend(): Promise<PickedFile | null> {
   if (!isTauri()) return null;
   const path = await invoke<string | null>("pick_existing_file", { name: "" });
-  if (!path) return null;
+  return path ? await readFileAtPath(path) : null;
+}
+
+/**
+ * 由**真實路徑**讀出檔案（ADR-0103/0104）：原生選檔與原生拖放共用。
+ * 讀不到（路徑不存在/是資料夾）回 null。
+ */
+export async function readFileAtPath(path: string): Promise<PickedFile | null> {
+  if (!isTauri()) return null;
   const bytes = await invoke<number[] | null>("read_saved_file", { path });
   if (!bytes) return null;
   const name = path.split(/[\\/]/).pop() || "file";

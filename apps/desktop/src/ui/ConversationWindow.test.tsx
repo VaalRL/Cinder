@@ -179,3 +179,10 @@ describe("圖片跨 session（ADR-0023／0102）", () => {
     expect(html).not.toContain('data-testid="imgthumb"');
   });
 });
+
+describe("原生拖放命中測試（ADR-0104）", () => {
+  it("對話視窗帶 data-convo=pubkey——原生拖放只給座標，靠它判斷掉在哪個對話", () => {
+    const html = render([]);
+    expect(html).toContain('data-convo="bb"');
+  });
+});

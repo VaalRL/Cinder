@@ -213,6 +213,8 @@ export interface ConversationProps {
    * 未提供（瀏覽器）則退回 `<input type=file>`——那條路拿不到路徑，是瀏覽器的安全限制。
    */
   onAttach?: () => void;
+  /** 原生拖放（ADR-0104）正懸停在本對話上：與 HTML5 拖放共用同一個 highlight。 */
+  dropActive?: boolean;
   /** 發起語音/視訊通話（未提供則不顯示通話按鈕）。 */
   onStartCall?: (media: CallMedia) => void;
   /** 群組模式：以發送者公鑰解析顯示暱稱（提供即為群組視窗）。 */
@@ -647,7 +649,13 @@ export function ConversationWindow(props: ConversationProps): JSX.Element {
 
   return (
     <div className={`convo-dock${props.embedded ? " convo-dock--embed" : ""}`}>
-    <div className={`win convo${props.embedded ? " convo--embed" : ""}`} ref={rootRef} data-contact={contact.name}>
+    // data-convo（ADR-0104）：原生拖放只給座標，靠它命中測試「掉在哪個對話上」。
+    <div
+      className={`win convo${props.embedded ? " convo--embed" : ""}`}
+      ref={rootRef}
+      data-contact={contact.name}
+      data-convo={contact.pubkey}
+    >
       <div className="win__title">
         <span>{contact.name}</span>
         <span className="spacer" />
@@ -719,7 +727,7 @@ export function ConversationWindow(props: ConversationProps): JSX.Element {
       </div>
 
       <div
-        className={`convo__body ${dragging ? "dropping" : ""}`}
+        className={`convo__body ${dragging || props.dropActive ? "dropping" : ""}`}
         {...(chatBg ? { style: { background: chatBg } } : {})}
         onDragOver={(e) => {
           if (!props.onSendFile) return;
