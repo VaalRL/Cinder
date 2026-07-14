@@ -17,6 +17,18 @@ export interface Messages {
   signIn_title: string;
   signIn_hint: string;
   signIn_hint2: string;
+  /** 瀏覽器本地密碼（ADR-0122）：必填——沒有它，重新整理一次身分就沒了。 */
+  signIn_password: string;
+  signIn_passwordAgain: string;
+  signIn_passwordWhy: string;
+  signIn_passwordRequired: string;
+  signIn_passwordMismatch: string;
+  /** 用既有 nsec 登入（ADR-0122）。 */
+  signIn_useNsec: string;
+  signIn_useNsecHint: string;
+  signIn_useNsecButton: string;
+  signIn_nsec: string;
+  signIn_nsecInvalid: string;
   signIn_relayUsing: string;
   signIn_relayDemo: string;
   signIn_relayProbing: string;
@@ -302,6 +314,8 @@ export interface Messages {
   settings_passwordChange: string;
   settings_passwordDisable: string;
   settings_passwordDisableApply: string;
+  /** 瀏覽器停用密碼＝忘記身分（ADR-0122）。 */
+  settings_passwordDisableBrowser: string;
   settings_passwordHidden: string;
   settings_passwordForgetWarn: string;
   settings_passwordOld: string;
@@ -494,6 +508,17 @@ const zhHant: Messages = {
   signIn_title: "登入 Cinder",
   signIn_hint: "去中心化、端到端加密的即時通。輸入顯示名稱即可開始（你的身分是本機生成的 secp256k1 金鑰）。",
   signIn_hint2: "本示範會在記憶體中模擬中繼站與幾位好友，方便你體驗。",
+  signIn_password: "本機密碼",
+  signIn_passwordAgain: "再輸入一次",
+  signIn_passwordWhy:
+    "網頁版沒有系統金鑰庫，你的私鑰只存在這個分頁裡。請設一組本機密碼把它加密保存——否則重新整理頁面就會失去這個身分。密碼只留在你的裝置上，忘記無法救回（但可用備份的 nsec 重新登入）。",
+  signIn_passwordRequired: "請設定本機密碼（否則重新整理就會失去身分）",
+  signIn_passwordMismatch: "兩次輸入的密碼不一致",
+  signIn_useNsec: "已經有身分？用 nsec 登入",
+  signIn_useNsecHint: "貼上你備份的 nsec（設定 →「身分備份」可複製）。原本的聯絡人與訊息會一起回來。",
+  signIn_useNsecButton: "以 nsec 登入",
+  signIn_nsec: "nsec 私鑰",
+  signIn_nsecInvalid: "無效的 nsec，或它不是這個身分的金鑰",
   signIn_relayUsing: "將連線到 {host}",
   signIn_relayDemo: "示範模式（不連真實網路）",
   signIn_relayProbing: "正在挑選中繼站…",
@@ -763,6 +788,8 @@ const zhHant: Messages = {
   settings_passwordChange: "改密碼",
   settings_passwordDisable: "停用",
   settings_passwordDisableApply: "確認停用",
+  settings_passwordDisableBrowser:
+    "⚠️ 網頁版沒有系統金鑰庫。停用密碼＝**忘記這個身分**：下次開啟必須貼回 nsec 才能進來。請先到「身分備份」複製 nsec。",
   settings_passwordHidden: "隱藏此身分（不在切換器顯示；以 🔒 輸入密碼喚回）",
   settings_passwordForgetWarn: "忘記密碼＝這台電腦上的資料永久無法解開，只能憑 nsec 備份重建身分。請先完成備份。",
   settings_passwordOld: "目前密碼",
@@ -948,6 +975,17 @@ const en: Messages = {
   signIn_title: "Sign in to Cinder",
   signIn_hint: "A decentralized, end-to-end encrypted messenger. Just enter a display name to start (your identity is a secp256k1 key generated on this device).",
   signIn_hint2: "This demo simulates a relay and a few buddies in memory so you can try it out.",
+  signIn_password: "Local password",
+  signIn_passwordAgain: "Repeat password",
+  signIn_passwordWhy:
+    "The web version has no system keychain — your private key lives only in this tab. Set a local password to keep it encrypted, or you'll lose this identity the moment you refresh the page. The password never leaves your device and cannot be recovered (but you can sign back in with a backed-up nsec).",
+  signIn_passwordRequired: "Set a local password (without it, a refresh loses your identity)",
+  signIn_passwordMismatch: "The two passwords don't match",
+  signIn_useNsec: "Already have an identity? Sign in with nsec",
+  signIn_useNsecHint: "Paste your backed-up nsec (copy it from Settings → Identity backup). Your contacts and messages come back with it.",
+  signIn_useNsecButton: "Sign in with nsec",
+  signIn_nsec: "nsec private key",
+  signIn_nsecInvalid: "Invalid nsec, or it isn't the key for this identity",
   signIn_relayUsing: "Will connect to {host}",
   signIn_relayDemo: "Demo mode (not connected to a real network)",
   signIn_relayProbing: "Picking a relay…",
@@ -1217,6 +1255,8 @@ const en: Messages = {
   settings_passwordChange: "Change password",
   settings_passwordDisable: "Disable",
   settings_passwordDisableApply: "Confirm disable",
+  settings_passwordDisableBrowser:
+    "⚠️ The web version has no system keychain. Disabling the password means forgetting this identity: next time you'll have to paste your nsec back in. Copy it from Identity backup first.",
   settings_passwordHidden: "Hide this identity (not shown in the switcher; recall with 🔒 and your password)",
   settings_passwordForgetWarn: "A forgotten password means data on this machine is permanently unreadable; only an nsec backup can rebuild the identity. Back up first.",
   settings_passwordOld: "Current password",

@@ -79,10 +79,23 @@ export function hostOf(url: string): string {
 export function SignIn({
   onSignIn,
   onPair,
+  requirePassword = false,
+  onEnterNsec,
 }: {
-  onSignIn: (name: string, relayUrl: string) => void;
+  /** `password` 只在 `requirePassword` 時有值（瀏覽器）。 */
+  onSignIn: (name: string, relayUrl: string, password?: string) => void;
   /** 從舊裝置匯入（ADR-0072 D4a）；未提供＝不顯示入口（示範/瀏覽器）。 */
   onPair?: (code: string, onSas: (sas: string) => void) => Promise<void>;
+  /**
+   * 瀏覽器（ADR-0122）：**本地密碼必填**。
+   *
+   * 這裡產生的 nsec **使用者從沒看過**，而瀏覽器沒有 OS 金鑰庫——沒有密碼包裹它，
+   * 使用者按一下重新整理，身分就永久消失（而且過去還會被靜默換成一把新金鑰）。
+   * 桌面不需要（Tauri 有金鑰庫），故預設 false。
+   */
+  requirePassword?: boolean;
+  /** 以既有 nsec 登入（ADR-0122）：忘記密碼、或在舊版卡住的瀏覽器使用者的出路。 */
+  onEnterNsec?: (nsec: string) => Promise<boolean>;
 }): JSX.Element {
   const { t } = useI18n();
   const [name, setName] = useState("");
@@ -138,9 +151,39 @@ export function SignIn({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  const [password, setPassword] = useState("");
+  const [password2, setPassword2] = useState("");
+  const [pwErr, setPwErr] = useState("");
+  const [nsecOpen, setNsecOpen] = useState(false);
+  const [nsec, setNsec] = useState("");
+  const [nsecErr, setNsecErr] = useState("");
+
   const submit = () => {
     const n = name.trim();
-    if (n) onSignIn(n, relay.trim());
+    if (!n) return;
+    if (!requirePassword) {
+      onSignIn(n, relay.trim());
+      return;
+    }
+    // 瀏覽器：沒有密碼就沒有任何方式把身分帶過重載 → 不給送出（ADR-0122）。
+    if (!password) {
+      setPwErr(t("signIn_passwordRequired"));
+      return;
+    }
+    if (password !== password2) {
+      setPwErr(t("signIn_passwordMismatch"));
+      return;
+    }
+    setPwErr("");
+    onSignIn(n, relay.trim(), password);
+  };
+
+  const submitNsec = (): void => {
+    if (!nsec.trim() || !onEnterNsec) return;
+    setNsecErr("");
+    void onEnterNsec(nsec.trim()).then((ok) => {
+      if (!ok) setNsecErr(t("signIn_nsecInvalid"));
+    });
   };
   return (
     <div className="desktop" style={{ justifyContent: "center" }}>
@@ -200,8 +243,65 @@ export function SignIn({
               </button>
             </p>
           )}
+          {/* 瀏覽器（ADR-0122）：本地密碼**必填**——沒有它，重新整理一次身分就沒了。 */}
+          {requirePassword ? (
+            <div className="signin__pw" data-testid="signin-password">
+              <p className="hint">{t("signIn_passwordWhy")}</p>
+              <input
+                type="password"
+                aria-label={t("signIn_password")}
+                value={password}
+                onChange={(e) => {
+                  setPassword(e.target.value);
+                  setPwErr("");
+                }}
+                onKeyDown={(e) => e.key === "Enter" && submit()}
+                placeholder={t("signIn_password")}
+              />
+              <input
+                type="password"
+                aria-label={t("signIn_passwordAgain")}
+                value={password2}
+                onChange={(e) => {
+                  setPassword2(e.target.value);
+                  setPwErr("");
+                }}
+                onKeyDown={(e) => e.key === "Enter" && submit()}
+                placeholder={t("signIn_passwordAgain")}
+              />
+              {pwErr ? <p className="signin__err" data-testid="signin-pw-error">{pwErr}</p> : null}
+            </div>
+          ) : null}
+
           <button onClick={submit}>{t("signIn_button")}</button>
           <p className="hint">{t("signIn_hint2")}</p>
+
+          {/* 用既有 nsec 登入（ADR-0122）：忘記密碼、或在舊版被換掉身分的人的出路。 */}
+          {onEnterNsec && !nsecOpen ? (
+            <button className="settings__reveal" data-testid="nsec-open" onClick={() => setNsecOpen(true)}>
+              {t("signIn_useNsec")}
+            </button>
+          ) : null}
+          {onEnterNsec && nsecOpen ? (
+            <div className="settings__key" data-testid="nsec-panel">
+              <p className="hint">{t("signIn_useNsecHint")}</p>
+              <input
+                type="password"
+                aria-label={t("signIn_nsec")}
+                value={nsec}
+                onChange={(e) => {
+                  setNsec(e.target.value);
+                  setNsecErr("");
+                }}
+                onKeyDown={(e) => e.key === "Enter" && submitNsec()}
+                placeholder="nsec1…"
+              />
+              {nsecErr ? <p className="signin__err" data-testid="nsec-error">{nsecErr}</p> : null}
+              <button data-testid="nsec-submit" onClick={submitNsec}>
+                {t("signIn_useNsecButton")}
+              </button>
+            </div>
+          ) : null}
 
           {onPair && !pairOpen ? (
             <button className="settings__reveal" data-testid="pair-import" onClick={() => setPairOpen(true)}>

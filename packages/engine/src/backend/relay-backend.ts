@@ -107,6 +107,16 @@ import type {
 export const RELAY_STALE_MS = 5 * 60_000;
 /** 主路由離線時的冗餘廣播座數上限（ADR-0039）。 */
 export const REDUNDANT_K = 2;
+/**
+ * 身分守衛（ADR-0122）：呼叫端傳了 `expectPubkey` 卻無法取得那把金鑰。
+ *
+ * **不要把它當成「沒有身分」而去產生一把新的**——那會把使用者換成另一個人。
+ * App 收到這個錯誤時應該去要 nsec（解鎖畫面／貼上 nsec），而不是建立新身分。
+ */
+export const IDENTITY_UNAVAILABLE = "IDENTITY_UNAVAILABLE";
+/** 身分守衛（ADR-0122）：解出來的 pubkey 與 `expectPubkey` 不符（錯的金鑰／儲存毀損）。 */
+export const IDENTITY_MISMATCH = "IDENTITY_MISMATCH";
+
 const PRESENCE_TIMEOUT_MS = 90_000; // 3× 心跳（30s）：容忍偶發丟包/抖動，不因單次遲到就翻離線（ADR-0059）
 const nowSec = () => Math.floor(Date.now() / 1000);
 
@@ -272,6 +282,22 @@ export interface RelayPoolOptions {
    * 私鑰、**不寫入** identity blob；未設則沿用既有行為（從 storage 讀/自動產生）。
    */
   nsecOverride?: string;
+  /**
+   * 🔴 **這應該是誰**（ADR-0122）。呼叫端已經知道作用中身分的 pubkey 時務必傳入。
+   *
+   * 設定後：
+   *  - 儲存裡沒有身分、也沒有 `nsecOverride` → **拋 `IDENTITY_UNAVAILABLE`**，
+   *    而**不是**產生一把新金鑰。
+   *  - 解出來的 pubkey 與期待不符 → 拋 `IDENTITY_MISMATCH`。
+   *
+   * 為什麼要有這個：瀏覽器版曾經在重載時拿不到 nsec（金鑰只在記憶體），於是走進
+   * 「沒有身分 → `generateSecretKey()`」這條路——**使用者按一下重新整理就變成另一個人**，
+   * 舊資料全部讀不出來，而且新的明文 nsec 被寫進 localStorage。
+   *
+   * 「安靜地做錯的事」是這個專案反覆出現的失敗模式。這條守衛是對它的一般性防禦：
+   * 只要呼叫端知道期待值，任何原因造成的身分不符都會**大聲失敗**。
+   */
+  expectPubkey?: PubkeyHex;
   /** 搬家排水（ADR-0066 H3）：額外訂閱這座「舊 home」的自家收件匣；到期與否由 App 層判定。 */
   drainUrl?: string;
   /**
@@ -429,6 +455,9 @@ export class RelayChatBackend implements ChatBackend {
       // B5（ADR-0053）：私鑰由 OS 金鑰庫提供，不落 localStorage identity blob。
       identity = { nsec: pool.nsecOverride, name: name?.trim() || identity?.name || "我" };
     } else if (!identity) {
+      // 🔴 ADR-0122：呼叫端知道這應該是誰，卻拿不到金鑰 → **絕不產生新的**。
+      // 靜默產生＝把使用者換成另一個人，還會用新身分覆蓋掉他原本的資料。
+      if (pool?.expectPubkey) throw new Error(IDENTITY_UNAVAILABLE);
       const sk = generateSecretKey();
       identity = { nsec: nsecEncode(sk), name: name?.trim() || "我" };
       storage.saveIdentity(identity);
@@ -438,6 +467,7 @@ export class RelayChatBackend implements ChatBackend {
     }
     this.sk = nsecDecode(identity.nsec);
     const pubkey = getPublicKey(this.sk);
+    if (pool?.expectPubkey && pubkey !== pool.expectPubkey) throw new Error(IDENTITY_MISMATCH);
     this.self = { pubkey, name: identity.name, status: "online", statusMessage: "" };
     this.selfNpub = npubEncode(pubkey);
     this.selfNsec = identity.nsec;

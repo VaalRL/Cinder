@@ -89,6 +89,12 @@ export interface SettingsPanelProps {
     onEnable: (password: string) => Promise<boolean>;
     onChangePassword: (oldPw: string, newPw: string) => Promise<boolean>;
     onDisable: (password: string) => Promise<boolean>;
+    /**
+     * 瀏覽器模式（ADR-0122）：這裡的「停用」語意**與桌面不同**——
+     * 桌面停用是把明文 nsec 交還 OS 金鑰庫（信任邊界移交給 OS 帳號）；
+     * 瀏覽器沒有那個東西，所以停用＝**忘記這個身分**，下次開啟要重貼 nsec。必須講清楚。
+     */
+    browser?: boolean;
     onToggleHidden: () => void;
   };
 }
@@ -506,6 +512,12 @@ function SecuritySettings({ value }: { value: NonNullable<SettingsPanelProps["se
       ) : null}
       {mode === "disable" ? (
         <div className="settings__key">
+          {/* 瀏覽器的「停用」會清掉記住的身分——不能讓使用者以為只是「關掉密碼」（ADR-0122）。 */}
+          {value.browser ? (
+            <p className="settings__warn" data-testid="disable-browser-warn">
+              {t("settings_passwordDisableBrowser")}
+            </p>
+          ) : null}
           <input
             type="password"
             aria-label={t("settings_passwordOld")}

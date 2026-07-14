@@ -71,3 +71,30 @@ describe("SignIn 元件", () => {
     expect(out).toContain("示範模式");
   });
 });
+
+describe("瀏覽器登入必填本地密碼（ADR-0122）", () => {
+  const render = (extra: Record<string, unknown>) =>
+    renderToStaticMarkup(
+      <I18nProvider>
+        <ThemeProvider>
+          <SignIn onSignIn={() => {}} {...extra} />
+        </ThemeProvider>
+      </I18nProvider>,
+    );
+
+  it("桌面（Tauri）不顯示密碼欄——那裡有 OS 金鑰庫", () => {
+    expect(render({})).not.toContain('data-testid="signin-password"');
+  });
+
+  it("瀏覽器顯示密碼欄，並**說明為什麼**（不設就會失去身分）", () => {
+    const html = render({ requirePassword: true });
+    expect(html).toContain('data-testid="signin-password"');
+    // 使用者必須知道風險：nsec 只在這個分頁裡，重新整理就沒了。
+    expect(html).toContain("重新整理");
+  });
+
+  it("提供「用 nsec 登入」的出路（忘記密碼、或在舊版被換掉身分的人）", () => {
+    expect(render({ onEnterNsec: async () => true })).toContain('data-testid="nsec-open"');
+    expect(render({})).not.toContain('data-testid="nsec-open"');
+  });
+});

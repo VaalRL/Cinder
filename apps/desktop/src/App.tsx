@@ -29,6 +29,9 @@ import { makeThumbnail } from "./ui/thumbnail.js";
 import { useI18n } from "./i18n.js";
 import { type Layout, useLayout } from "./layout.js";
 import {
+  browserIsRemembered,
+  browserPassEnable,
+  browserPassForget,
   browserPassUnlock,
   isWrappedValue,
   passChange,
@@ -268,11 +271,14 @@ function buildBackend(p: Profile, nsecOverride?: string, storage?: AppStorage): 
           }
         },
       };
+  // 🔴 ADR-0122：**告訴引擎「這應該是誰」**。拿不到金鑰時它會大聲失敗（IDENTITY_UNAVAILABLE），
+  // 而不是靜默產生一把新的把使用者換掉。首次登入的設定檔還沒有 pubkey → 不傳（此時本來就沒有期待值）。
+  const guard = p.pubkey ? { expectPubkey: p.pubkey } : {};
   return new RelayChatBackend(
     store,
     webSocketConnector(p.relayUrl),
     p.name,
-    nsecOverride ? { ...opts, nsecOverride } : opts,
+    nsecOverride ? { ...opts, ...guard, nsecOverride } : { ...opts, ...guard },
   );
 }
 
@@ -334,6 +340,8 @@ export function App(): JSX.Element {
   const [activeConvo, setActiveConvo] = useState<string | null>(null); // 三欄中欄當前分頁（ADR-0079 Q3）。
   /** 開機閘門（H4，ADR-0067）：作用中身分啟用本地密碼→先解鎖再建後端。 */
   const [lockedProfile, setLockedProfile] = useState<Profile | null>(null);
+  /** 瀏覽器：有設定檔但拿不到 nsec（沒記住／已忘記）→ 回登入畫面貼 nsec（ADR-0122）。 */
+  const [needNsec, setNeedNsec] = useState<Profile | null>(null);
   /** 配對新裝置（D4a，ADR-0072）：舊機視角的階段狀態；null＝面板未開。 */
   const [pairPhase, setPairPhase] = useState<PairPhase | null>(null);
   const pairDecision = useRef<((ok: boolean) => void) | null>(null);
@@ -539,10 +547,29 @@ export function App(): JSX.Element {
             return;
           }
         }
+
+        // 🔴 瀏覽器（ADR-0122）：**這裡沒有金鑰庫，nsec 只活在記憶體裡** → 重載後就沒了。
+        //
+        // 過去這條路直接往下走：`override` 是 undefined → 儲存的 DEK 也是 undefined →
+        // 讀不出（已加密的）identity → 引擎走 `generateSecretKey()` →
+        // **使用者按一下重新整理就變成另一個人**，舊資料全部讀不出來，
+        // 而且新的明文 nsec 被寫進 localStorage。實測確認過。
+        //
+        // 現在：沒有 nsec 就**不建後端**。有記住（Argon2id 包裹的 blob）→ 解鎖畫面；
+        // 沒記住 → 回登入畫面貼 nsec。（`expectPubkey` 是最後一道保險，見引擎。）
+        if (!isTauri() && active.relayUrl) {
+          if (await browserIsRemembered(active.pubkey)) {
+            if (cancelled) return;
+            setLockedProfile({ ...active, locked: true });
+            return;
+          }
+          if (cancelled) return;
+          setNeedNsec(active); // → SignIn 的「用 nsec 登入」
+          return;
+        }
+
         if (cancelled) return;
         // 配對匯出（D4a）與保留上限（ADR-0094）需與後端**同一份**儲存；非 Tauri 走 LocalStorage 同命名空間。
-        // **必須把 sk 傳進去**（ADR-0119 修正）：舊版 `new LocalStorage(ns)` 不帶金鑰 → `dek` 為
-        // undefined → ADR-0112 的靜態加密在整條瀏覽器路徑上是**死碼**，訊息/聯絡人全部明文落盤。
         const store: AppStorage | undefined =
           storage ?? (active.relayUrl ? browserStore(active.namespace, override) : undefined);
         storageRef.current = store ?? null;
@@ -877,6 +904,7 @@ export function App(): JSX.Element {
     setSelf({ ...b.self });
     setBackend(b);
     setLockedProfile(null);
+    setNeedNsec(null); // ADR-0122
     return true;
   };
 
@@ -899,6 +927,26 @@ export function App(): JSX.Element {
   const rescue = async (nsec: string, newPassword: string): Promise<boolean> => {
     const p = lockedProfile;
     if (!p) return false;
+
+    // 瀏覽器（ADR-0122）：沒有 ADR-0073 的雙重包裹（那是原生層的東西），但也**不需要**——
+    // DEK 本來就由 nsec 導出（ADR-0112）。所以救援＝「用 nsec 重新包裹一個新密碼」，
+    // 資料自然解得開。重用同一個 `RescueFn` 契約與同一個 UI，不另開畫面。
+    if (!isTauri()) {
+      let pubkey: string;
+      try {
+        pubkey = getPublicKey(nsecDecode(nsec.trim()));
+      } catch {
+        return false; // 不是合法的 nsec
+      }
+      if (pubkey !== p.pubkey) return false; // 是別人的金鑰 → 解不開這個 namespace 的資料
+      await browserPassEnable(pubkey, nsec.trim(), newPassword);
+      try {
+        return await enterWithNsec(p, nsec.trim());
+      } catch {
+        throw new Error(RESCUE_RESET_OK);
+      }
+    }
+
     // passRescue 失敗＝nsec／備份碼不符或無救援資料 → 讓上層報「救援失敗」（回 false）。
     let key: string;
     try {
@@ -936,7 +984,7 @@ export function App(): JSX.Element {
     window.alert("密碼不符任何隱藏身分");
   };
 
-  const signIn = async (name: string, relayUrl: string) => {
+  const signIn = async (name: string, relayUrl: string, password?: string) => {
     if (!relayUrl) {
       const b = new BrowserChatBackend(name);
       setConn("online");
@@ -965,14 +1013,27 @@ export function App(): JSX.Element {
       // 完全繞過，因為這條路根本不經過 keyvault）。ADR-0112 的紅線在這裡破了一個大洞。
       //
       // 現在：在這裡產生 nsec，交給 `buildBackend` 當 override（後端不會落地它），
-      // 並以它導出 DEK 加密 localStorage。nsec 只留在記憶體——要「記住我」須另設本地密碼。
+      // 並以它導出 DEK 加密 localStorage。
       const genNsec = nsecEncode(generateSecretKey());
       const ls = browserStore(first.namespace, genNsec);
       storageRef.current = ls; // ADR-0094：與後端同一份儲存
       b = buildBackend(first, genNsec, ls);
       ls.saveIdentity({ nsec: "", name }); // 只存名稱；私鑰不落地
+
+      // 🔴 ADR-0122：**這把 nsec 使用者從沒看過**，而瀏覽器沒有 OS 金鑰庫。
+      // 不以密碼包裹它，使用者按一下重新整理，身分就永久消失。所以密碼在這條路徑上**必填**
+      //（`SignIn` 已擋在前面；這裡是最後一道）。磁碟上只有 Argon2id 密文，KEK 從不落盤。
+      if (!password) throw new Error("瀏覽器登入必須設定本機密碼（ADR-0122）");
+      await browserPassEnable(b.self.pubkey, genNsec, password);
     }
-    const profile: Profile = { pubkey: b.self.pubkey, name, relayUrl, enterprise: false, namespace: "" };
+    const profile: Profile = {
+      pubkey: b.self.pubkey,
+      name,
+      relayUrl,
+      enterprise: false,
+      namespace: "",
+      ...(password ? { locked: true } : {}), // 瀏覽器：下次開機走解鎖畫面
+    };
     const next = upsertProfile(profilesState, profile);
     saveProfiles(next);
     setProfilesState(next);
@@ -1100,13 +1161,21 @@ export function App(): JSX.Element {
     name: string,
     relayUrl: string,
     enterprise: boolean,
-    opts: { nsec?: string | undefined; adminPubkey?: string | undefined } = {},
+    opts: { nsec?: string | undefined; adminPubkey?: string | undefined; password?: string | undefined } = {},
   ) => {
     const sk = opts.nsec?.trim() ? nsecDecode(opts.nsec.trim()) : generateSecretKey();
     const nsec = nsecEncode(sk);
     const pubkey = getPublicKey(sk);
     const admin = enterprise && opts.adminPubkey?.trim() ? normalizeAdminPubkey(opts.adminPubkey.trim()) : undefined;
-    const profile: Profile = { pubkey, name, relayUrl, enterprise, namespace: pubkey, ...(admin ? { adminPubkey: admin } : {}) };
+    const profile: Profile = {
+      pubkey,
+      name,
+      relayUrl,
+      enterprise,
+      namespace: pubkey,
+      ...(admin ? { adminPubkey: admin } : {}),
+      ...(!isTauri() ? { locked: true } : {}), // 瀏覽器：以密碼包裹（ADR-0122）→ 下次開機走解鎖
+    };
     const next = upsertProfile(profilesState, profile);
     saveProfiles(next);
 
@@ -1132,6 +1201,11 @@ export function App(): JSX.Element {
     //
     // 修法是**不要重載**：nsec 就在手上，直接原地換後端（和首次登入、解鎖走同一條路）。
     // `setBackend()` 的 effect 會自動 stop 舊後端、start 新的。
+    //
+    // ADR-0122 補上另一半：**把 nsec 以密碼包裹落盤**。否則「不重載」只擋得住這一次——
+    // 使用者下次自己按重新整理，這個新身分照樣消失。
+    if (!opts.password) throw new Error("瀏覽器新增身分必須設定本機密碼（ADR-0122）");
+    await browserPassEnable(pubkey, nsec, opts.password);
     setProfilesState(next);
     await enterWithNsec(profile, nsec);
     // 只存名稱（供身分清單顯示）；私鑰不落地。要「記住我」須在設定裡啟用本地密碼（Argon2id 包裹）。
@@ -1140,7 +1214,27 @@ export function App(): JSX.Element {
 
   // H4（ADR-0067）：作用中身分已上鎖→解鎖畫面（不落 SignIn，避免誤建新身分）。
   if (lockedProfile && !backend) return <UnlockScreen name={lockedProfile.name} onUnlock={unlock} onRescue={rescue} />;
-  if (!backend || !self) return <SignIn onSignIn={signIn} onPair={importFromOldDevice} />;
+  if (!backend || !self) {
+    // ADR-0122：瀏覽器的登入畫面**必填本地密碼**（nsec 是本機產生的，使用者沒看過，
+    // 而這裡沒有 OS 金鑰庫——不包裹它，重新整理一次身分就沒了）。
+    //
+    // `needNsec`＝有設定檔但拿不到金鑰（沒記住／已忘記）→ 唯一的出路是貼回備份的 nsec。
+    const enterNsec = needNsec
+      ? {
+          onEnterNsec: async (nsec: string): Promise<boolean> => {
+            try {
+              if (getPublicKey(nsecDecode(nsec.trim())) !== needNsec.pubkey) return false;
+              return await enterWithNsec(needNsec, nsec.trim());
+            } catch {
+              return false;
+            }
+          },
+        }
+      : {};
+    return (
+      <SignIn onSignIn={signIn} onPair={importFromOldDevice} requirePassword={!isTauri()} {...enterNsec} />
+    );
+  }
 
   const activeBackend = backend;
   const setStatus = (status: Status) => {
@@ -1438,7 +1532,12 @@ export function App(): JSX.Element {
         </div>
       ) : null}
       {addIdOpen ? (
-        <AddIdentityModal defaultRelayUrl={activeProfile(profilesState)?.relayUrl ?? ""} onCancel={() => setAddIdOpen(false)} onAdd={addIdentity} />
+        <AddIdentityModal
+          defaultRelayUrl={activeProfile(profilesState)?.relayUrl ?? ""}
+          onCancel={() => setAddIdOpen(false)}
+          onAdd={addIdentity}
+          requirePassword={!isTauri()}
+        />
       ) : null}
       {pairPhase ? (
         <PairDeviceModal
@@ -1567,9 +1666,11 @@ export function App(): JSX.Element {
             };
           })()}
           {...(() => {
-            // 本地密碼（H4，ADR-0067）：僅 Tauri（KDF 在原生層）；示範模式/瀏覽器不顯示。
+            // 本地密碼（H4，ADR-0067）：**瀏覽器也有**（ADR-0112 的 Argon2id 在 JS 執行；
+            // ADR-0122 把它接上——在那之前這個區塊被 `isTauri()` 擋掉，`browserPassEnable()`
+            // 的呼叫端是 0 個，整套瀏覽器密碼保護是死碼）。示範模式（無 relay）不顯示。
             const p = activeProfile(profilesState);
-            if (!p || !isTauri()) return {};
+            if (!p || !p.relayUrl) return {};
             const flag = (patch: { locked?: boolean; hidden?: boolean }) => {
               const next = setProfileSecurity(loadProfiles(), p.pubkey, patch);
               saveProfiles(next);
@@ -1579,9 +1680,12 @@ export function App(): JSX.Element {
               security: {
                 enabled: !!p.locked,
                 hidden: !!p.hidden,
+                browser: !isTauri(), // 文案要說明「停用＝忘記身分」（ADR-0122）
                 onEnable: async (pw: string) => {
                   try {
-                    await passEnable(p.namespace, p.pubkey, pw);
+                    if (isTauri()) await passEnable(p.namespace, p.pubkey, pw);
+                    // 瀏覽器：以密碼包裹**當下記憶體裡的** nsec 落盤（磁碟上只有密文）。
+                    else await browserPassEnable(p.pubkey, activeBackend.selfNsec ?? "", pw);
                     flag({ locked: true });
                     return true;
                   } catch {
@@ -1590,7 +1694,14 @@ export function App(): JSX.Element {
                 },
                 onChangePassword: async (oldPw: string, newPw: string) => {
                   try {
-                    await passChange(p.namespace, p.pubkey, oldPw, newPw);
+                    if (isTauri()) {
+                      await passChange(p.namespace, p.pubkey, oldPw, newPw);
+                      return true;
+                    }
+                    // 瀏覽器：先以舊密碼解開（驗證），再以新密碼重新包裹。
+                    const nsec = await browserPassUnlock(p.pubkey, oldPw);
+                    if (!nsec) return false; // 舊密碼錯誤／遭竄改
+                    await browserPassEnable(p.pubkey, nsec, newPw);
                     return true;
                   } catch {
                     return false;
@@ -1598,7 +1709,16 @@ export function App(): JSX.Element {
                 },
                 onDisable: async (pw: string) => {
                   try {
-                    await passDisable(p.namespace, p.pubkey, pw);
+                    if (isTauri()) {
+                      await passDisable(p.namespace, p.pubkey, pw);
+                    } else {
+                      // 🔴 瀏覽器的「停用」＝**忘記這個身分**（ADR-0122）。
+                      // 桌面的停用是把明文 nsec 寫回 OS 金鑰庫（信任邊界移交給 OS 帳號）；
+                      // 瀏覽器**沒有那個東西**——沒有任何安全的明文去處，那正是 ADR-0112 的前提。
+                      // 所以只能不再記住：下次開啟要重貼 nsec。先驗密碼，避免誤觸清掉身分。
+                      if (!(await browserPassUnlock(p.pubkey, pw))) return false;
+                      await browserPassForget(p.pubkey);
+                    }
                     flag({ locked: false, hidden: false }); // 停用密碼＝隱藏一併解除
                     return true;
                   } catch {
@@ -1855,6 +1975,7 @@ export function AddIdentityModal({
   defaultRelayUrl,
   onAdd,
   onCancel,
+  requirePassword = false,
 }: {
   /** relay 欄位預設值（帶入目前作用中身分的網址，可改）。 */
   defaultRelayUrl: string;
@@ -1862,9 +1983,14 @@ export function AddIdentityModal({
     name: string,
     relayUrl: string,
     enterprise: boolean,
-    opts: { nsec?: string | undefined; adminPubkey?: string | undefined },
+    opts: { nsec?: string | undefined; adminPubkey?: string | undefined; password?: string | undefined },
   ) => void;
   onCancel: () => void;
+  /**
+   * 瀏覽器（ADR-0122）：本地密碼**必填**——理由與首次登入完全相同
+   *（新身分的 nsec 是本機產生的、使用者沒看過；這裡沒有 OS 金鑰庫）。
+   */
+  requirePassword?: boolean;
 }): JSX.Element {
   const { t } = useI18n();
   const [name, setName] = useState("");
@@ -1876,10 +2002,13 @@ export function AddIdentityModal({
   const [backupPw, setBackupPw] = useState("");
   const [backupErr, setBackupErr] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [password, setPassword] = useState("");
   const isCode = isBackupCode(nsec.trim());
   const submit = () => {
     if (!name.trim() || !relayUrl.trim() || busy) return;
+    if (requirePassword && !password) return; // ADR-0122：沒有密碼＝重載就失去這個身分
     const adminPubkey = enterprise ? admin.trim() || undefined : undefined;
+    const password_ = requirePassword ? password : undefined;
     if (isCode) {
       if (!backupPw) return;
       // scrypt 解碼約需一秒（審查修正 #9）：先讓「還原中…」上畫再執行，避免無回饋凍結。
@@ -1887,7 +2016,7 @@ export function AddIdentityModal({
       setTimeout(() => {
         try {
           const imported = parseBackupCode(nsec.trim(), backupPw).nsec;
-          onAdd(name.trim(), relayUrl.trim(), enterprise, { nsec: imported, adminPubkey });
+          onAdd(name.trim(), relayUrl.trim(), enterprise, { nsec: imported, adminPubkey, password: password_ });
         } catch {
           setBackupErr(true); // 備份密碼錯誤：保留輸入
         } finally {
@@ -1897,7 +2026,11 @@ export function AddIdentityModal({
       return;
     }
     try {
-      onAdd(name.trim(), relayUrl.trim(), enterprise, { nsec: nsec.trim() || undefined, adminPubkey });
+      onAdd(name.trim(), relayUrl.trim(), enterprise, {
+        nsec: nsec.trim() || undefined,
+        adminPubkey,
+        password: password_,
+      });
     } catch {
       setBackupErr(true); // 非法 nsec：保留輸入
     }
@@ -1925,6 +2058,21 @@ export function AddIdentityModal({
             value={relayUrl}
             onChange={(e) => setRelayUrl(e.target.value)}
           />
+          {/* 瀏覽器（ADR-0122）：必填。沒有它，重新整理就失去這個新身分。 */}
+          {requirePassword ? (
+            <>
+              <input
+                className="groupmodal__name"
+                type="password"
+                placeholder={t("signIn_password")}
+                aria-label={t("signIn_password")}
+                data-testid="addid-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+              <p className="hint">{t("signIn_passwordWhy")}</p>
+            </>
+          ) : null}
           <label className="groupmodal__item">
             <input type="checkbox" checked={enterprise} onChange={(e) => setEnterprise(e.target.checked)} />
             <span>{t("addId_enterprise")}</span>

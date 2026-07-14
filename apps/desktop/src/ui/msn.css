@@ -823,3 +823,7 @@ body { margin: 0; background: var(--bg-b); color: var(--ink); }
 .request__ok:hover { filter: brightness(1.08); }
 .request__no:hover, .request__block:hover { background: var(--hover); color: var(--ink); }
 .request__block { color: #e5484d; }
+
+/* 瀏覽器登入的本地密碼（ADR-0122）：必填——沒有它，重新整理一次身分就沒了。 */
+.signin__pw { display: flex; flex-direction: column; gap: 6px; width: 100%; }
+.signin__err { margin: 0; font-size: 11px; color: #e5484d; }

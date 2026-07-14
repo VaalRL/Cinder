@@ -32,6 +32,28 @@ export async function browserPassUnlock(pubkey: string, password: string): Promi
 }
 
 /**
+ * 瀏覽器：這個身分有沒有被「記住」（存在 Argon2id 包裹的 blob）？（ADR-0122）
+ *
+ * **只認包裹過的 blob**（比照行動端 ADR-0117 的 `isRemembered`）：有人（或某個未來的 bug）
+ * 往那個鍵塞明文 nsec，一律不收——當作沒有記住的身分，而不是拿它當金鑰用。
+ */
+export async function browserIsRemembered(pubkey: string): Promise<boolean> {
+  const blob = await browserKeyVault.getKey(pubkey);
+  return !!blob && isWrapped(blob);
+}
+
+/**
+ * 瀏覽器：忘記這個身分（刪掉包裹的 blob）。（ADR-0122）
+ *
+ * **這就是瀏覽器的「停用密碼」**。桌面的停用是把明文 nsec 寫回 OS 金鑰庫（信任邊界移交給
+ * OS 帳號）——**瀏覽器沒有那個東西**。這裡沒有任何安全的明文去處，那正是 ADR-0112 的前提。
+ * 所以停用只能是「不再記住」：下次開啟要重貼 nsec。
+ */
+export async function browserPassForget(pubkey: string): Promise<void> {
+  await browserKeyVault.deleteKey(pubkey);
+}
+
+/**
  * 值是否為密碼包裹 blob（對齊 Rust passlock::is_wrapped；審查修正 #3）。
  * nsec（bech32）與 db 金鑰（base64）皆非 JSON 物件；加密備份碼信封（ADR-0070）
  * 有 v:1 但無 kdf 欄——不會誤判。

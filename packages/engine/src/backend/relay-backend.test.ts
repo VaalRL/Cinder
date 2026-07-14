@@ -3,7 +3,12 @@ import { createInMemoryRelayNetwork } from "@cinder/relay";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryStorage } from "../storage/memory.js";
 import type { ChatBackendEvents, ChatMessage } from "./types.js";
-import { type CloseableRelayClient, RelayChatBackend } from "./relay-backend.js";
+import {
+  type CloseableRelayClient,
+  IDENTITY_MISMATCH,
+  IDENTITY_UNAVAILABLE,
+  RelayChatBackend,
+} from "./relay-backend.js";
 
 const noop: ChatBackendEvents = { onContacts() {}, onMessage() {}, onTyping() {}, onNudge() {} };
 
@@ -1971,5 +1976,60 @@ describe("訊息請求：不給垃圾訊息發送者任何回饋（ADR-0121）",
     expect(sv.loadContacts().map((c) => c.pubkey)).toEqual([stranger.self.pubkey]);
     me.stop();
     stranger.stop();
+  });
+});
+
+describe("身分守衛（ADR-0122）", () => {
+  it("🔴 **拿不到金鑰時絕不產生新身分**——那會把使用者換成另一個人", () => {
+    const net = createInMemoryRelayNetwork();
+    const store = new MemoryStorage();
+    const sk = generateSecretKey();
+    const pubkey = getPublicKey(sk);
+
+    // 瀏覽器版的實況：儲存是用 nsec 導出的 DEK 加密的，重載後拿不到 nsec →
+    // `loadIdentity()` 回 null。過去這裡會走 `generateSecretKey()`：
+    // **使用者按一下重新整理就變成另一個人**，舊資料全部讀不出來，
+    // 而且新的明文 nsec 被寫進 localStorage。
+    expect(store.loadIdentity()).toBeNull();
+
+    expect(() => new RelayChatBackend(store, (h) => net.connect("x", h), "我", { expectPubkey: pubkey })).toThrow(
+      IDENTITY_UNAVAILABLE,
+    );
+    // 而且**什麼都沒被寫進去**——不能留下一個半生不熟的新身分。
+    expect(store.loadIdentity()).toBeNull();
+  });
+
+  it("解出來的 pubkey 與期待不符 → 拋錯（錯的金鑰／儲存毀損）", () => {
+    const net = createInMemoryRelayNetwork();
+    const store = new MemoryStorage();
+    const someoneElse = getPublicKey(generateSecretKey());
+
+    expect(
+      () =>
+        new RelayChatBackend(store, (h) => net.connect("x", h), "我", {
+          nsecOverride: nsecEncode(generateSecretKey()), // 另一把金鑰
+          expectPubkey: someoneElse,
+        }),
+    ).toThrow(IDENTITY_MISMATCH);
+  });
+
+  it("金鑰對得上 → 照常建立（守衛不擋正常路徑）", () => {
+    const net = createInMemoryRelayNetwork();
+    const sk = generateSecretKey();
+    const pubkey = getPublicKey(sk);
+    const b = new RelayChatBackend(new MemoryStorage(), (h) => net.connect("x", h), "我", {
+      nsecOverride: nsecEncode(sk),
+      expectPubkey: pubkey,
+    });
+    expect(b.self.pubkey).toBe(pubkey);
+    b.stop();
+  });
+
+  it("沒傳 expectPubkey → 沿用舊行為（CLI／測試／首次登入仍可自動產生）", () => {
+    const net = createInMemoryRelayNetwork();
+    const store = new MemoryStorage();
+    const b = new RelayChatBackend(store, (h) => net.connect("x", h), "我");
+    expect(store.loadIdentity()?.nsec).toBeTruthy();
+    b.stop();
   });
 });
