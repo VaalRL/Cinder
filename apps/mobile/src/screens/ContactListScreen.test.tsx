@@ -37,3 +37,46 @@ describe("行動端 ContactListScreen（Phase D 起手）", () => {
     expect(html).toContain("夜");
   });
 });
+
+describe("封鎖（行動端）", () => {
+  const bob: MobileContact = { pubkey: "pk_bob", name: "Bob", status: "online" };
+
+  it("未提供 onBlock → 不顯示封鎖入口（如示範模式）", () => {
+    const html = renderToStaticMarkup(
+      <ContactListScreen selfPubkey={"aa".repeat(32)} selfName="我" contacts={[bob]} locale="en" />,
+    );
+    // 用 testID 斷言（不是字串 "Block"）——react-native-web 產生的 CSS class 含 `r-paddingBlock-…`，
+    // 用字串比對會誤判。
+    expect(html).not.toContain('data-testid="block-pk_bob"');
+  });
+
+  it("封鎖鈕要長按才出現（避免誤觸把人封鎖掉）", () => {
+    const html = renderToStaticMarkup(
+      <ContactListScreen
+        selfPubkey={"aa".repeat(32)}
+        selfName="我"
+        contacts={[bob]}
+        onBlock={() => {}}
+        locale="en"
+      />,
+    );
+    expect(html).toContain("Bob");
+    expect(html).not.toContain('data-testid="block-pk_bob"'); // 未長按 → 不顯示
+  });
+
+  it("已封鎖名單可解除；被封鎖者不再出現在聯絡人區", () => {
+    const html = renderToStaticMarkup(
+      <ContactListScreen
+        selfPubkey={"aa".repeat(32)}
+        selfName="我"
+        contacts={[]}
+        blocked={[{ pubkey: "pk_eve", name: "Eve" }]}
+        onUnblock={() => {}}
+        locale="en"
+      />,
+    );
+    expect(html).toContain("Blocked"); // 區標題
+    expect(html).toContain("Eve");
+    expect(html).toContain("Unblock");
+  });
+});

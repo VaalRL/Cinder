@@ -13,6 +13,7 @@ import {
   openOpfsArchive,
 } from "@cinder/engine";
 import { nsecDecode } from "@cinder/core";
+import type { BlockedContact } from "@cinder/engine";
 import type { CallMedia, CallState } from "@cinder/core";
 import { makeThumbnail, pickFile, saveFile } from "./native/files.js";
 import { hasCallSupport } from "./native/call-media.js";
@@ -113,6 +114,12 @@ export function MobileApp({
   const [unread, setUnread] = useState<Record<string, number>>({});
   /** 有封存的對話（ADR-0111）：只有真的有封存才顯示「歷史紀錄」入口。 */
   const [archived, setArchived] = useState<Record<string, number>>({});
+  /** emoji 回應（NIP-25）：訊息 id → emoji 清單。後端 start() 會回放既有的。 */
+  const [reactions, setReactions] = useState<Record<string, string[]>>({});
+  /** 已收回的訊息（NIP-09）。收回是**隱私**功能——不同步的話，在桌面收回的訊息會留在手機上。 */
+  const [unsent, setUnsent] = useState<Set<string>>(new Set());
+  /** 封鎖名單：被封鎖者的訊息不再收，且移出聯絡人。 */
+  const [blocked, setBlocked] = useState<BlockedContact[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [selfPubkey, setSelfPubkey] = useState("");
   const [selfName, setSelfName] = useState("");
@@ -163,6 +170,9 @@ export function MobileApp({
     setContacts([]);
     setGroups([]);
     setConvos({});
+    setReactions({});
+    setUnsent(new Set());
+    setBlocked([]);
     setUnread({});
     backend.start({
       onContacts: setContacts,
@@ -180,6 +190,20 @@ export function MobileApp({
       },
       // 未讀（ADR-0108）：重新載入後徽章仍在（過去是記憶體計數器，重載歸零）。
       onUnread: setUnread,
+      onReaction: (messageId, emoji) =>
+        setReactions((prev) => {
+          const cur = prev[messageId] ?? [];
+          if (cur.includes(emoji)) return prev;
+          return { ...prev, [messageId]: [...cur, emoji] };
+        }),
+      onUnsend: (messageId) =>
+        setUnsent((prev) => {
+          if (prev.has(messageId)) return prev;
+          const next = new Set(prev);
+          next.add(messageId);
+          return next;
+        }),
+      onBlocked: setBlocked,
       // 送出狀態（ADR-0095）：與桌面同一套（傳送中/失敗/已送出/已送達/已讀）→ 氣泡旁圖示。
       onMessageStatus: (pk, messageId, status) =>
         setConvos((c) => {
@@ -280,10 +304,33 @@ export function MobileApp({
     setActiveId(null);
     setInvisible(false);
   };
+  /** 目前開啟的對話是不是群組。 */
+  const isGroup = (id: string): boolean => groups.some((g) => g.id === id);
+
   const send = (text: string): void => {
-    if (activeId) backendRef.current?.sendMessage(activeId, text);
+    if (!activeId) return;
+    const b = backendRef.current;
+    // **群組必須走 sendGroupMessage**：`groupId` 是 16 bytes hex（32 字元），**不是** pubkey。
+    // 過去這裡一律呼叫 `sendMessage(activeId)`，而群組會出現在手機的聊天清單裡
+    // → 點進群組送訊直接拋錯（`second arg must be public key`），訊息送不出去。
+    if (isGroup(activeId)) b?.sendGroupMessage?.(activeId, text);
+    else b?.sendMessage(activeId, text);
   };
   const addContact = (npub: string): void => backendRef.current?.addContact?.(npub.trim());
+  /** 對某訊息送 emoji 回應（NIP-25）。群組回應同樣以 rumor.id 為鍵（ADR-0107）。 */
+  const react = (messageId: string, emoji: string): void => {
+    if (activeId) backendRef.current?.sendReaction?.(activeId, messageId, emoji);
+  };
+  /** 收回自己送出的訊息（NIP-09）。 */
+  const unsend = (messageId: string): void => {
+    if (activeId) backendRef.current?.unsendMessage?.(activeId, messageId);
+  };
+  /** 封鎖／解除封鎖。封鎖會一併移出聯絡人並清掉該對話（含封存，ADR-0111）。 */
+  const block = (pubkey: string): void => {
+    backendRef.current?.blockContact?.(pubkey);
+    if (activeId === pubkey) back(); // 正在看的對話被封鎖 → 退回主畫面
+  };
+  const unblock = (pubkey: string): void => backendRef.current?.unblockContact?.(pubkey);
   const toggleInvisible = (v: boolean): void => {
     setInvisible(v);
     backendRef.current?.setInvisible?.(v);
@@ -433,6 +480,10 @@ export function MobileApp({
           messages={convos[activeId] ?? []}
           onSend={send}
           onBack={back}
+          reactions={reactions}
+          unsent={unsent}
+          onReact={react}
+          onUnsend={unsend}
           {...(subtitle ? { subtitle } : {})}
           {...((archived[activeId] ?? 0) > 0 ? { onHistory: () => setScreen("history") } : {})}
           {...groupProps}
@@ -456,7 +507,16 @@ export function MobileApp({
           {...themeProps}
         />
       ) : tab === "contacts" ? (
-        <ContactListScreen selfPubkey={selfPubkey} selfName={selfName} contacts={mobileContacts} onOpen={openConvo} {...themeProps} />
+        <ContactListScreen
+          selfPubkey={selfPubkey}
+          selfName={selfName}
+          contacts={mobileContacts}
+          onOpen={openConvo}
+          onBlock={block}
+          blocked={blocked}
+          onUnblock={unblock}
+          {...themeProps}
+        />
       ) : (
         <SettingsScreen
           selfName={selfName}

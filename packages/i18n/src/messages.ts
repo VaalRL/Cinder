@@ -146,6 +146,13 @@ export interface Messages {
   history_older: string;
   history_loading: string;
   history_empty: string;
+  /** 訊息操作（NIP-09 收回 / NIP-25 回應）。 */
+  msg_unsent: string;
+  msg_unsend: string;
+  /** 封鎖。 */
+  block: string;
+  unblock: string;
+  blocked_title: string;
   export_empty: string;
   settings_invisible: string;
   settings_invisibleHint: string;
@@ -570,6 +577,11 @@ const zhHant: Messages = {
   history_older: "載入更早",
   history_loading: "載入中…",
   history_empty: "沒有封存的訊息",
+  msg_unsent: "（已收回）",
+  msg_unsend: "收回",
+  block: "封鎖",
+  unblock: "解除",
+  blocked_title: "已封鎖",
   export_empty: "沒有可導出的對話。",
   settings_invisible: "隱身",
   settings_invisibleHint: "開啟後完全不廣播在線狀態（中繼站與聯絡人皆顯示你離線），但仍可正常收發訊息。",
@@ -991,6 +1003,11 @@ const en: Messages = {
   history_older: "Load older",
   history_loading: "Loading…",
   history_empty: "No archived messages",
+  msg_unsent: "(unsent)",
+  msg_unsend: "Unsend",
+  block: "Block",
+  unblock: "Unblock",
+  blocked_title: "Blocked",
   export_empty: "No conversations to export.",
   settings_invisible: "Invisible",
   settings_invisibleHint: "When on, your presence is never broadcast (relay and contacts both see you offline), but you can still send and receive normally.",

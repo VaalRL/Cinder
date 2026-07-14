@@ -2,7 +2,7 @@
 // 頂部返回列（‹ 返回＋名稱＋副標）、訊息氣泡（自己靠右主色、對方靠左淺底；群組顯示發送者名）、
 // 底部輸入列（輸入框＋送出）。色彩吃 @cinder/theme。訊息與送出由呼叫端注入（接 ChatBackend）。
 import { useMemo, useState } from "react";
-import { calcPreview, groupReceiptMode } from "@cinder/core";
+import { calcPreview, groupReceiptMode, REACTION_EMOJIS } from "@cinder/core";
 import type { CallMedia } from "@cinder/core";
 import type { ChatMessage, MessageStatus } from "@cinder/engine";
 import { type Locale, type MessageKey, translate } from "@cinder/i18n";
@@ -50,6 +50,24 @@ function makeStyles(tk: ThemeTokens) {
     textMine: { color: "#ffffff", fontSize: 14 },
     textTheir: { color: tk.ink, fontSize: 14 },
     status: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 2, marginRight: 4 },
+    textGone: { fontStyle: "italic", opacity: 0.7 },
+    reactions: { marginTop: 2, paddingHorizontal: 4 },
+    reactionText: { fontSize: 13 },
+    actions: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: 4,
+      marginTop: 3,
+      backgroundColor: tk.panel,
+      borderWidth: 1,
+      borderColor: tk.border,
+      borderRadius: 999,
+      paddingHorizontal: 6,
+      paddingVertical: 3,
+    },
+    actBtn: { paddingHorizontal: 4, paddingVertical: 1 },
+    actEmoji: { fontSize: 16 },
+    actText: { fontSize: 12, color: tk.accent },
     readby: { fontSize: 10, color: tk.muted },
     // 算式預覽 chip（ADR-0097）
     calcchip: {
@@ -103,6 +121,10 @@ export function ConversationScreen({
   messages,
   nameFor,
   groupMembers,
+  reactions,
+  unsent,
+  onReact,
+  onUnsend,
   onSend,
   onSendFile,
   onStartCall,
@@ -127,6 +149,14 @@ export function ConversationScreen({
   onStartCall?: (media: CallMedia) => void;
   /** 開啟歷史紀錄（ADR-0111）；只有該對話真的有封存時才傳入。 */
   onHistory?: () => void;
+  /** 每則訊息收到的 emoji 回應（NIP-25）：訊息 id → emoji 清單。 */
+  reactions?: Record<string, string[]>;
+  /** 已收回的訊息 id（NIP-09）：顯示為「（已收回）」，不得洩漏原文。 */
+  unsent?: Set<string>;
+  /** 對某訊息送出 emoji 回應；未提供則不顯示回應入口（如示範模式）。 */
+  onReact?: (messageId: string, emoji: string) => void;
+  /** 收回自己送出的訊息；未提供則不顯示收回入口。 */
+  onUnsend?: (messageId: string) => void;
   onSend: (text: string) => void;
   onBack: () => void;
   locale?: Locale;
@@ -137,6 +167,8 @@ export function ConversationScreen({
   const tk = useMemo(() => resolveTheme({ theme, accent, accent2 }), [theme, accent, accent2]);
   const styles = useMemo(() => makeStyles(tk), [tk]);
   const t = (k: MessageKey, params?: Record<string, string | number>): string => translate(locale, k, params);
+  /** 長按選中的訊息（顯示回應/收回列）。手機沒有 hover，長按是等價的入口。 */
+  const [picked, setPicked] = useState<string | null>(null);
   // 狀態圖示配色（ADR-0095）：張開眼＝主色、失敗＝紅、其餘＝灰。
   const statusColor = (s: MessageStatus): string =>
     s === "read" ? tk.accent : s === "failed" ? "#dc2626" : tk.muted;
@@ -229,30 +261,90 @@ export function ConversationScreen({
       </View>
 
       <ScrollView style={styles.list} contentContainerStyle={styles.listInner}>
-        {messages.map((m) => (
+        {messages.map((m) => {
+          const gone = unsent?.has(m.id) ?? false; // 已收回（NIP-09）
+          const emojis = reactions?.[m.id] ?? [];
+          const canAct = !gone && (onReact || (m.outgoing && onUnsend));
+          return (
           <View key={m.id} style={m.outgoing ? styles.rowMine : styles.rowTheir}>
             {!m.outgoing && nameFor && m.sender ? <Text style={styles.sender}>{nameFor(m.sender)}</Text> : null}
-            <View style={[styles.bubble, m.outgoing ? styles.bubbleMine : styles.bubbleTheir]}>
-              {/* 圖片縮圖（ADR-0102）：跨 session 存活——重載後圖片仍是圖片，不會退化成檔名。 */}
-              {m.file && (m.file.url ?? m.file.thumb) ? (
-                <Image
-                  source={{ uri: m.file.url ?? m.file.thumb }}
-                  style={styles.thumb}
-                  accessibilityLabel={m.file.name}
-                />
-              ) : null}
-              <Text style={m.outgoing ? styles.textMine : styles.textTheir}>
-                {m.file ? `📎 ${m.file.name}` : m.text}
-              </Text>
-              {m.file ? (
-                <Text style={[styles.fileMeta, { color: m.outgoing ? "#ffffffcc" : tk.muted }]}>
-                  {fileNote(m)}
+            {/* 長按＝手機上的「右鍵選單」：回應／收回。已收回的訊息不再提供任何操作。 */}
+            <Pressable
+              {...(canAct
+                ? {
+                    onLongPress: () => setPicked((p) => (p === m.id ? null : m.id)),
+                    accessibilityRole: "button" as const,
+                  }
+                : {})}
+              testID={`bubble-${m.id}`}
+            >
+              <View style={[styles.bubble, m.outgoing ? styles.bubbleMine : styles.bubbleTheir]}>
+                {/* 圖片縮圖（ADR-0102）：跨 session 存活——重載後圖片仍是圖片，不會退化成檔名。 */}
+                {!gone && m.file && (m.file.url ?? m.file.thumb) ? (
+                  <Image
+                    source={{ uri: m.file.url ?? m.file.thumb }}
+                    style={styles.thumb}
+                    accessibilityLabel={m.file.name}
+                  />
+                ) : null}
+                <Text
+                  style={[
+                    m.outgoing ? styles.textMine : styles.textTheir,
+                    gone ? styles.textGone : null,
+                  ]}
+                >
+                  {/* 已收回：**絕不顯示原文**——收回的意義就在這裡。 */}
+                  {gone ? t("msg_unsent") : m.file ? `📎 ${m.file.name}` : m.text}
                 </Text>
-              ) : null}
-            </View>
+                {!gone && m.file ? (
+                  <Text style={[styles.fileMeta, { color: m.outgoing ? "#ffffffcc" : tk.muted }]}>
+                    {fileNote(m)}
+                  </Text>
+                ) : null}
+              </View>
+            </Pressable>
+            {/* 收到的 emoji 回應（NIP-25）。 */}
+            {!gone && emojis.length > 0 ? (
+              <View style={styles.reactions}>
+                <Text style={styles.reactionText}>{emojis.join(" ")}</Text>
+              </View>
+            ) : null}
+            {/* 長按後的操作列。 */}
+            {picked === m.id ? (
+              <View style={styles.actions}>
+                {onReact
+                  ? REACTION_EMOJIS.map((e) => (
+                      <Pressable
+                        key={e}
+                        style={styles.actBtn}
+                        accessibilityRole="button"
+                        onPress={() => {
+                          onReact(m.id, e);
+                          setPicked(null);
+                        }}
+                      >
+                        <Text style={styles.actEmoji}>{e}</Text>
+                      </Pressable>
+                    ))
+                  : null}
+                {m.outgoing && onUnsend ? (
+                  <Pressable
+                    style={styles.actBtn}
+                    accessibilityRole="button"
+                    testID={`unsend-${m.id}`}
+                    onPress={() => {
+                      onUnsend(m.id);
+                      setPicked(null);
+                    }}
+                  >
+                    <Text style={styles.actText}>{t("msg_unsend")}</Text>
+                  </Pressable>
+                ) : null}
+              </View>
+            ) : null}
             {/* 送出狀態（ADR-0095）：與桌面同一套——沙漏／閉眼／半開眼／張開眼（主色）／紅色重試。
                 群組另依分級顯示「誰已讀」（≤5）或「已讀 M/N」（6–10）；大群不顯示。 */}
-            {m.outgoing && (m.status || groupReadOf(m)) ? (
+            {!gone && m.outgoing && (m.status || groupReadOf(m)) ? (
               <View style={styles.status}>
                 {m.status ? (
                   <View aria-label={t(MSG_STATUS_KEY[m.status])}>
@@ -263,7 +355,8 @@ export function ConversationScreen({
               </View>
             ) : null}
           </View>
-        ))}
+          );
+        })}
       </ScrollView>
 
       {/* 算式即時預覽（ADR-0097）：純本地計算，草稿不外流；點一下把「= 答案」加到草稿。 */}

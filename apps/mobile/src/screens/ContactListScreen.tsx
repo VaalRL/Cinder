@@ -6,7 +6,7 @@
 // 同一份主色/副色/深淺主題推導，行動端與桌面共用視覺 SSOT。StyleSheet 依當前 token 動態產生。
 // 註：目前直接 import "react-native-web"；日後上原生時可加 bundler 別名（react-native→web）
 // 讓同一份原始碼跨 web/native。
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { npubEncode } from "@cinder/core";
 import { type Locale, type MessageKey, translate } from "@cinder/i18n";
 import { resolveTheme, STATUS_COLORS, type Theme, type ThemeTokens } from "@cinder/theme";
@@ -51,6 +51,10 @@ function makeStyles(tk: ThemeTokens) {
     dot: { width: 9, height: 9, borderRadius: 5 },
     name: { fontSize: 14, color: tk.ink },
     empty: { padding: 28, textAlign: "center", color: tk.muted, fontSize: 13, lineHeight: 20 },
+    secTitle: { paddingHorizontal: 12, paddingTop: 10, paddingBottom: 2, fontSize: 11, fontWeight: "700", color: tk.muted },
+    blockedName: { flex: 1, fontSize: 14, color: tk.muted },
+    blockBtn: { marginLeft: "auto", borderWidth: 1, borderColor: tk.accent, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 2 },
+    blockText: { fontSize: 11, color: tk.accent },
   });
 }
 
@@ -59,6 +63,9 @@ export function ContactListScreen({
   selfName,
   contacts,
   onOpen,
+  onBlock,
+  blocked,
+  onUnblock,
   locale = "zh-Hant",
   theme = "light",
   accent = null,
@@ -69,6 +76,12 @@ export function ContactListScreen({
   contacts: MobileContact[];
   /** 點某聯絡人開對話（傳 pubkey）；未提供＝不可點（純顯示）。 */
   onOpen?: (pubkey: string) => void;
+  /** 封鎖某聯絡人（長按）。未提供則不顯示封鎖入口。 */
+  onBlock?: (pubkey: string) => void;
+  /** 已封鎖名單（可解除）。 */
+  blocked?: { pubkey: string; name: string }[];
+  /** 解除封鎖。 */
+  onUnblock?: (pubkey: string) => void;
   locale?: Locale;
   /** 深淺主題（與桌面共用，ADR-0080）。 */
   theme?: Theme;
@@ -77,6 +90,9 @@ export function ContactListScreen({
   /** 自訂副色 hex；null＝跟隨主色（ADR-0078/0080）。 */
   accent2?: string | null;
 }): JSX.Element {
+  /** 長按選中的聯絡人（顯示封鎖鈕）。 */
+  const [picked, setPicked] = useState<string | null>(null);
+  const t = (k: MessageKey): string => translate(locale, k);
   const styles = useMemo(() => makeStyles(resolveTheme({ theme, accent, accent2 })), [theme, accent, accent2]);
   return (
     <View style={styles.root}>
@@ -93,14 +109,55 @@ export function ContactListScreen({
               {translate(locale, STATUS_KEY[sec.status])}（{sec.contacts.length}）
             </Text>
             {sec.contacts.map((c) => (
-              <Pressable key={c.pubkey} style={styles.row} accessibilityRole="button" onPress={() => onOpen?.(c.pubkey)}>
+              <Pressable
+                key={c.pubkey}
+                style={styles.row}
+                accessibilityRole="button"
+                onPress={() => onOpen?.(c.pubkey)}
+                {...(onBlock ? { onLongPress: () => setPicked((p) => (p === c.pubkey ? null : c.pubkey)) } : {})}
+              >
                 <View style={[styles.dot, { backgroundColor: STATUS_COLORS[c.status] }]} />
                 <Text style={styles.name}>{c.name}</Text>
+                {/* 長按＝手機上的「右鍵選單」。封鎖會移出聯絡人並清掉該對話（含封存）。 */}
+                {picked === c.pubkey && onBlock ? (
+                  <Pressable
+                    style={styles.blockBtn}
+                    accessibilityRole="button"
+                    testID={`block-${c.pubkey}`}
+                    onPress={() => {
+                      onBlock(c.pubkey);
+                      setPicked(null);
+                    }}
+                  >
+                    <Text style={styles.blockText}>{t("block")}</Text>
+                  </Pressable>
+                ) : null}
               </Pressable>
             ))}
           </View>
         ))
       )}
+      {/* 已封鎖（可解除）。封鎖後不再收其訊息，且已移出聯絡人。 */}
+      {blocked && blocked.length > 0 ? (
+        <View>
+          <Text style={styles.secTitle}>{t("blocked_title")}</Text>
+          {blocked.map((b) => (
+            <View key={b.pubkey} style={styles.row}>
+              <Text style={styles.blockedName}>{b.name}</Text>
+              {onUnblock ? (
+                <Pressable
+                  style={styles.blockBtn}
+                  accessibilityRole="button"
+                  testID={`unblock-${b.pubkey}`}
+                  onPress={() => onUnblock(b.pubkey)}
+                >
+                  <Text style={styles.blockText}>{t("unblock")}</Text>
+                </Pressable>
+              ) : null}
+            </View>
+          ))}
+        </View>
+      ) : null}
     </View>
   );
 }

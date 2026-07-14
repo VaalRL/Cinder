@@ -1551,3 +1551,27 @@ describe("中繼流量削減（ADR-0109）", () => {
     a.stop();
   });
 });
+
+describe("群訊必須走 sendGroupMessage（不是 sendMessage）", () => {
+  it("**groupId 不是 pubkey**——傳給 sendMessage() 會直接拋錯，而不是靜默送到虛空", () => {
+    const net = createInMemoryRelayNetwork();
+    const store = new MemoryStorage();
+    const a = new RelayChatBackend(store, (h) => net.connect("a", h), "Alice");
+    const b = new RelayChatBackend(new MemoryStorage(), (h) => net.connect("b", h), "Bob");
+    a.start(noop);
+    b.start(noop);
+    a.addContact(b.selfNpub);
+    a.createGroup("專案群", [b.self.pubkey]);
+    const gid = store.loadGroups()[0]!.id;
+
+    // groupId 是 16 bytes hex（32 字元）；pubkey 是 32 bytes hex（64 字元）。
+    expect(gid).toHaveLength(32);
+    // 行動端曾把群組也丟給 sendMessage（群組會出現在聊天清單裡）→ 點進群組送訊直接爆。
+    // 拋錯其實是好事：靜默送到一個不存在的 pubkey 會更難察覺。
+    expect(() => a.sendMessage(gid, "會爆")).toThrow();
+    expect(() => a.sendGroupMessage(gid, "正常送出")).not.toThrow();
+
+    a.stop();
+    b.stop();
+  });
+});
