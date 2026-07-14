@@ -35,6 +35,31 @@ export interface MessageArchive {
   remove(convo: string): Promise<void>;
 }
 
+/**
+ * 歷史紀錄分頁游標（ADR-0111）：由**新到舊**逐塊往回翻。
+ *
+ * `loadedFrom` 為已載入的最舊塊號，`-1` 表示尚未載入任何塊。回傳下一個該載入的塊號；
+ * 已翻到最舊一塊時回 `null`。
+ *
+ * 抽成純函式是為了讓桌面（`HistoryWindow`）與行動（`HistoryScreen`）共用同一份邏輯
+ * ——兩邊的 UI 都用 SSR 渲染測試（無 effect），這裡才測得到分頁的正確性。
+ */
+export function nextOlderChunk(total: number, loadedFrom: number): number | null {
+  const next = loadedFrom < 0 ? total - 1 : loadedFrom - 1;
+  return next >= 0 ? next : null;
+}
+
+/**
+ * 把更舊的一塊併到前面，並以 id **去重**。
+ *
+ * 去重不是防呆——「先寫封存、後裁切熱區」的當機窗口**會**讓同一則訊息同時存在於封存與熱區
+ * （刻意：寧可重複，絕不遺失）。讀取端必須自己收斂。
+ */
+export function prependChunk(prev: StoredMessage[], chunk: StoredMessage[]): StoredMessage[] {
+  const seen = new Set(prev.map((m) => m.id));
+  return [...chunk.filter((m) => !seen.has(m.id)), ...prev];
+}
+
 /** 讀出某對話的全部封存訊息（時間遞增）。匯出用——可能很大，呼叫端自負記憶體。 */
 export async function loadAllArchived(archive: MessageArchive, convo: string): Promise<StoredMessage[]> {
   const total = await archive.chunkCount(convo);

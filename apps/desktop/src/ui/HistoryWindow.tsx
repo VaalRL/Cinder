@@ -6,7 +6,7 @@
 // 它是**非同步**的，而主視窗是同步的——這正是冷熱分離最漂亮的地方：非同步只存在於這裡，
 // 完全不污染主視窗。
 
-import { type MessageArchive, type StoredMessage } from "@cinder/engine";
+import { type MessageArchive, nextOlderChunk, prependChunk, type StoredMessage } from "@cinder/engine";
 import { useCallback, useEffect, useState } from "react";
 import { useI18n } from "../i18n.js";
 
@@ -35,16 +35,12 @@ export function HistoryWindow(props: Props): JSX.Element {
 
   const loadOlder = useCallback(async () => {
     if (busy || total === null) return;
-    const next = loadedFrom === -1 ? total - 1 : loadedFrom - 1; // 由新到舊
-    if (next < 0) return;
+    const next = nextOlderChunk(total, loadedFrom); // 由新到舊（分頁邏輯在 engine，與行動端共用）
+    if (next === null) return;
     setBusy(true);
     try {
       const chunk = await props.archive.loadChunk(props.convo, next);
-      // 以 id 去重：「先寫封存、後裁切熱區」的當機窗口可能讓同一則出現兩次（刻意：寧可重複，絕不遺失）。
-      setMessages((prev) => {
-        const seen = new Set(prev.map((m) => m.id));
-        return [...chunk.filter((m) => !seen.has(m.id)), ...prev];
-      });
+      setMessages((prev) => prependChunk(prev, chunk)); // 以 id 去重（ADR-0111）
       setLoadedFrom(next);
     } finally {
       setBusy(false);

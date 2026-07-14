@@ -1,5 +1,13 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { ARCHIVE_CHUNK, ArchiveWriter, HOT_CAP, loadAllArchived, type MessageArchive } from "./archive.js";
+import {
+  ARCHIVE_CHUNK,
+  ArchiveWriter,
+  HOT_CAP,
+  loadAllArchived,
+  type MessageArchive,
+  nextOlderChunk,
+  prependChunk,
+} from "./archive.js";
 import { LocalStorage } from "./local.js";
 import { MemoryStorage } from "./memory.js";
 import type { StoredMessage } from "./types.js";
@@ -152,5 +160,28 @@ describe("封存接上 LocalStorage（ADR-0111）", () => {
     await arch.append("bob", [msg(1)]);
     s.removeContact("bob");
     expect(await arch.chunkCount("bob")).toBe(0);
+  });
+});
+
+describe("歷史紀錄分頁（ADR-0111，桌面與行動共用）", () => {
+  const m = (id: string): StoredMessage => ({ id, contact: "bob", outgoing: false, text: id, at: 1 });
+
+  it("由新到舊逐塊往回：先看最新一塊，再往更舊翻，翻完回 null", () => {
+    expect(nextOlderChunk(3, -1)).toBe(2); // 尚未載入 → 從最新（最大 seq）開始
+    expect(nextOlderChunk(3, 2)).toBe(1);
+    expect(nextOlderChunk(3, 1)).toBe(0);
+    expect(nextOlderChunk(3, 0)).toBeNull(); // 已到最舊
+  });
+
+  it("沒有任何封存 → 沒有東西可翻", () => {
+    expect(nextOlderChunk(0, -1)).toBeNull();
+  });
+
+  it("併入更舊的一塊：接在前面（較舊在上）", () => {
+    expect(prependChunk([m("c")], [m("a"), m("b")]).map((x) => x.id)).toEqual(["a", "b", "c"]);
+  });
+
+  it("**去重**：當機窗口可能讓同一則同時存在於封存與熱區——讀取端必須自己收斂", () => {
+    expect(prependChunk([m("b"), m("c")], [m("a"), m("b")]).map((x) => x.id)).toEqual(["a", "b", "c"]);
   });
 });

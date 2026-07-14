@@ -106,6 +106,7 @@ export function ConversationScreen({
   onSend,
   onSendFile,
   onStartCall,
+  onHistory,
   onBack,
   locale = "zh-Hant",
   theme = "light",
@@ -124,6 +125,8 @@ export function ConversationScreen({
   onSendFile?: () => void;
   /** 發起通話（ADR-0101）；未提供則不顯示通話鈕（示範模式／平台無 WebRTC）。 */
   onStartCall?: (media: CallMedia) => void;
+  /** 開啟歷史紀錄（ADR-0111）；只有該對話真的有封存時才傳入。 */
+  onHistory?: () => void;
   onSend: (text: string) => void;
   onBack: () => void;
   locale?: Locale;
@@ -190,6 +193,18 @@ export function ConversationScreen({
           <Text style={styles.headTitle}>{name}</Text>
           {subtitle ? <Text style={styles.headSub}>{subtitle}</Text> : null}
         </View>
+        {/* 歷史紀錄（ADR-0111）：主畫面只讀熱區；更舊的訊息在封存裡，由此進入。 */}
+        {onHistory ? (
+          <Pressable
+            style={styles.callBtn}
+            accessibilityRole="button"
+            aria-label={t("history_open")}
+            onPress={onHistory}
+            testID="open-history"
+          >
+            <Text style={styles.callIcon}>🗄</Text>
+          </Pressable>
+        ) : null}
         {/* 通話（ADR-0101）：媒體全程 P2P，不經中繼。群組暫不支援（1:1 才顯示）。 */}
         {onStartCall && !groupMembers ? (
           <>

@@ -26,11 +26,12 @@ import { BottomTabs, type Tab } from "./screens/BottomTabs.js";
 import { ChatsListScreen } from "./screens/ChatsListScreen.js";
 import { ContactListScreen, type MobileContact } from "./screens/ContactListScreen.js";
 import { ConversationScreen } from "./screens/ConversationScreen.js";
+import { HistoryScreen } from "./screens/HistoryScreen.js";
 import { NsecSignInScreen } from "./screens/NsecSignInScreen.js";
 import { PairImportScreen } from "./screens/PairImportScreen.js";
 import { SettingsScreen } from "./screens/SettingsScreen.js";
 
-type Screen = "signin" | "pair" | "main" | "conversation";
+type Screen = "signin" | "pair" | "main" | "conversation" | "history";
 
 const STATUS_KEY: Record<Status, MessageKey> = {
   online: "status_online",
@@ -109,6 +110,8 @@ export function MobileApp({
   const [groups, setGroups] = useState<Group[]>([]);
   const [convos, setConvos] = useState<Record<string, ChatMessage[]>>({});
   const [unread, setUnread] = useState<Record<string, number>>({});
+  /** 有封存的對話（ADR-0111）：只有真的有封存才顯示「歷史紀錄」入口。 */
+  const [archived, setArchived] = useState<Record<string, number>>({});
   const [activeId, setActiveId] = useState<string | null>(null);
   const [selfPubkey, setSelfPubkey] = useState("");
   const [selfName, setSelfName] = useState("");
@@ -249,6 +252,9 @@ export function MobileApp({
   const openConvo = (id: string): void => {
     setActiveId(id);
     setScreen("conversation");
+    // ADR-0111：查這個對話有沒有封存（決定要不要顯示「歷史紀錄」入口）。非同步、不擋畫面。
+    const arch = storeRef.current?.archiveOf?.();
+    if (arch) void arch.chunkCount(id).then((n) => setArchived((a) => (a[id] === n ? a : { ...a, [id]: n })));
     // 開對話＝真的看到了：推進本機已讀水位（ADR-0108，一律持久化）＋送已讀回條（ADR-0058 Tier 3，
     // 僅在回條開啟時）。未讀徽章由後端的 onUnread 推回，UI 不再自行歸零。
     backendRef.current?.markRead?.(id);
@@ -257,6 +263,8 @@ export function MobileApp({
     setScreen("main");
     setActiveId(null);
   };
+  /** 從歷史紀錄退回該對話（不是回主畫面）。 */
+  const backToConvo = (): void => setScreen("conversation");
   const logout = (): void => {
     backendRef.current?.stop();
     backendRef.current = null;
@@ -377,6 +385,26 @@ export function MobileApp({
       />
     );
   }
+  // 歷史紀錄（ADR-0111）：讀封存的舊訊息（分頁，一次一塊）。
+  const archiveOf = storeRef.current?.archiveOf?.();
+  if (screen === "history" && activeId && archiveOf) {
+    const group = groups.find((g) => g.id === activeId);
+    const contact = contacts.find((c) => c.pubkey === activeId);
+    return (
+      <View style={shell.root}>
+        <HistoryScreen
+          name={group?.name ?? contact?.name ?? activeId}
+          convo={activeId}
+          archive={archiveOf}
+          selfLabel={selfName || "我"}
+          {...(group ? { nameFor } : {})}
+          onBack={backToConvo}
+          {...themeProps}
+        />
+      </View>
+    );
+  }
+
   if (screen === "conversation" && activeId) {
     const group = groups.find((g) => g.id === activeId);
     const contact = contacts.find((c) => c.pubkey === activeId);
@@ -399,6 +427,7 @@ export function MobileApp({
           onSend={send}
           onBack={back}
           {...(subtitle ? { subtitle } : {})}
+          {...((archived[activeId] ?? 0) > 0 ? { onHistory: () => setScreen("history") } : {})}
           {...groupProps}
           {...fileProps}
           {...callProps}
