@@ -20,9 +20,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # 版本由 package.json 的 `packageManager` 決定；再指定 version 會觸發
+      # 「Multiple versions of pnpm specified」而讓排程在 setup 就失敗（見 ci.yml 同一修正）。
       - uses: pnpm/action-setup@v4
-        with:
-          version: 10
       - uses: actions/setup-node@v4
         with:
           node-version: 22
