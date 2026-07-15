@@ -34,6 +34,15 @@ describe("三欄左側欄邏輯（ADR-0079 Q2）", () => {
     expect(grp.memberCount).toBe(2);
   });
 
+  it("buildEntries：本地暱稱（ADR-0148）恒優先於廣播名，供顯示/搜尋/排序", () => {
+    const withAlias: Contact = { ...c("p1", "Bob"), alias: "阿伯" };
+    const convos = { p1: [msg("hi", 1)] };
+    const amy = buildEntries([withAlias], [], convos, {})[0]!;
+    expect(amy.name).toBe("阿伯"); // 顯示用暱稱
+    expect(matchesQuery(amy, "阿伯", convos)).toBe(true); // 可用暱稱搜尋
+    expect(matchesQuery(amy, "Bob", convos)).toBe(false); // 已被暱稱取代
+  });
+
   it("matchesQuery：命中名稱或訊息內容；空查詢全中", () => {
     const convos = { p1: [msg("聚餐約週五", 1)] };
     const amy = buildEntries([c("p1", "Amy")], [], convos, {})[0]!;

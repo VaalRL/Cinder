@@ -1,6 +1,7 @@
 // 三欄左側欄邏輯（ADR-0079 Q2）：聯絡人＋群組混合、依最近互動排序、
 // 搜尋（名稱＋訊息內容）、自訂標籤篩選。純函式、可測。
 import type { ChatMessage, Contact, Group, Status } from "@cinder/engine";
+import { contactLabel } from "@cinder/engine";
 import { labelsOf, type GroupPrefsMap } from "./group-labels.js";
 
 export interface SidebarEntry {
@@ -31,7 +32,7 @@ export function buildEntries(
 ): SidebarEntry[] {
   const c: SidebarEntry[] = contacts.map((x) => ({
     id: x.pubkey,
-    name: x.name,
+    name: contactLabel(x), // ADR-0148：本地暱稱恒優先（顯示、搜尋、排序皆用暱稱）
     kind: "contact",
     status: x.status,
     memberCount: undefined,

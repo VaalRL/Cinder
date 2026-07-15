@@ -101,6 +101,30 @@ function makeStyles(tk: ThemeTokens) {
     },
     memberRow: { flexDirection: "row", alignItems: "center", paddingVertical: 3 },
     memberName: { flex: 1, fontSize: 13, color: tk.ink },
+    // 本地暱稱編輯列（ADR-0148）。
+    aliasEdit: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 8,
+      backgroundColor: tk.panel,
+      borderBottomWidth: 1,
+      borderBottomColor: tk.border,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+    },
+    aliasInput: {
+      flex: 1,
+      borderWidth: 1,
+      borderColor: tk.border,
+      borderRadius: 8,
+      backgroundColor: tk.field,
+      color: tk.ink,
+      paddingVertical: 6,
+      paddingHorizontal: 10,
+      fontSize: 14,
+    },
+    aliasSave: { backgroundColor: tk.accent, borderRadius: 8, paddingVertical: 6, paddingHorizontal: 14 },
+    aliasSaveText: { color: "#ffffff", fontWeight: "700", fontSize: 13 },
     memberBtn: { borderWidth: 1, borderColor: tk.border, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 2 },
     memberBtnText: { fontSize: 11, color: tk.muted },
     leaveBtn: { alignSelf: "flex-start", marginTop: 4, borderColor: "#dc2626" },
@@ -197,6 +221,9 @@ function makeStyles(tk: ThemeTokens) {
 
 export function ConversationScreen({
   name,
+  broadcastName,
+  alias,
+  onSetAlias,
   subtitle,
   messages,
   nameFor,
@@ -225,6 +252,13 @@ export function ConversationScreen({
   accent2 = null,
 }: {
   name: string;
+  /**
+   * 本地暱稱（ADR-0148，1:1）：`name` 已是顯示用（暱稱優先）；這裡另給對方廣播名與目前暱稱，
+   * 供點標頭在暱稱↔廣播名間切換、與設定/清除暱稱。未提供＝群組/示範，不顯示暱稱功能。
+   */
+  broadcastName?: string;
+  alias?: string;
+  onSetAlias?: (alias: string | undefined) => void;
   /** 副標：聯絡人狀態或群組成員數（由呼叫端組好）。 */
   subtitle?: string;
   messages: ChatMessage[];
@@ -280,6 +314,17 @@ export function ConversationScreen({
   const t = (k: MessageKey, params?: Record<string, string | number>): string => translate(locale, k, params);
   /** 長按選中的訊息（顯示回應/收回列）。手機沒有 hover，長按是等價的入口。 */
   const [picked, setPicked] = useState<string | null>(null);
+  // 本地暱稱（ADR-0148）：有暱稱時點標頭在暱稱↔廣播名切換；✎ 展開輸入列設定/清除。
+  const hasAlias = !!alias?.trim();
+  const [showBroadcast, setShowBroadcast] = useState(false);
+  const [aliasEditing, setAliasEditing] = useState(false);
+  const [aliasDraft, setAliasDraft] = useState(alias ?? "");
+  const headerName = hasAlias && !showBroadcast ? name : (broadcastName ?? name);
+  const applyAlias = (): void => {
+    onSetAlias?.(aliasDraft.trim() || undefined); // 空＝清除
+    setAliasEditing(false);
+    setShowBroadcast(false);
+  };
   /** 群組成員面板是否展開（ADR-0114）。 */
   const [membersOpen, setMembersOpen] = useState(false);
   /** 對話背景挑選面板是否展開（ADR-0134）。 */
@@ -376,7 +421,30 @@ export function ConversationScreen({
           <Text style={styles.backText}>‹</Text>
         </Pressable>
         <View style={styles.headText}>
-          <Text style={styles.headTitle}>{name}</Text>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+            {/* ADR-0148：有暱稱→點名字切換廣播名；提供 onSetAlias→顯示 ✎ 設定/清除。 */}
+            <Pressable
+              accessibilityRole="button"
+              disabled={!hasAlias}
+              onPress={() => setShowBroadcast((v) => !v)}
+              testID="convo-title-name"
+            >
+              <Text style={styles.headTitle}>{headerName}</Text>
+            </Pressable>
+            {onSetAlias ? (
+              <Pressable
+                accessibilityRole="button"
+                aria-label={t(hasAlias ? "alias_edit" : "alias_set")}
+                testID="convo-alias-edit"
+                onPress={() => {
+                  setAliasDraft(alias ?? "");
+                  setAliasEditing((v) => !v);
+                }}
+              >
+                <Text style={styles.headSub}>✎</Text>
+              </Pressable>
+            ) : null}
+          </View>
           {subtitle ? <Text style={styles.headSub}>{subtitle}</Text> : null}
         </View>
         {/* 敲一下（ADR-0114）：1:1 才有。 */}
@@ -449,6 +517,24 @@ export function ConversationScreen({
           </>
         ) : null}
       </View>
+
+      {/* 本地暱稱編輯列（ADR-0148）：輸入設定、留空清除；純本地不通知對方。 */}
+      {aliasEditing ? (
+        <View style={styles.aliasEdit}>
+          <TextInput
+            style={styles.aliasInput}
+            value={aliasDraft}
+            onChangeText={setAliasDraft}
+            placeholder={t("alias_placeholder")}
+            placeholderTextColor={tk.muted}
+            aria-label={t("alias_placeholder")}
+            testID="alias-input"
+          />
+          <Pressable style={styles.aliasSave} accessibilityRole="button" testID="alias-save" onPress={applyAlias}>
+            <Text style={styles.aliasSaveText}>{t("settings_nameApply")}</Text>
+          </Pressable>
+        </View>
+      ) : null}
 
       {/* 群組成員面板（ADR-0114）：管理者可移除成員；任何人都能離開。 */}
       {membersOpen && groupMembers ? (

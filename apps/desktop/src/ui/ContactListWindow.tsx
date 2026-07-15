@@ -3,6 +3,7 @@ import { Fragment, useEffect, useRef, useState } from "react";
 import { useI18n } from "../i18n.js";
 import { useDialog } from "./Dialog.js";
 import type { BlockedContact, ConnectionState, Contact, ContactRequest, Group, Self, Status } from "@cinder/engine";
+import { contactLabel } from "@cinder/engine";
 import { qrDataUri } from "../qr.js";
 import { CinderMascot } from "./Brand.js";
 import { hasRichStatus, renderStatus } from "./status-text.js";
@@ -522,7 +523,7 @@ function GroupModal({
             {contacts.map((c) => (
               <label key={c.pubkey} className="groupmodal__item">
                 <input type="checkbox" checked={picked.has(c.pubkey)} onChange={() => toggle(c.pubkey)} />
-                <span>{c.name}</span>
+                <span>{contactLabel(c)}</span>
               </label>
             ))}
           </div>
@@ -666,7 +667,7 @@ function ContactRow({
       title={secondaryText || hint}
     >
       <span className={`dot ${contact.status}`} />
-      <span className="contact__name">{contact.name}</span>
+      <span className="contact__name">{contactLabel(contact)}</span>
       {unread > 0 ? (
         <span className="unread-badge" title={t("unread_title", { count: unread })}>{unread}</span>
       ) : null}

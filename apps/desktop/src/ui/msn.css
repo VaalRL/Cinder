@@ -189,6 +189,10 @@ body { margin: 0; background: var(--bg-b); color: var(--ink); }
   text-shadow: 0 1px 1px rgba(0, 0, 0, 0.25);
 }
 .win__title .spacer { flex: 1; }
+/* 本地暱稱（ADR-0148）：有暱稱時標頭名字可點切換廣播名，給點擊提示。 */
+.convo__name--toggle { cursor: pointer; }
+.convo__name--toggle:hover { text-decoration: underline dotted; text-underline-offset: 2px; }
+.convo__aliasedit { cursor: pointer; }
 .win__btn {
   width: 16px; height: 16px; border-radius: 3px; border: 1px solid #ffffff80;
   background: #ffffff30; color: #fff; font-size: 11px; line-height: 14px; text-align: center; cursor: pointer;

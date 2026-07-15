@@ -100,6 +100,46 @@ describe("ConversationWindow 訊息列視窗化（P0-3）", () => {
     // 未被提及的訊息不帶 mention class
     expect(html).toContain('class="line in"');
   });
+
+  const renderCW = (over: Partial<Contact>, onSetAlias?: () => void) =>
+    renderToStaticMarkup(
+      <I18nProvider locale="en">
+        <ThemeProvider>
+          <ConversationWindow
+            self={self}
+            contact={{ ...contact, ...over }}
+            messages={[]}
+            typing={false}
+            nudgeSignal={0}
+            {...(onSetAlias ? { onSetAlias } : {})}
+            onSend={() => {}}
+            onTyping={() => {}}
+            onNudge={() => {}}
+            onClose={() => {}}
+          />
+        </ThemeProvider>
+      </I18nProvider>,
+    );
+
+  it("本地暱稱（ADR-0148）：有暱稱→標頭顯示暱稱、名字可切換（toggle 類名）、有鉛筆入口", () => {
+    const html = renderCW({ alias: "阿伯" }, () => {});
+    expect(html).toContain('data-testid="convo-title-name"');
+    expect(html).toContain("convo__name--toggle"); // 可點切換
+    expect(html).toContain("阿伯"); // 顯示暱稱而非廣播名
+    expect(html).toContain('data-testid="convo-alias-edit"'); // 鉛筆
+  });
+
+  it("本地暱稱：未設暱稱→標頭顯示廣播名、名字不可切換；仍可設定暱稱", () => {
+    const html = renderCW({}, () => {});
+    expect(html).toContain("Bob"); // 廣播名
+    expect(html).not.toContain("convo__name--toggle"); // 無暱稱不提供切換
+    expect(html).toContain('data-testid="convo-alias-edit"');
+  });
+
+  it("本地暱稱：未提供 onSetAlias（群組/示範）→ 無鉛筆入口", () => {
+    const html = renderCW({ alias: "阿伯" });
+    expect(html).not.toContain('data-testid="convo-alias-edit"');
+  });
 });
 
 describe("ConversationWindow 送出狀態圖示（ADR-0058／0095 眼睛語言）", () => {

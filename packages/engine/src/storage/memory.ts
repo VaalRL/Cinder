@@ -143,6 +143,15 @@ export class MemoryStorage implements AppStorage {
     // 使用者無從判斷要不要接受。
     this.requests = this.requests.map((r) => (r.pubkey === pubkey ? { ...r, name } : r));
   }
+  setContactAlias(pubkey: string, alias: string | undefined): void {
+    // ADR-0148：只動聯絡人的 alias，不碰 name（廣播名獨立保存）。空＝清除，退回廣播名。
+    const trimmed = alias?.trim();
+    this.contacts = this.contacts.map((c) => {
+      if (c.pubkey !== pubkey) return c;
+      const { alias: _drop, ...rest } = c;
+      return trimmed ? { ...rest, alias: trimmed } : rest;
+    });
+  }
   removeContact(pubkey: string): void {
     const ids = new Set(this.convos.get(pubkey)?.byId.keys() ?? []);
     this.contacts = this.contacts.filter((c) => c.pubkey !== pubkey);

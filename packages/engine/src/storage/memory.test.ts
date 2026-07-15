@@ -18,6 +18,25 @@ describe("MemoryStorage", () => {
     expect(s.loadContacts().map((c) => c.pubkey)).toEqual(["aa", "bb"]);
   });
 
+  it("本地暱稱 setContactAlias（ADR-0148）：設定/清除、不動廣播名、trim", () => {
+    const s = new MemoryStorage();
+    s.addContact({ pubkey: "aa", name: "廣播小明" });
+    s.setContactAlias("aa", "  我的暱稱 ");
+    expect(s.loadContacts()[0]).toMatchObject({ name: "廣播小明", alias: "我的暱稱" }); // 廣播名不變
+    // 廣播名更新（ADR-0061）不覆寫暱稱
+    s.updateContactName("aa", "廣播改名了");
+    expect(s.loadContacts()[0]).toMatchObject({ name: "廣播改名了", alias: "我的暱稱" });
+    // 清除（空字串）→ 退回只有廣播名
+    s.setContactAlias("aa", "");
+    expect(s.loadContacts()[0]!.alias).toBeUndefined();
+    expect(s.loadContacts()[0]!.name).toBe("廣播改名了");
+    // undefined 亦視為清除；未知 pubkey 不炸
+    s.setContactAlias("aa", "x");
+    s.setContactAlias("aa", undefined);
+    expect(s.loadContacts()[0]!.alias).toBeUndefined();
+    s.setContactAlias("zzz", "無此人"); // no-op
+  });
+
   it("訊息按聯絡人分流、以 id 去重", () => {
     const s = new MemoryStorage();
     s.appendMessage({ id: "m1", contact: "aa", outgoing: true, text: "hi", at: 1 });

@@ -193,6 +193,10 @@ export class LocalStorage implements AppStorage {
     this.writeContacts();
     this.writeRequests(); // 請求區的顯示名也會被更新（ADR-0121）
   }
+  setContactAlias(pubkey: string, alias: string | undefined): void {
+    this.mem.setContactAlias(pubkey, alias); // ADR-0148：本地暱稱，僅寫聯絡人區
+    this.writeContacts();
+  }
   removeContact(pubkey: string): void {
     this.mem.removeContact(pubkey);
     this.writeContacts();

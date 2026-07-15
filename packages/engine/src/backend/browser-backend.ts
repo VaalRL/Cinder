@@ -78,6 +78,8 @@ export class BrowserChatBackend implements ChatBackend {
   private readonly statuses = new Map<PubkeyHex, PresencePayload>();
   private nowPlaying = "";
   private lastContactsSig = "";
+  /** 本地暱稱（ADR-0148）：示範模式亦支援，純記憶體。 */
+  private readonly aliases = new Map<PubkeyHex, string>();
   private readonly roster: Peer[] = [];
   private readonly blocked: { pubkey: PubkeyHex; name: string }[] = [];
   private readonly hidden = new Set<PubkeyHex>();
@@ -223,9 +225,11 @@ export class BrowserChatBackend implements ChatBackend {
       const online = seen !== undefined && now - seen <= PRESENCE_TIMEOUT_MS;
       const payload = this.statuses.get(peer.pk);
       const fallback = this.defaults.get(peer.pk);
+      const alias = this.aliases.get(peer.pk);
       return {
         pubkey: peer.pk,
         name: peer.name,
+        ...(alias ? { alias } : {}), // ADR-0148：本地暱稱
         status: online ? payload?.s ?? "online" : "offline",
         statusMessage: (online ? payload?.m : undefined) ?? fallback?.message ?? "",
         nowPlaying: (online ? payload?.np : undefined) ?? "",
@@ -252,6 +256,14 @@ export class BrowserChatBackend implements ChatBackend {
   setSelfName(name: string): void {
     const trimmed = name.trim();
     if (trimmed) this.self.name = trimmed;
+  }
+
+  /** 設定/清除本地暱稱（ADR-0148）：純記憶體、不廣播。空＝清除。 */
+  setContactAlias(pubkey: PubkeyHex, alias: string | undefined): void {
+    const trimmed = alias?.trim();
+    if (trimmed) this.aliases.set(pubkey, trimmed);
+    else this.aliases.delete(pubkey);
+    this.emitContacts();
   }
 
   sendMessage(to: PubkeyHex, text: string, ttlSeconds?: number): void {

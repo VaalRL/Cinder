@@ -22,12 +22,26 @@ export type ConnectionState = "connecting" | "online" | "offline";
 
 export interface Contact {
   pubkey: PubkeyHex;
+  /** 對方廣播的顯示名（ADR-0061）或短 npub 後備。 */
   name: string;
+  /**
+   * 本地暱稱（ADR-0148）：你私下取的名字。顯示恒優先於 `name`；有設時 UI 可點標頭在
+   * 暱稱↔廣播名間切換。純本地私有，絕不廣播。未設＝顯示 `name`。
+   */
+  alias?: string;
   status: Status;
   /** 個人狀態訊息（暱稱後方那行字）。 */
   statusMessage: string;
   /** 正在聆聽的音樂（空字串表示沒有）。 */
   nowPlaying: string;
+}
+
+/**
+ * 聯絡人的顯示名（ADR-0148）：本地暱稱恒優先，未設才用對方廣播名/短 npub。
+ * 兩端 UI 共用，確保「暱稱取代顯示名」在各處一致。
+ */
+export function contactLabel(c: { name: string; alias?: string }): string {
+  return c.alias?.trim() || c.name;
 }
 
 export interface Self {
@@ -186,6 +200,11 @@ export interface ChatBackend {
    * 聯絡人（ADR-0061 profile）。未實作的後端（如部分示範）由呼叫端以本機狀態更新即可。
    */
   setSelfName?(name: string): void;
+  /**
+   * 設定/清除某聯絡人的**本地暱稱**（ADR-0148）：空字串或 undefined＝清除，退回廣播名。
+   * 純本地私有——**不廣播、不送對方/中繼站**，只更新本機儲存並重發聯絡人清單。
+   */
+  setContactAlias?(pubkey: PubkeyHex, alias: string | undefined): void;
   /**
    * 送出訊息；`ttlSeconds` 設定時為限時訊息（閱後即焚，NIP-40 短期過期）；
    * `mentions` 為 @提及公鑰（ADR-0050）；`replyTo` 為對話串根訊息 id（ADR-0051）。

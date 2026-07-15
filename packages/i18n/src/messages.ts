@@ -266,6 +266,13 @@ export interface Messages {
   contact_openHint: string;
   convo_offlineNotice: string;
   convo_typing: string;
+  /** 本地暱稱（ADR-0148）：私下給聯絡人取的顯示名，點標頭可切換對方廣播名。 */
+  alias_set: string;
+  alias_edit: string;
+  alias_prompt: string;
+  alias_placeholder: string;
+  alias_showBroadcast: string;
+  alias_showAlias: string;
   convo_emojiTitle: string;
   convo_nudge: string;
   convo_nudgeTitle: string;
@@ -789,6 +796,12 @@ const zhHant: Messages = {
   contact_openHint: "雙擊開啟對話",
   convo_offlineNotice: "目前離線——訊息將於對方上線時送達",
   convo_typing: "{name} 正在輸入訊息…",
+  alias_set: "設定暱稱",
+  alias_edit: "編輯暱稱",
+  alias_prompt: "為「{name}」設定本地暱稱（只有你看得到，不會通知對方；留空即清除）：",
+  alias_placeholder: "本地暱稱",
+  alias_showBroadcast: "點一下看對方廣播的名稱",
+  alias_showAlias: "點一下切回你的暱稱",
   convo_emojiTitle: "表情",
   convo_nudge: "震動",
   convo_nudgeTitle: "震動對方視窗",
@@ -1297,6 +1310,12 @@ const en: Messages = {
   contact_openHint: "Double-click to open a conversation",
   convo_offlineNotice: "Currently offline — your message will be delivered when they come online",
   convo_typing: "{name} is typing…",
+  alias_set: "Set nickname",
+  alias_edit: "Edit nickname",
+  alias_prompt: "Set a local nickname for \"{name}\" (only you see it; they aren't notified; empty to clear):",
+  alias_placeholder: "Local nickname",
+  alias_showBroadcast: "Click to see the name they broadcast",
+  alias_showAlias: "Click to switch back to your nickname",
   convo_emojiTitle: "Emoticons",
   convo_nudge: "Nudge",
   convo_nudgeTitle: "Nudge their window",

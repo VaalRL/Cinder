@@ -20,6 +20,12 @@ export interface StoredContact {
   name: string;
   /** 對方的 relay hint（ADR-0034 多中繼路由）；無 hint 時走自己的 home relay。 */
   relayUrl?: string;
+  /**
+   * 本地暱稱（ADR-0148）：你私下給這位聯絡人取的顯示名，**恒優先於對方廣播名**顯示。
+   * 純本地私有——**絕不廣播、絕不送給對方或中繼站**；僅隨你自己的加密快照/搬家捆包在你自己的
+   * 裝置間流動。清除（空）即退回對方廣播名。不覆寫 `name`（廣播名獨立保存，供點擊切換/清除還原）。
+   */
+  alias?: string;
 }
 
 /**
@@ -156,6 +162,8 @@ export interface AppStorage {
   updateContactRelay(pubkey: string, relayUrl: string | undefined): void;
   /** 更新聯絡人顯示名稱（收到對方加密個人檔時；ADR-0061）。 */
   updateContactName(pubkey: string, name: string): void;
+  /** 設定/清除聯絡人本地暱稱（ADR-0148）；空字串或 undefined＝清除，退回廣播名。 */
+  setContactAlias(pubkey: string, alias: string | undefined): void;
   /** 移除聯絡人並清除其對話訊息。 */
   removeContact(pubkey: string): void;
   /**

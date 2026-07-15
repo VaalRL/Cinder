@@ -2005,6 +2005,9 @@ export function App(): JSX.Element {
             embedded={layout === "modern"}
             self={self}
             contact={contact}
+            {...(activeBackend.setContactAlias
+              ? { onSetAlias: (cp: string, alias: string | undefined) => activeBackend.setContactAlias!(cp, alias) }
+              : {})}
             messages={convos[pk] ?? []}
             reactions={reactions}
             unsent={unsent}

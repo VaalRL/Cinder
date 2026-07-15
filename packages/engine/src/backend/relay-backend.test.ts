@@ -68,6 +68,40 @@ describe("RelayChatBackend（真實後端 + 持久化）", () => {
     b.stop();
   });
 
+  it("setContactAlias（ADR-0148）：本地暱稱純本地、不外送；對方廣播改名不覆寫暱稱；清除退回廣播名", () => {
+    const net = createInMemoryRelayNetwork();
+    const storeA = new MemoryStorage();
+    const storeB = new MemoryStorage();
+    const a = new RelayChatBackend(storeA, (h) => net.connect("a", h), "Alice");
+    const b = new RelayChatBackend(storeB, (h) => net.connect("b", h), "Bob");
+    const aSawB: { name: string; alias?: string }[] = [];
+    a.start({ ...noop, onContacts: (cs) => cs.forEach((c) => c.pubkey === b.self.pubkey && aSawB.push({ name: c.name, alias: c.alias })) });
+    b.start(noop);
+    // 互為聯絡人。順序要點（ADR-0061）：A 先加 B（A 名冊有 B）→ B 再加 A 時把 B 的 profile
+    // 送給 A，A 才會把 B 的顯示名更新成廣播名 "Bob"（否則 B 的 profile 早於 A 收下 B 就被忽略）。
+    a.addContact(b.selfNpub);
+    b.addContact(a.selfNpub);
+    const last = () => aSawB[aSawB.length - 1]!;
+
+    a.setContactAlias(b.self.pubkey, "  我叫他阿伯 "); // 前後空白去除
+    expect(last()).toMatchObject({ name: "Bob", alias: "我叫他阿伯" }); // 廣播名保留、暱稱另存
+    expect(storeA.loadContacts().find((c) => c.pubkey === b.self.pubkey)?.alias).toBe("我叫他阿伯"); // 落地本機
+    // 🔴 純本地：暱稱**絕不外送**——B 對 A 的聯絡人紀錄沒有任何 alias。
+    expect(storeB.loadContacts().find((c) => c.pubkey === a.self.pubkey)?.alias).toBeUndefined();
+
+    // 對方廣播改名（ADR-0061）→ A 更新廣播名，但**暱稱不動**。
+    b.setSelfName("Bobby");
+    expect(last()).toMatchObject({ name: "Bobby", alias: "我叫他阿伯" });
+
+    // 清除暱稱 → 退回廣播名。
+    a.setContactAlias(b.self.pubkey, "");
+    expect(last().alias).toBeUndefined();
+    expect(last().name).toBe("Bobby");
+
+    a.stop();
+    b.stop();
+  });
+
   it("NIP-42 AUTH（ADR-0057）：requireAuth 下兩端仍能對話（自動認證 + 認證後訂閱）", () => {
     const net = createInMemoryRelayNetwork({ requireAuth: true });
     const storeA = new MemoryStorage();

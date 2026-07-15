@@ -16,6 +16,7 @@ import {
 } from "@cinder/engine";
 import { makeBackupCode, nsecDecode } from "@cinder/core";
 import {
+  contactLabel,
   createPairingOffer,
   notificationFor,
   runPairSource,
@@ -696,7 +697,7 @@ export function MobileApp({
   const entries = useMemo(() => chatList(contacts, groups, convos, unread), [contacts, groups, convos, unread]);
   const unreadTotal = useMemo(() => Object.values(unread).reduce((a, b) => a + b, 0), [unread]);
   const mobileContacts = useMemo<MobileContact[]>(
-    () => contacts.map((c) => ({ pubkey: c.pubkey, name: c.name, status: c.status })),
+    () => contacts.map((c) => ({ pubkey: c.pubkey, name: contactLabel(c), status: c.status })), // ADR-0148：暱稱優先
     [contacts],
   );
 
@@ -865,6 +866,15 @@ export function MobileApp({
     // @提及候選（ADR-0133）：1:1＝對方一人（群組候選已在 groupProps 內）。
     const dmMentionProps =
       !group && contact ? { mentionCandidates: [{ pubkey: contact.pubkey, name: contact.name }] } : {};
+    // 本地暱稱（ADR-0148，1:1）：傳廣播名＋目前暱稱＋設定回呼；點標頭可切換、✎ 可設定/清除。
+    const aliasProps =
+      !group && contact && backendRef.current?.setContactAlias
+        ? {
+            broadcastName: contact.name,
+            ...(contact.alias ? { alias: contact.alias } : {}),
+            onSetAlias: (a: string | undefined) => backendRef.current?.setContactAlias?.(contact.pubkey, a),
+          }
+        : {};
     // 檔案：真實 relay 才有 P2P 傳輸（示範後端無 sendFile）。
     const fileProps = backendRef.current?.sendFile ? { onSendFile: sendFileFromPicker } : {};
     // 通話：需真實後端＋平台具備 WebRTC（ADR-0101）。
@@ -872,7 +882,7 @@ export function MobileApp({
     return (
       <View style={shell.root}>
         <ConversationScreen
-          name={group?.name ?? contact?.name ?? activeId}
+          name={group ? group.name : contact ? contactLabel(contact) : activeId}
           messages={convos[activeId] ?? []}
           onSend={send}
           onBack={back}
@@ -880,6 +890,7 @@ export function MobileApp({
           unsent={unsent}
           onReact={react}
           onUnsend={unsend}
+          {...aliasProps}
           {...(subtitle ? { subtitle } : {})}
           {...(relayUrl && !group ? { onNudge: nudge } : {})}
           {...((archived[activeId] ?? 0) > 0 ? { onHistory: () => setScreen("history") } : {})}

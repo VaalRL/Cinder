@@ -13,6 +13,7 @@ import type { CallMedia, MentionCandidate } from "@cinder/core";
 import { mainMessages, replyCounts, threadMessages } from "./thread-util.js";
 import type { MessageKey } from "@cinder/i18n";
 import type { ChatMessage, Contact, MessageStatus, Self } from "@cinder/engine";
+import { contactLabel } from "@cinder/engine";
 import {
   formatCustomSticker,
   formatSticker,
@@ -254,6 +255,8 @@ export interface ConversationProps {
   onStartCall?: (media: CallMedia) => void;
   /** 群組模式：以發送者公鑰解析顯示暱稱（提供即為群組視窗）。 */
   senderName?: (pubkey: string) => string;
+  /** 設定/清除此聯絡人的本地暱稱（ADR-0148）；空＝清除。未提供＝不顯示暱稱編輯（群組/示範）。 */
+  onSetAlias?: (pubkey: string, alias: string | undefined) => void;
   /** 離開群組（群組視窗才提供）。 */
   onLeaveGroup?: () => void;
   /** 導出此對話紀錄（ADR-0094）；未提供則不顯示。 */
@@ -301,6 +304,20 @@ export function ConversationWindow(props: ConversationProps): JSX.Element {
     onMarkRead?.();
   }, [contact.pubkey, messages.length, onMarkRead]);
   const [visibleCount, setVisibleCount] = useState(MESSAGE_WINDOW);
+  // ADR-0148：本地暱稱。標頭預設顯示暱稱（若有），點名字暫態切換為對方廣播名；換對話即重置。
+  const hasAlias = !!contact.alias?.trim();
+  const [showBroadcast, setShowBroadcast] = useState(false);
+  useEffect(() => setShowBroadcast(false), [contact.pubkey]);
+  const headerName = hasAlias && !showBroadcast ? contactLabel(contact) : contact.name;
+  const editAlias = async (): Promise<void> => {
+    const next = await prompt({
+      message: t("alias_prompt", { name: contact.name }),
+      defaultValue: contact.alias ?? "",
+      placeholder: t("alias_placeholder"),
+    });
+    if (next === null) return; // 取消
+    props.onSetAlias?.(contact.pubkey, next.trim() || undefined); // 空＝清除
+  };
   const [text, setText] = useState("");
   const composerRef = useRef<HTMLTextAreaElement>(null);
   /** 快速插入模板（➕ 選單）：插到游標處（非行首自動補換行），並選取佔位字。 */
@@ -667,7 +684,7 @@ export function ConversationWindow(props: ConversationProps): JSX.Element {
 
   // 對話串（ADR-0051）：發送者顯示名稱、串內回覆送出。
   const whoOf = (m: ChatMessage): string =>
-    m.outgoing ? self.name : m.sender && props.senderName ? props.senderName(m.sender) : contact.name;
+    m.outgoing ? self.name : m.sender && props.senderName ? props.senderName(m.sender) : contactLabel(contact);
   const sendThread = () => {
     const body = threadText.trim();
     if (!body || threadRoot === null) return;
@@ -695,7 +712,31 @@ export function ConversationWindow(props: ConversationProps): JSX.Element {
       data-convo={contact.pubkey}
     >
       <div className="win__title">
-        <span>{contact.name}</span>
+        {/* ADR-0148：有暱稱時點名字在「暱稱↔對方廣播名」切換；旁邊小鉛筆設定/清除暱稱。 */}
+        <span
+          className={hasAlias ? "convo__name convo__name--toggle" : "convo__name"}
+          data-testid="convo-title-name"
+          {...(hasAlias
+            ? {
+                role: "button",
+                title: showBroadcast ? t("alias_showAlias") : t("alias_showBroadcast"),
+                onClick: () => setShowBroadcast((v) => !v),
+              }
+            : {})}
+        >
+          {headerName}
+        </span>
+        {props.onSetAlias ? (
+          <span
+            className="win__btn convo__aliasedit"
+            role="button"
+            data-testid="convo-alias-edit"
+            title={hasAlias ? t("alias_edit") : t("alias_set")}
+            onClick={() => void editAlias()}
+          >
+            ✎
+          </span>
+        ) : null}
         <span className="spacer" />
         {props.onStartCall ? (
           <>
@@ -768,7 +809,7 @@ export function ConversationWindow(props: ConversationProps): JSX.Element {
       </div>
 
       <div className="convo__head">
-        <b>{contact.name}</b>
+        <b>{contactLabel(contact)}</b>
         <div className="sub">
           {contact.status === "offline" ? t("convo_offlineNotice") : contact.statusMessage}
           {contact.nowPlaying ? `　♪ ${contact.nowPlaying}` : ""}
@@ -825,13 +866,13 @@ export function ConversationWindow(props: ConversationProps): JSX.Element {
         </div>
         <div className="pics">
           <EditableAvatar id={contact.pubkey} name={contact.name} />
-          <div className="cap">{contact.name}</div>
+          <div className="cap">{contactLabel(contact)}</div>
           <EditableAvatar id={self.pubkey} name={self.name} />
           <div className="cap">{self.name}</div>
         </div>
       </div>
 
-      <div className="typing">{props.typing ? t("convo_typing", { name: contact.name }) : ""}</div>
+      <div className="typing">{props.typing ? t("convo_typing", { name: contactLabel(contact) }) : ""}</div>
 
       <div className="toolbar" style={props.readOnly ? { display: "none" } : undefined}>
         <button className="tool" title={t("convo_emojiTitle")} onClick={() => setShowEmo((v) => !v)}>🙂</button>
