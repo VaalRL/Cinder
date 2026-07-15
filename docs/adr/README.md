@@ -139,3 +139,4 @@
 | [0122](./0122-browser-identity-persistence.md) | **瀏覽器版重載會把你換成另一個人**——身分不得被靜默替換（`expectPubkey` 守衛）＋接上一直是死碼的瀏覽器本地密碼 | 已接受 |
 | [0123](./0123-relay-scoped-subscriptions.md) | **中繼訂閱必須具名**——`{kinds:[20000]}` 這種無 scope 的 filter 可一次收割全站線上名冊；順帶修好「一致性探測不做 AUTH → 每次 cron 都把自己的中繼判成不存活」 | 已接受 |
 | [0124](./0124-group-file-transfer.md) | **群組傳檔**：metadata 扇給每位成員（共用 rumor 與 tid）、位元組各自 P2P；順帶修正 `onFileBytes` 回報 peer 而非對話鍵 | 已接受 |
+| [0125](./0125-mobile-pair-import-apply-bundle.md) | **行動端配對搬家要套用捆包**——過去只還原身分，換手機後聯絡人與訊息全部沒搬過去（只搬空身分）；順帶補上行動端的 ADR-0122 身分守衛 | 已接受 |

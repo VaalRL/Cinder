@@ -4,6 +4,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { AppStorage, ChatBackend, ChatMessage, CloudSyncMode, Contact, Group, Status } from "@cinder/engine";
 import {
+  applyPairBundle,
   exportExtension,
   exportMime,
   type ExportFormat,
@@ -11,6 +12,7 @@ import {
   getDeviceId,
   LocalStorage,
   openOpfsArchive,
+  type PairBundle,
 } from "@cinder/engine";
 import { nsecDecode } from "@cinder/core";
 import {
@@ -241,13 +243,28 @@ export function MobileApp({
     signInWith(identity);
   };
 
-  const signInWith = (identity: MobileIdentity): void => {
+  // 配對搬家匯入（新機／ADR-0125）：套用全量捆包（身分＋聯絡人＋歷史＋群組）而非只還原身分。
+  // 過去這裡只 `onSignIn(identity)` → 換手機後聯絡人與訊息全部不見，只搬了個空身分。
+  const importFromOldDevice = (bundle: PairBundle, identity: MobileIdentity): void => {
+    if (bundle.cloudSync) changeCloudSync(bundle.cloudSync); // 接續舊機的備份習慣（ADR-0071）
+    signInWith(identity, bundle);
+  };
+
+  const signInWith = (identity: MobileIdentity, bundle?: PairBundle): void => {
     backendRef.current?.stop();
     // ADR-0094：真實 relay 用外部持有的儲存（供保留上限/導出）；示範模式無持久化。
     // ADR-0112：靜態加密——資料金鑰由 nsec 導出。行動端**從不持久化 nsec**（每次輸入），
     // 所以金鑰不在磁碟上 → localStorage/OPFS 上的訊息**真的**解不開。
     const sk = nsecDecode(identity.nsec);
     const store = relayUrl ? new LocalStorage(identity.pubkey, readRetentionCap(), sk) : null;
+    // 配對搬家（ADR-0125）：把捆包的聯絡人/訊息/群組灌進**加密** store（DEK 由 nsec 導出），
+    // **必須在建後端之前**——`backend.start()` 會回放 store 裡的聯絡人與 1:1 歷史（見 relay-backend）。
+    // 然後把 identity 的 nsec 抹掉：`applyPairBundle` 會 `saveIdentity(含 nsec)`，但行動端**絕不
+    // 明文存 nsec**（ADR-0112 紅線；DEK 由 nsec 導出＝循環，加密它沒有意義）。與桌面瀏覽器同一招。
+    if (store && bundle) {
+      applyPairBundle(store, bundle);
+      store.saveIdentity({ nsec: "", name: identity.name });
+    }
     storeRef.current = store;
     // ADR-0111：封存走 OPFS（webview 沒有檔案系統；OPFS 的配額與 localStorage 是不同的池子）。
     // 非同步掛上——掛上前不會裁切熱區，故安全；不支援 OPFS 時不掛（熱區無上限，資料完好）。
@@ -683,7 +700,7 @@ export function MobileApp({
         onPair={(code, onSas) =>
           runPairTarget({ code, transport: webRtcPairTransport(webSocketConnector), onSas })
         }
-        onSignIn={handleSignIn}
+        onImport={importFromOldDevice}
         onUseNsec={() => setScreen("signin")}
         {...themeProps}
       />

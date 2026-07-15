@@ -51,7 +51,7 @@ function makeStyles(tk: ThemeTokens) {
 
 export function PairImportScreen({
   onPair,
-  onSignIn,
+  onImport,
   onUseNsec,
   locale = "zh-Hant",
   theme = "light",
@@ -60,8 +60,13 @@ export function PairImportScreen({
 }: {
   /** 配對傳輸驅動（注入）：連上舊機→回呼 SAS→回傳全量捆包。產線＝engine runPairTarget＋WebRTC。 */
   onPair: (code: string, onSas: (sas: string) => void) => Promise<PairBundle>;
-  /** 登入成功：回傳同帳號身分。 */
-  onSignIn: (identity: MobileIdentity) => void;
+  /**
+   * 匯入成功：交出**全量捆包**與已驗證的身分（ADR-0125）。
+   *
+   * 過去這裡是 `onSignIn(identity)`——只還原身分，聯絡人與訊息全部沒搬過去，換手機後只剩空殼。
+   * 現在把整個 bundle 交給呼叫端 `applyPairBundle`。
+   */
+  onImport: (bundle: PairBundle, identity: MobileIdentity) => void;
   /** 切換到 nsec 匯入（A）；未提供＝不顯示入口。 */
   onUseNsec?: () => void;
   locale?: Locale;
@@ -96,7 +101,7 @@ export function PairImportScreen({
           setBusy(false);
           return;
         }
-        onSignIn(r.identity);
+        onImport(bundle, r.identity); // 交出整個捆包（ADR-0125），不再只給 identity
       })
       .catch((e: unknown) => {
         // 對方拒絕（SAS 不符→可能中間人）與碼過期/格式錯要分開提示，安全訊號不可被抹平。

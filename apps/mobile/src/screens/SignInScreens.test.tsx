@@ -26,7 +26,7 @@ describe("行動端登入畫面（ADR-0081）", () => {
     const html = renderToStaticMarkup(
       <PairImportScreen
         onPair={() => Promise.resolve({} as PairBundle)}
-        onSignIn={() => {}}
+        onImport={() => {}}
         onUseNsec={() => {}}
         locale="zh-Hant"
         theme="light"

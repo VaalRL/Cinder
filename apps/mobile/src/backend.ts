@@ -58,6 +58,9 @@ export function createRelayChat(
       ...(MAINTAINER_PUBKEY ? { maintainerPubkey: MAINTAINER_PUBKEY } : {}),
       ...cloud,
       nsecOverride: identity.nsec,
+      // ADR-0122 守衛：拿到的身分與期待不符（毀損捆包／錯 nsec）→ 大聲失敗，不靜默換人。
+      // 桌面已接，行動端在 ADR-0125 補上。
+      expectPubkey: identity.pubkey,
     },
   );
 }
