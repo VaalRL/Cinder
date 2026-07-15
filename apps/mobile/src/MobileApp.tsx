@@ -451,15 +451,16 @@ export function MobileApp({
   /** 目前開啟的對話是不是群組。 */
   const isGroup = (id: string): boolean => groups.some((g) => g.id === id);
 
-  const send = (text: string, mentions?: string[]): void => {
+  const send = (text: string, mentions?: string[], replyTo?: string): void => {
     if (!activeId) return;
     const b = backendRef.current;
     // **群組必須走 sendGroupMessage**：`groupId` 是 16 bytes hex（32 字元），**不是** pubkey。
     // 過去這裡一律呼叫 `sendMessage(activeId)`，而群組會出現在手機的聊天清單裡
     // → 點進群組送訊直接拋錯（`second arg must be public key`），訊息送不出去。
-    // `mentions`＝@提及公鑰（ADR-0050／0133）；隨 Gift Wrap 加密，中繼看不到社交圖譜。
-    if (isGroup(activeId)) b?.sendGroupMessage?.(activeId, text, mentions);
-    else b?.sendMessage(activeId, text, undefined, mentions);
+    // `mentions`＝@提及公鑰（ADR-0050／0133）；`replyTo`＝對話串根 id（ADR-0051／0136）；
+    // 兩者皆隨 Gift Wrap 加密，中繼看不到社交圖譜/串結構。
+    if (isGroup(activeId)) b?.sendGroupMessage?.(activeId, text, mentions, replyTo);
+    else b?.sendMessage(activeId, text, undefined, mentions, replyTo);
   };
   // 對話背景（ADR-0134）：純本地，寫 localStorage ＋ 即時反映到畫面（不廣播、不進雲端）。
   const applyChatBg = (bg: ChatBg): void => {

@@ -51,6 +51,16 @@ function makeStyles(tk: ThemeTokens) {
     // @提及你（ADR-0133）：主色左邊條。
     bubbleMention: { borderLeftWidth: 3, borderLeftColor: tk.accent },
     mentionBadge: { fontSize: 10, fontWeight: "700", color: tk.accent, marginBottom: 2 },
+    // 內嵌回覆（ADR-0136）：泡泡內的引用區、草稿列上方的回覆列。
+    quote: { borderLeftWidth: 2, paddingLeft: 6, marginBottom: 4, opacity: 0.95 },
+    quoteWho: { fontSize: 10, fontWeight: "700" },
+    quoteText: { fontSize: 11 },
+    replyBar: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 10, paddingTop: 6, backgroundColor: tk.panel },
+    replyBarBody: { flex: 1, borderLeftWidth: 2, borderLeftColor: tk.accent, paddingLeft: 8 },
+    replyBarWho: { fontSize: 11, fontWeight: "700", color: tk.accent },
+    replyBarText: { fontSize: 12, color: tk.muted },
+    replyBarCancel: { paddingHorizontal: 8, paddingVertical: 2 },
+    replyBarCancelText: { fontSize: 14, color: tk.muted },
     textMine: { color: "#ffffff", fontSize: 14 },
     textTheir: { color: tk.ink, fontSize: 14 },
     status: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 2, marginRight: 4 },
@@ -223,7 +233,7 @@ export function ConversationScreen({
   /** 自己的 pubkey（成員清單中不對自己顯示「移除」）。 */
   selfPubkey?: string;
   /** 送出訊息；`mentions` 為解析出的 @提及公鑰（ADR-0050／0133）。 */
-  onSend: (text: string, mentions?: string[]) => void;
+  onSend: (text: string, mentions?: string[], replyTo?: string) => void;
   /** @提及候選（ADR-0133）：群組＝其他成員、1:1＝對方。未提供則不顯示提及建議。 */
   mentionCandidates?: MentionCandidate[];
   /** 目前對話背景（ADR-0134，本地個人化）；null＝用預設面板色。 */
@@ -298,9 +308,23 @@ export function ConversationScreen({
     if (!text) return;
     // 解析 @提及 → p tag（隨 Gift Wrap 加密，中繼看不到；ADR-0050）。
     const mentions = mentionCandidates ? parseMentions(text, mentionCandidates) : [];
-    onSend(text, mentions.length > 0 ? mentions : undefined);
+    // 內嵌回覆（ADR-0136）：帶對話串根 id → NIP-10 reply e-tag（同樣隨 Gift Wrap 加密）。
+    onSend(text, mentions.length > 0 ? mentions : undefined, replyTarget ?? undefined);
     setDraft("");
+    setReplyTarget(null);
   };
+
+  /** 被回覆的目標訊息 id（ADR-0136）：草稿列上方顯示引用，送出時帶為 replyTo。 */
+  const [replyTarget, setReplyTarget] = useState<string | null>(null);
+  const replyToMsg = replyTarget ? messages.find((m) => m.id === replyTarget) : undefined;
+  /** 引用預覽文字：已收回不顯示原文；檔案顯示檔名；否則截斷本文。 */
+  const quoteText = (m: ChatMessage): string => {
+    if (unsent?.has(m.id)) return t("msg_unsent");
+    if (m.file) return `📎 ${m.file.name}`;
+    return m.text.length > 60 ? `${m.text.slice(0, 60)}…` : m.text;
+  };
+  const quoteWho = (m: ChatMessage): string =>
+    m.outgoing ? t("members_you") : m.sender && nameFor ? nameFor(m.sender) : name;
 
   return (
     <View style={styles.root}>
@@ -458,9 +482,10 @@ export function ConversationScreen({
         {messages.map((m) => {
           const gone = unsent?.has(m.id) ?? false; // 已收回（NIP-09）
           const emojis = reactions?.[m.id] ?? [];
-          // 圖片可分享（ADR-0132）——收到的圖即使沒有回應/收回，也要能長按叫出分享。
+          // 未收回的訊息一律可長按：至少能「回覆」（ADR-0136），可能還有回應/收回/分享。
+          const canAct = !gone;
           const canShareImg = !gone && !!m.file?.mime.startsWith("image/") && !!(m.file.url ?? m.file.thumb);
-          const canAct = !gone && (onReact || (m.outgoing && onUnsend) || canShareImg);
+          const quoted = m.replyTo ? messages.find((q) => q.id === m.replyTo) : undefined;
           return (
           <View key={m.id} style={m.outgoing ? styles.rowMine : styles.rowTheir}>
             {!m.outgoing && nameFor && m.sender ? <Text style={styles.sender}>{nameFor(m.sender)}</Text> : null}
@@ -486,6 +511,20 @@ export function ConversationScreen({
                   <Text style={styles.mentionBadge} aria-label={t("mention_you")} testID={`mention-badge-${m.id}`}>
                     @ {t("mention_you")}
                   </Text>
+                ) : null}
+                {/* 內嵌回覆引用（ADR-0136）：顯示被回覆的訊息（誰＋摘要）。引用不到（已捲出熱區）就略過。 */}
+                {!gone && m.replyTo && quoted ? (
+                  <View
+                    style={[styles.quote, { borderLeftColor: m.outgoing ? "#ffffffaa" : tk.accent }]}
+                    testID={`reply-quote-${m.id}`}
+                  >
+                    <Text style={[styles.quoteWho, { color: m.outgoing ? "#ffffffcc" : tk.accent }]} numberOfLines={1}>
+                      {quoteWho(quoted)}
+                    </Text>
+                    <Text style={[styles.quoteText, { color: m.outgoing ? "#ffffffcc" : tk.muted }]} numberOfLines={1}>
+                      {quoteText(quoted)}
+                    </Text>
+                  </View>
                 ) : null}
                 {/* 圖片縮圖（ADR-0102）：跨 session 存活——重載後圖片仍是圖片，不會退化成檔名。 */}
                 {!gone && m.file && (m.file.url ?? m.file.thumb) ? (
@@ -520,6 +559,18 @@ export function ConversationScreen({
             {/* 長按後的操作列。 */}
             {picked === m.id ? (
               <View style={styles.actions}>
+                {/* 回覆（ADR-0136）：任何未收回訊息都能回覆——設引用目標、草稿列上方顯示。 */}
+                <Pressable
+                  style={styles.actBtn}
+                  accessibilityRole="button"
+                  testID={`reply-${m.id}`}
+                  onPress={() => {
+                    setReplyTarget(m.id);
+                    setPicked(null);
+                  }}
+                >
+                  <Text style={styles.actText}>{t("reply_label")}</Text>
+                </Pressable>
                 {onReact
                   ? REACTION_EMOJIS.map((e) => (
                       <Pressable
@@ -615,6 +666,29 @@ export function ConversationScreen({
           <Text style={styles.calcchipEq}>=</Text>
           <Text style={styles.calcchipVal}>{calc.result}</Text>
         </Pressable>
+      ) : null}
+
+      {/* 回覆引用列（ADR-0136）：正在回覆哪則——顯示引用＋取消。送出後自動清除。 */}
+      {replyToMsg ? (
+        <View style={styles.replyBar} testID="reply-bar">
+          <View style={styles.replyBarBody}>
+            <Text style={styles.replyBarWho} numberOfLines={1}>
+              {t("reply_label")} · {quoteWho(replyToMsg)}
+            </Text>
+            <Text style={styles.replyBarText} numberOfLines={1}>
+              {quoteText(replyToMsg)}
+            </Text>
+          </View>
+          <Pressable
+            accessibilityRole="button"
+            aria-label={t("reply_cancel")}
+            testID="reply-cancel"
+            onPress={() => setReplyTarget(null)}
+            style={styles.replyBarCancel}
+          >
+            <Text style={styles.replyBarCancelText}>✕</Text>
+          </Pressable>
+        </View>
       ) : null}
 
       <View style={styles.composer}>

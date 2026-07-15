@@ -40,12 +40,14 @@ describe("行動端圖片分享入口（ADR-0132）", () => {
     expect(bubbleTag(html, "img1")).toContain('role="button"');
   });
 
-  it("純文字訊息、且沒有回應/收回入口 → 氣泡不可長按（沒有多餘的操作面板）", () => {
+  // 註：自 ADR-0136 起「任何未收回訊息都可長按（至少能回覆）」，故 role=button 不再等於「可分享」
+  // ——分享按鈕的專屬性改由長按選單裡的 share-<id> testID 表達（需互動，見 Reply/Mention 的取捨）。
+  it("純文字訊息仍可長按（ADR-0136 起：至少能回覆）", () => {
     const html = renderToStaticMarkup(<ConversationScreen {...base} messages={[textMsg]} />);
-    expect(bubbleTag(html, "txt1")).not.toContain('role="button"');
+    expect(bubbleTag(html, "txt1")).toContain('role="button"');
   });
 
-  it("已收回的圖片不提供分享（收回後不得有任何操作）", () => {
+  it("已收回的訊息完全不可長按（收回後不得有任何操作——含分享、回覆）", () => {
     const html = renderToStaticMarkup(
       <ConversationScreen {...base} messages={[imageMsg]} unsent={new Set(["img1"])} />,
     );

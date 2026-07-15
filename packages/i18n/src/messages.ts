@@ -430,6 +430,9 @@ export interface Messages {
   thread_reply: string;
   thread_open: string;
   thread_replies: string;
+  /** 行動端內嵌回覆（ADR-0136）。 */
+  reply_label: string;
+  reply_cancel: string;
   members_title: string;
   members_you: string;
   members_remove: string;
@@ -910,6 +913,8 @@ const zhHant: Messages = {
   thread_reply: "回覆討論串…",
   thread_open: "在討論串回覆",
   thread_replies: "{count} 則回覆",
+  reply_label: "回覆",
+  reply_cancel: "取消回覆",
   members_title: "群組成員",
   members_you: "你",
   members_remove: "移除成員",
@@ -1386,6 +1391,8 @@ const en: Messages = {
   thread_reply: "Reply in thread…",
   thread_open: "Reply in thread",
   thread_replies: "{count} replies",
+  reply_label: "Reply",
+  reply_cancel: "Cancel reply",
   members_title: "Group members",
   members_you: "you",
   members_remove: "Remove member",
