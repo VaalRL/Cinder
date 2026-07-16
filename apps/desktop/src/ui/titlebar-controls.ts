@@ -16,12 +16,10 @@ export interface TitlebarControls {
 
 export const CONTROL_IDS: readonly ControlId[] = ["settings", "min", "max", "close"];
 
-/** 缺漏補回時各控制項的預設帶：⚙ 靠左（Telegram 風），視窗控制靠右（Windows 慣例）。 */
-const DEFAULT_SIDE: Record<ControlId, "left" | "right"> = { settings: "left", min: "right", max: "right", close: "right" };
-
+/** 預設（ADR-0152 修正）：⚙ 貼在最小化左側，與視窗控制同一條右帶（Windows 慣例）。 */
 export const DEFAULT_TITLEBAR_CONTROLS: TitlebarControls = {
-  left: ["settings"],
-  right: ["min", "max", "close"],
+  left: [],
+  right: ["settings", "min", "max", "close"],
   autoHide: false,
 };
 
@@ -62,19 +60,25 @@ export function parseTitlebarControls(raw: string | null | undefined): TitlebarC
       left = scanStrip(v.left, seen);
       right = scanStrip(v.right, seen);
     } else {
-      // v1 遷移：order 放在原本的 side；當時尚無 ⚙ → 明確補到**對側**（避免擠在視窗控制旁）。
+      // v1 遷移：order 放在原本的 side；當時尚無 ⚙ → 補在該帶**最前**（貼最小化左側，ADR-0152）。
       const order = scanStrip(v.order, seen);
-      const opposite: ControlId[] = [];
-      left = v.side === "left" ? order : opposite;
-      right = v.side === "left" ? opposite : order;
+      left = v.side === "left" ? order : [];
+      right = v.side === "left" ? [] : order;
       if (!seen.has("settings")) {
         seen.add("settings");
-        opposite.push("settings");
+        (v.side === "left" ? left : right).unshift("settings");
       }
     }
     for (const id of CONTROL_IDS) {
       if (seen.has(id)) continue;
-      (DEFAULT_SIDE[id] === "left" ? left : right).push(id);
+      // 缺漏補回（ADR-0152）：⚙ 補右帶最前（貼視窗控制左側）、其餘視窗控制補右帶尾。
+      if (id === "settings") right.unshift("settings");
+      else right.push(id);
+    }
+    // ADR-0152：0151 的舊預設（⚙ 獨佔左帶、右帶恰為 ─ □ ✕）視為未自訂 → 轉新預設；
+    // autoHide 是獨立偏好，照舊保留。順序不同＝使用者拖過，不動。
+    if (left.length === 1 && left[0] === "settings" && right.join() === "min,max,close") {
+      return { ...DEFAULT_TITLEBAR_CONTROLS, autoHide: v.autoHide === true };
     }
     return { left, right, autoHide: v.autoHide === true };
   } catch {

@@ -280,14 +280,17 @@ describe("視窗外框設定（ADR-0150）", () => {
       </ThemeProvider>,
     );
 
-  it("showTitlebarSettings（Tauri）→ 拖曳編輯器：左右兩帶＋四顆可拖 piece＋隱藏勾選（ADR-0151）", () => {
+  it("showTitlebarSettings（Tauri）→ 拖曳編輯器：左右兩帶＋四顆可拖 piece＋隱藏勾選（ADR-0151/0152）", () => {
     const out = renderWithTitlebar({ showTitlebarSettings: true });
-    expect(out).toContain('data-testid="titlebar-zone-left"');
-    expect(out).toContain('data-testid="titlebar-zone-right"');
+    // 放置帶以 data-drop-side 標記（pointer 拖曳的命中測試靠它，ADR-0152——
+    // Tauri dragDropEnabled 會吞 HTML5 DnD，所以不用 draggable）。
+    expect(out).toContain('data-drop-side="left"');
+    expect(out).toContain('data-drop-side="right"');
     for (const id of ["settings", "min", "max", "close"]) {
       expect(out).toContain(`data-testid="titlebar-piece-${id}"`);
+      expect(out).toContain(`data-piece="${id}"`);
     }
-    expect(out).toContain('draggable="true"'); // 滑鼠拖曳排位（ADR-0151）
+    expect(out).not.toContain('draggable="true"'); // HTML5 DnD 在 Tauri 失效，禁用
     expect(out).toContain('data-testid="titlebar-autohide"'); // 平時隱藏、滑鼠碰到才顯示
   });
 

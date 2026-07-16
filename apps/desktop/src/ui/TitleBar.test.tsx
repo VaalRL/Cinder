@@ -32,12 +32,14 @@ describe("TitleBar 自繪視窗標題列（ADR-0150/0151）", () => {
     expect(html).not.toContain('data-testid="titlebar-settings"'); // 沒有開啟器就不畫 ⚙
   });
 
-  it("⚙ 設定鈕（ADR-0151）：接了 onOpenSettings 才渲染，預設在左帶（標題前）", () => {
+  it("⚙ 設定鈕（ADR-0151/0152）：接了 onOpenSettings 才渲染，預設貼在最小化左側（右帶最前）", () => {
     const html = render({ onOpenSettings: () => {} });
     const iSettings = html.indexOf('data-testid="titlebar-settings"');
     const iTitle = html.indexOf("titlebar__title");
+    const iMin = html.indexOf('data-testid="titlebar-min"');
     expect(iSettings).toBeGreaterThanOrEqual(0);
-    expect(iSettings).toBeLessThan(iTitle); // 左帶在標題前
+    expect(iTitle).toBeLessThan(iSettings); // 右帶：標題之後
+    expect(iSettings).toBeLessThan(iMin); // 緊貼 ─ 左側
   });
 
   it("自訂雙帶順序：left/right 各依陣列序渲染", () => {

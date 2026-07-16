@@ -1,5 +1,5 @@
 import { makeBackupCode } from "@cinder/core";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { ACCENT_PRESETS, useAccent } from "../accent.js";
 import { useLayout } from "../layout.js";
 import { useI18n } from "../i18n.js";
@@ -274,14 +274,19 @@ function LayoutSettings(): JSX.Element {
 }
 
 /**
- * 視窗外框（ADR-0150/0151）：拖曳編輯器——一條假標題列、左右兩個放置帶，四顆按鈕
- * （⚙ ─ □ ✕）用滑鼠拖到任一帶的任意位置（拖到某顆上＝插到它前面、拖到帶上＝放帶尾）。
+ * 視窗外框（ADR-0150/0151/0152）：拖曳編輯器——一條假標題列、左右兩個放置帶，四顆按鈕
+ * （⚙ ─ □ ✕）用滑鼠拖到任一帶的任意位置（拖到某顆上＝插到它前面、拖到帶空白＝放帶尾）。
  * 另附「平時隱藏」勾選（滑鼠碰標題列才顯示按鈕）。
+ *
+ * 拖曳以 **pointer events** 實作（ADR-0152）：Tauri 的 `dragDropEnabled`（原生檔案拖放，
+ * ADR-0104）在 Windows WebView2 會吞掉 HTML5 drag & drop，`draggable` 在桌面版根本拖不動——
+ * 故以 setPointerCapture＋elementFromPoint 命中 `data-drop-side`/`data-piece` 自行實作。
  */
 function TitlebarSettings(): JSX.Element {
   const { t } = useI18n();
   const { controls, setControls } = useTitlebar();
   const [dragId, setDragId] = useState<ControlId | null>(null);
+  const [hover, setHover] = useState<{ side: "left" | "right"; before: ControlId | null } | null>(null);
   const glyph: Record<ControlId, string> = { settings: "⚙", min: "─", max: "□", close: "✕" };
   const label: Record<ControlId, string> = {
     settings: t("settings_open"),
@@ -289,40 +294,53 @@ function TitlebarSettings(): JSX.Element {
     max: t("titlebar_maximize"),
     close: t("titlebar_close"),
   };
-  const drop = (side: "left" | "right", beforeId: ControlId | null): void => {
-    if (dragId) setControls(placeControl(controls, dragId, side, beforeId));
+  /** 由座標找放置目標（pointer capture 下 pointerover 不會發到別的元素，只能用命中測試）。 */
+  const targetAt = (x: number, y: number): { side: "left" | "right"; before: ControlId | null } | null => {
+    if (typeof document === "undefined" || !document.elementFromPoint) return null;
+    const el = document.elementFromPoint(x, y);
+    const zoneEl = el?.closest?.("[data-drop-side]");
+    if (!zoneEl) return null;
+    const side = zoneEl.getAttribute("data-drop-side") === "left" ? "left" : "right";
+    const before = (el?.closest?.("[data-piece]")?.getAttribute("data-piece") ?? null) as ControlId | null;
+    return { side, before };
+  };
+  const beginDrag = (id: ControlId) => (e: ReactPointerEvent<HTMLElement>) => {
+    e.preventDefault();
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+    setDragId(id);
+  };
+  const moveDrag = (e: ReactPointerEvent<HTMLElement>): void => {
+    if (dragId) setHover(targetAt(e.clientX, e.clientY));
+  };
+  const endDrag = (e: ReactPointerEvent<HTMLElement>): void => {
+    if (dragId) {
+      const tgt = targetAt(e.clientX, e.clientY);
+      if (tgt) setControls(placeControl(controls, dragId, tgt.side, tgt.before));
+    }
     setDragId(null);
+    setHover(null);
   };
   const zone = (side: "left" | "right"): JSX.Element => (
     <div
-      className={`titlebarset__zone${dragId ? " titlebarset__zone--target" : ""}`}
+      className={`titlebarset__zone${dragId ? " titlebarset__zone--target" : ""}${
+        hover?.side === side && hover.before === null ? " titlebarset__zone--over" : ""
+      }`}
+      data-drop-side={side}
       data-testid={`titlebar-zone-${side}`}
-      onDragOver={(e) => {
-        if (dragId) e.preventDefault();
-      }}
-      onDrop={(e) => {
-        e.preventDefault();
-        drop(side, null);
-      }}
     >
       {controls[side].map((id) => (
         <span
           key={id}
-          draggable
-          className="titlebarset__piece"
+          className={`titlebarset__piece${dragId === id ? " titlebarset__piece--drag" : ""}${
+            hover?.before === id ? " titlebarset__piece--over" : ""
+          }`}
+          data-piece={id}
           data-testid={`titlebar-piece-${id}`}
           title={label[id]}
           aria-label={label[id]}
-          onDragStart={() => setDragId(id)}
-          onDragEnd={() => setDragId(null)}
-          onDragOver={(e) => {
-            if (dragId && dragId !== id) e.preventDefault();
-          }}
-          onDrop={(e) => {
-            e.preventDefault();
-            e.stopPropagation(); // 別冒泡到帶（帶＝放帶尾，這裡＝插到本顆前）
-            drop(side, id);
-          }}
+          onPointerDown={beginDrag(id)}
+          onPointerMove={moveDrag}
+          onPointerUp={endDrag}
         >
           {glyph[id]}
         </span>
