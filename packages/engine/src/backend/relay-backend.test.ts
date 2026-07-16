@@ -129,6 +129,59 @@ describe("RelayChatBackend（真實後端 + 持久化）", () => {
     b.stop();
   });
 
+  it("setSelfAvatar（ADR-0154）：頭像隨加密個人檔廣播；移除記號讓對方清掉；壞格式拒絕", () => {
+    const AVATAR = "data:image/jpeg;base64,/9j/4AAQSkZJRg==";
+    const net = createInMemoryRelayNetwork();
+    const storeA = new MemoryStorage();
+    const storeB = new MemoryStorage();
+    const a = new RelayChatBackend(storeA, (h) => net.connect("a", h), "Alice");
+    const b = new RelayChatBackend(storeB, (h) => net.connect("b", h), "Bob");
+    const bSawA: (string | undefined)[] = [];
+    a.start(noop);
+    b.start({ ...noop, onContacts: (cs) => cs.forEach((c) => c.pubkey === a.self.pubkey && bSawA.push(c.avatar)) });
+    b.addContact(a.selfNpub);
+    a.addContact(b.selfNpub);
+
+    // 壞格式（非白名單 data URI）→ 拒絕不套用
+    expect(a.setSelfAvatar("https://evil.example/x.jpg")).toBe(false);
+    expect(a.selfAvatar()).toBeUndefined();
+
+    // 設定 → 落地本機、全量重播 → B 的聯絡人紀錄長出頭像
+    expect(a.setSelfAvatar(AVATAR)).toBe(true);
+    expect(a.selfAvatar()).toBe(AVATAR);
+    expect(storeA.loadSelfAvatar()).toBe(AVATAR);
+    expect(bSawA).toContain(AVATAR);
+    expect(storeB.loadContacts().find((c) => c.pubkey === a.self.pubkey)?.avatar).toBe(AVATAR);
+
+    // 移除 → 持久化 ""（持續廣播移除記號）→ B 端清掉
+    expect(a.setSelfAvatar(undefined)).toBe(true);
+    expect(a.selfAvatar()).toBeUndefined();
+    expect(storeA.loadSelfAvatar()).toBe("");
+    expect(storeB.loadContacts().find((c) => c.pubkey === a.self.pubkey)?.avatar).toBeUndefined();
+
+    // 廣播頭像與名稱互不干擾；B 對 A 的頭像純收方持有，A 端不受 B 影響
+    expect(a.self.name).toBe("Alice");
+    a.stop();
+    b.stop();
+  });
+
+  it("開機廣播帶頭像（ADR-0154）：重啟後的 backend 仍把持久化頭像送給晚加入的聯絡人", () => {
+    const AVATAR = "data:image/png;base64,iVBORw0KGgo=";
+    const net = createInMemoryRelayNetwork();
+    const storeA = new MemoryStorage();
+    storeA.saveSelfAvatar(AVATAR); // 模擬上次 session 設定過
+    const storeB = new MemoryStorage();
+    const a = new RelayChatBackend(storeA, (h) => net.connect("a", h), "Alice");
+    const b = new RelayChatBackend(storeB, (h) => net.connect("b", h), "Bob");
+    a.start(noop);
+    b.start(noop);
+    b.addContact(a.selfNpub);
+    a.addContact(b.selfNpub); // 加好友即送 profile（帶持久化頭像）
+    expect(storeB.loadContacts().find((c) => c.pubkey === a.self.pubkey)?.avatar).toBe(AVATAR);
+    a.stop();
+    b.stop();
+  });
+
   it("NIP-42 AUTH（ADR-0057）：requireAuth 下兩端仍能對話（自動認證 + 認證後訂閱）", () => {
     const net = createInMemoryRelayNetwork({ requireAuth: true });
     const storeA = new MemoryStorage();

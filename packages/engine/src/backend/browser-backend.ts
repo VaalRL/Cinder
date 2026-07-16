@@ -19,6 +19,7 @@ import {
   readTyping,
   type RelayClient,
   type SecretKey,
+  validAvatarDataUri,
 } from "@cinder/core";
 import { createInMemoryRelayNetwork, MessageStore } from "@cinder/relay";
 import type { ChatBackend, ChatBackendEvents, ChatMessage, Contact, Self, Status } from "./types.js";
@@ -276,6 +277,19 @@ export class BrowserChatBackend implements ChatBackend {
     if (trimmed) this.notifySounds.set(pubkey, trimmed);
     else this.notifySounds.delete(pubkey);
     this.emitContacts();
+  }
+
+  /** 自己的廣播頭像（ADR-0154）：示範模式亦支援，純記憶體（機器人看不到，僅供 UI 流程）。 */
+  private myAvatar: string | undefined;
+
+  setSelfAvatar(avatar: string | undefined): boolean {
+    if (avatar && !validAvatarDataUri(avatar)) return false;
+    this.myAvatar = avatar || undefined;
+    return true;
+  }
+
+  selfAvatar(): string | undefined {
+    return this.myAvatar;
   }
 
   sendMessage(to: PubkeyHex, text: string, ttlSeconds?: number): void {

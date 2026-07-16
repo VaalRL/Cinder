@@ -11,7 +11,8 @@ const STATUS_KEY: Record<"online" | "away" | "busy", MessageKey> = {
   away: "status_away",
   busy: "status_busy",
 };
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native-web";
+import { Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native-web";
+import { avatarFromUrl, pickAvatarImage } from "../native/avatar.js";
 import { copyText } from "../native/clipboard.js";
 
 const ACCENTS: { label: string; hex: string | null }[] = [
@@ -57,6 +58,11 @@ function makeStyles(tk: ThemeTokens) {
     code: { fontSize: 11, color: tk.ink, backgroundColor: tk.field, borderRadius: 8, padding: 10 },
     okMsg: { fontSize: 12, color: "#2f9e44" },
     identityRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 6 },
+    // 頭像（ADR-0154）：預覽圓＋更換/從網址/移除。
+    avatarRow: { flexDirection: "row", alignItems: "center", gap: 12 },
+    avatarPreview: { width: 56, height: 56, borderRadius: 28, alignItems: "center", justifyContent: "center", backgroundColor: tk.field, borderWidth: 1, borderColor: tk.border },
+    avatarImg: { width: 56, height: 56, borderRadius: 28 },
+    avatarInitial: { fontSize: 22, fontWeight: "700", color: tk.muted },
   });
 }
 
@@ -93,6 +99,8 @@ export function SettingsScreen({
   onAddIdentity,
   onChangePassword,
   onMakeBackupCode,
+  selfAvatar,
+  onAvatar,
   onLogout,
 }: {
   selfName: string;
@@ -142,6 +150,10 @@ export function SettingsScreen({
   onChangePassword?: (oldPassword: string, newPassword: string) => boolean;
   /** 產生加密備份碼（ADR-0070）：以備份密碼包裹 nsec＋relay，回單一字串。僅在有 relay 時提供。 */
   onMakeBackupCode?: (password: string) => string;
+  /** 自己目前的廣播頭像（ADR-0154）；未設＝生成色圓。 */
+  selfAvatar?: string;
+  /** 設定/移除廣播頭像（ADR-0154）；回 false＝引擎拒收。未提供則不顯示頭像區（示範模式）。 */
+  onAvatar?: (uri: string | undefined) => boolean;
   onLogout: () => void;
 }): JSX.Element {
   const tk = useMemo(() => resolveTheme({ theme, accent }), [theme, accent]);
@@ -193,6 +205,36 @@ export function SettingsScreen({
     setBkCode(onMakeBackupCode(bkPw));
     setBkCopied(false);
   };
+  // 頭像（ADR-0154）：本畫面持有顯示狀態（初值來自後端），成功套用後更新。
+  const [avatar, setAvatar] = useState<string | undefined>(selfAvatar);
+  const [avatarUrlOpen, setAvatarUrlOpen] = useState(false);
+  const [avatarUrl, setAvatarUrl] = useState("");
+  const [avatarErr, setAvatarErr] = useState(false);
+  const applyAvatar = (uri: string | undefined): void => {
+    if (!onAvatar) return;
+    if (onAvatar(uri)) {
+      setAvatar(uri);
+      setAvatarErr(false);
+      setAvatarUrlOpen(false);
+      setAvatarUrl("");
+    } else {
+      setAvatarErr(true);
+    }
+  };
+  const pickAvatar = (): void => {
+    void pickAvatarImage().then((uri) => {
+      if (uri) applyAvatar(uri);
+    });
+  };
+  const applyAvatarUrl = (): void => {
+    const url = avatarUrl.trim();
+    if (!url) return;
+    // ADR-0154：由自己的裝置抓一次 → 縮圖 → 內嵌廣播；網址不會傳給任何聯絡人。
+    void avatarFromUrl(url).then((uri) => {
+      if (uri) applyAvatar(uri);
+      else setAvatarErr(true);
+    });
+  };
 
   const seg = (on: boolean) => [styles.seg, { borderColor: on ? tk.accent : tk.border, backgroundColor: on ? tk.accent : tk.field }];
   const segTxt = (on: boolean) => [styles.segText, { color: on ? "#ffffff" : tk.ink }];
@@ -230,6 +272,60 @@ export function SettingsScreen({
             >
               <Text style={[styles.segText, { color: tk.accent }]}>＋ {t("identities_add")}</Text>
             </Pressable>
+          </View>
+        ) : null}
+
+        {/* 頭像（ADR-0154）：預覽＋更換/從網址/移除；設定即加密廣播給聯絡人。 */}
+        {onAvatar ? (
+          <View style={styles.section} testID="avatar-section">
+            <Text style={styles.sectionTitle}>{t("avatar_change")}</Text>
+            <View style={styles.avatarRow}>
+              <View style={styles.avatarPreview}>
+                {avatar ? (
+                  <Image source={{ uri: avatar }} style={styles.avatarImg} accessibilityLabel={selfName} />
+                ) : (
+                  <Text style={styles.avatarInitial}>{(selfName.trim()[0] ?? "?").toUpperCase()}</Text>
+                )}
+              </View>
+              <View style={{ flex: 1, gap: 6 }}>
+                <Text style={styles.label}>{t("avatar_syncHint")}</Text>
+                <View style={styles.rowSeg}>
+                  <Pressable accessibilityRole="button" testID="avatar-pick" onPress={pickAvatar} style={[styles.seg, { borderColor: tk.accent, backgroundColor: tk.field }]}>
+                    <Text style={[styles.segText, { color: tk.accent }]}>{t("avatar_change")}</Text>
+                  </Pressable>
+                  <Pressable accessibilityRole="button" testID="avatar-url-toggle" onPress={() => setAvatarUrlOpen((v) => !v)} style={[styles.seg, { borderColor: tk.border, backgroundColor: tk.field }]}>
+                    <Text style={[styles.segText, { color: tk.ink }]}>{t("avatar_fromUrl")}</Text>
+                  </Pressable>
+                  {avatar ? (
+                    <Pressable accessibilityRole="button" testID="avatar-remove" onPress={() => applyAvatar(undefined)} style={[styles.seg, { borderColor: tk.border, backgroundColor: tk.field }]}>
+                      <Text style={[styles.segText, { color: "#e5484d" }]}>{t("avatar_remove")}</Text>
+                    </Pressable>
+                  ) : null}
+                </View>
+              </View>
+            </View>
+            {avatarUrlOpen ? (
+              <View style={styles.rowSeg}>
+                <TextInput
+                  style={[styles.pwInput, { flex: 1 }]}
+                  value={avatarUrl}
+                  onChangeText={(v: string) => {
+                    setAvatarUrl(v);
+                    setAvatarErr(false);
+                  }}
+                  placeholder={t("avatar_urlPrompt")}
+                  placeholderTextColor={tk.muted}
+                  aria-label={t("avatar_urlPrompt")}
+                  testID="avatar-url-input"
+                />
+                <Pressable accessibilityRole="button" testID="avatar-url-apply" onPress={applyAvatarUrl} style={[styles.seg, { borderColor: tk.accent, backgroundColor: tk.field }]}>
+                  <Text style={[styles.segText, { color: tk.accent }]}>{t("settings_nameApply")}</Text>
+                </Pressable>
+              </View>
+            ) : null}
+            {avatarErr ? (
+              <Text style={styles.warn} testID="avatar-error">{t("avatar_urlError")}</Text>
+            ) : null}
           </View>
         ) : null}
 

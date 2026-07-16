@@ -37,6 +37,18 @@ describe("快照內容組裝（ADR-0071 三檔模式）", () => {
     expect(full.messages?.map((m) => m.id)).toEqual(["m2", "m1"]); // 新到舊
   });
 
+  it("剝除廣播頭像（ADR-0154）：contacts/blocked 的 avatar 不進快照（180KB 預算保護）", () => {
+    const s = new MemoryStorage();
+    s.addContact({ pubkey: "bob", name: "Bob", alias: "阿伯", avatar: "data:image/jpeg;base64,AAA=" });
+    s.blockContact({ pubkey: "spam", name: "垃圾", avatar: "data:image/png;base64,BBB=" });
+    const snap = buildSnapshotContent(s, "basic");
+    expect(snap.contacts[0]).toMatchObject({ pubkey: "bob", alias: "阿伯" }); // 其餘欄位保留
+    expect(snap.contacts[0]!.avatar).toBeUndefined();
+    expect(snap.blocked[0]!.avatar).toBeUndefined();
+    // 本機儲存不受影響（只剝快照那一份）
+    expect(s.loadContacts()[0]!.avatar).toBe("data:image/jpeg;base64,AAA=");
+  });
+
   it("完整模式訊息上限：只取最新 N 則", () => {
     const s = new MemoryStorage();
     s.addContact({ pubkey: "bob", name: "Bob" });

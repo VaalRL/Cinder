@@ -32,6 +32,12 @@ export interface StoredContact {
    * 未設＝播全域預設音效。指向已移除 id 時播放端自動退回經典叮咚。
    */
   notifySound?: string;
+  /**
+   * 對方廣播的頭像（ADR-0154）：data URI 縮圖，收自加密個人檔。**不進雲端快照**
+   * （組裝時剝除——180KB 明文預算擋不住 N 個聯絡人的圖，開機廣播會重新學到）；
+   * 隨搬家捆包流動。顯示優先序：本地覆寫（ADR-0077）＞此欄位＞生成頭像。
+   */
+  avatar?: string;
 }
 
 /**
@@ -172,6 +178,15 @@ export interface AppStorage {
   setContactAlias(pubkey: string, alias: string | undefined): void;
   /** 設定/清除依聯絡人通知音效（ADR-0149）；空字串或 undefined＝清除，退回全域預設。 */
   setContactNotifySound(pubkey: string, soundId: string | undefined): void;
+  /** 更新聯絡人廣播頭像（收到對方加密個人檔時；ADR-0154）；undefined＝清除（對方已移除）。 */
+  updateContactAvatar(pubkey: string, avatar: string | undefined): void;
+  /**
+   * 自己的廣播頭像（ADR-0154）：隨每次個人檔廣播送出。`null`＝從未設定（欄位缺席，
+   * 不影響對方）；`""`＝已移除（持續廣播移除記號，讓晚上線的聯絡人也清掉舊圖）。
+   */
+  loadSelfAvatar(): string | null;
+  /** 寫入自己的廣播頭像；`undefined`＝回到「從未設定」。 */
+  saveSelfAvatar(avatar: string | undefined): void;
   /** 移除聯絡人並清除其對話訊息。 */
   removeContact(pubkey: string): void;
   /**
@@ -284,6 +299,11 @@ export interface StoredBootstrapList {
  */
 export interface StorageSnapshot {
   identity: StoredIdentity | null;
+  /**
+   * 自己的廣播頭像（ADR-0154）；舊快照沒有這個欄位 → 匯入時容忍 `undefined`（視為未設定）。
+   * `""`＝已移除記號（語意見 {@link AppStorage.loadSelfAvatar}）。
+   */
+  selfAvatar?: string | null;
   contacts: StoredContact[];
   blocked: StoredContact[];
   /** 訊息請求（ADR-0121）；舊快照沒有這個欄位 → 匯入時須容忍 `undefined`（退回 `[]`）。 */

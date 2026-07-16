@@ -92,6 +92,7 @@ import {
 } from "./ui/group-labels.js";
 import { ANCHOR_RELAYS, MAINTAINER_PUBKEY } from "@cinder/engine";
 import { initIdle, reduceIdle, type IdleState } from "./ui/idle-status.js";
+import { setBroadcastAvatars } from "./ui/personalize.js";
 import { createRinger, createRingback, DEFAULT_CHIME_ID, playChime } from "./ui/ringtone.js";
 import { CallWindow } from "./ui/CallWindow.js";
 import { ContactListWindow } from "./ui/ContactListWindow.js";
@@ -486,6 +487,12 @@ export function App(): JSX.Element {
   notifyHidePreviewRef.current = notifyHidePreview;
   const contactsRef = useRef(contacts);
   contactsRef.current = contacts;
+  // ADR-0154：把引擎帶出的廣播頭像鏡射到顯示層快取（<Avatar> 免穿 props 直接查）。
+  useEffect(() => {
+    setBroadcastAvatars(contacts.filter((c) => c.avatar).map((c) => [c.pubkey, c.avatar!] as [string, string]));
+  }, [contacts]);
+  /** 設定/移除自己的廣播頭像（ADR-0154）；回 false＝引擎拒收（格式防線），UI 提示。 */
+  const broadcastSelfAvatar = (uri: string | undefined): boolean => backend?.setSelfAvatar?.(uri) ?? true;
   const groupsRef = useRef(groups);
   groupsRef.current = groups;
   const requestsRef = useRef(requests);
@@ -1699,6 +1706,7 @@ export function App(): JSX.Element {
             labelOptions={allLabels(groupPrefs)}
             activeLabel={labelFilter}
             onFilterLabel={setLabelFilter}
+            onSelfAvatar={broadcastSelfAvatar}
             {...addContactProps}
           />
         ) : (
@@ -1708,6 +1716,7 @@ export function App(): JSX.Element {
             onOpen={openChat}
             onStatus={setStatus}
             onStatusMessage={setStatusMessage}
+            onSelfAvatar={broadcastSelfAvatar}
             onOpenSettings={() => setSettingsOpen(true)}
             onNowPlaying={(text) => activeBackend.setNowPlaying(text)}
             unread={unread}
@@ -1969,6 +1978,7 @@ export function App(): JSX.Element {
               nudgeSignal={0}
               {...(rewriteFn ? { onRewrite: rewriteFn } : {})}
               {...(checkAiAvailable ? { onCheckAiAvailable: checkAiAvailable } : {})}
+              onSelfAvatar={broadcastSelfAvatar}
               senderName={senderName}
               mentionCandidates={group.members
                 .filter((m) => m !== self.pubkey)
@@ -2048,6 +2058,7 @@ export function App(): JSX.Element {
             {...(activeBackend.setContactNotifySound
               ? { onSetNotifySound: (cp: string, sid: string | undefined) => activeBackend.setContactNotifySound!(cp, sid) }
               : {})}
+            onSelfAvatar={broadcastSelfAvatar}
             messages={convos[pk] ?? []}
             reactions={reactions}
             unsent={unsent}

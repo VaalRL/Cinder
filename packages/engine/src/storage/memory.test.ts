@@ -55,6 +55,38 @@ describe("MemoryStorage", () => {
     s.setContactNotifySound("zzz", "bell"); // 未知 pubkey no-op
   });
 
+  it("廣播頭像 updateContactAvatar（ADR-0154）：設定/清除、請求區同步更新、與暱稱互不干擾", () => {
+    const s = new MemoryStorage();
+    s.addContact({ pubkey: "aa", name: "小明" });
+    s.addRequest({ pubkey: "rr", name: "路人" });
+    s.updateContactAvatar("aa", "data:image/jpeg;base64,AAA=");
+    s.updateContactAvatar("rr", "data:image/png;base64,BBB=");
+    expect(s.loadContacts()[0]!.avatar).toBe("data:image/jpeg;base64,AAA=");
+    expect(s.loadRequests()[0]!.avatar).toBe("data:image/png;base64,BBB="); // 請求區也認得出臉（ADR-0121）
+    s.setContactAlias("aa", "阿伯");
+    expect(s.loadContacts()[0]).toMatchObject({ alias: "阿伯", avatar: "data:image/jpeg;base64,AAA=" });
+    s.updateContactAvatar("aa", undefined); // 對方移除 → 欄位清掉
+    expect(s.loadContacts()[0]!.avatar).toBeUndefined();
+    expect(s.loadContacts()[0]!.alias).toBe("阿伯");
+    s.updateContactAvatar("zzz", "data:image/png;base64,CCC="); // 未知 pubkey no-op
+  });
+
+  it("自己的廣播頭像 selfAvatar（ADR-0154）：null＝未設；'' ＝移除記號；隨快照進出", () => {
+    const s = new MemoryStorage();
+    expect(s.loadSelfAvatar()).toBeNull();
+    s.saveSelfAvatar("data:image/jpeg;base64,AAA=");
+    expect(s.loadSelfAvatar()).toBe("data:image/jpeg;base64,AAA=");
+    const snap = s.exportSnapshot();
+    expect(snap.selfAvatar).toBe("data:image/jpeg;base64,AAA=");
+    s.saveSelfAvatar("");
+    expect(s.loadSelfAvatar()).toBe(""); // 移除記號（持續廣播）
+    s.importSnapshot(snap);
+    expect(s.loadSelfAvatar()).toBe("data:image/jpeg;base64,AAA=");
+    const { selfAvatar: _drop, ...legacy } = snap; // 舊快照無此欄位 → 視為未設
+    s.importSnapshot(legacy);
+    expect(s.loadSelfAvatar()).toBeNull();
+  });
+
   it("訊息按聯絡人分流、以 id 去重", () => {
     const s = new MemoryStorage();
     s.appendMessage({ id: "m1", contact: "aa", outgoing: true, text: "hi", at: 1 });

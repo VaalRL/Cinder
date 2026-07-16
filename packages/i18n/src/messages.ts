@@ -282,6 +282,10 @@ export interface Messages {
   convo_resize: string;
   avatar_change: string;
   avatar_remove: string;
+  avatar_fromUrl: string;
+  avatar_urlPrompt: string;
+  avatar_urlError: string;
+  avatar_syncHint: string;
   personalize_quota: string;
   chatbg_title: string;
   chatbg_upload: string;
@@ -827,6 +831,10 @@ const zhHant: Messages = {
   convo_resize: "拖曳調整大小",
   avatar_change: "更換頭像",
   avatar_remove: "移除頭像",
+  avatar_fromUrl: "從網址設定…",
+  avatar_urlPrompt: "輸入圖片網址（會在本機下載並縮圖，網址不會傳給任何聯絡人）",
+  avatar_urlError: "無法載入這個網址的圖片（伺服器不允許跨站存取、非圖片或無法連線）。請下載後改用上傳。",
+  avatar_syncHint: "會同步給聯絡人",
   personalize_quota: "圖片太大，本機儲存空間不足，請換小一點的圖。",
   chatbg_title: "對話背景",
   chatbg_upload: "上傳圖片",
@@ -1357,6 +1365,10 @@ const en: Messages = {
   convo_resize: "Drag to resize",
   avatar_change: "Change avatar",
   avatar_remove: "Remove avatar",
+  avatar_fromUrl: "Set from URL…",
+  avatar_urlPrompt: "Image URL (downloaded and resized locally — the URL is never sent to your contacts)",
+  avatar_urlError: "Could not load an image from that URL (cross-origin blocked, not an image, or offline). Download it and upload instead.",
+  avatar_syncHint: "Synced to your contacts",
   personalize_quota: "Image too large for local storage — please pick a smaller one.",
   chatbg_title: "Chat background",
   chatbg_upload: "Upload image",

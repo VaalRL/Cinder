@@ -92,6 +92,23 @@ export function removeAvatar(pubkey: string): void {
   notify();
 }
 
+// ── 廣播頭像快取（ADR-0154）：pubkey → 對方廣播的 data URI ─────────────────────
+// 來源是引擎 `Contact.avatar`（已持久化於引擎儲存），這裡只是**顯示層的記憶體鏡射**——
+// 讓散落各處的 <Avatar> 免穿 props 就能查到（同 personalizeTick 的訂閱機制）。
+// 顯示優先序：本地覆寫（上方 getAvatar）＞ 這裡 ＞ 生成頭像。
+const broadcastAvatars = new Map<string, string>();
+export function getBroadcastAvatar(pubkey: string): string | null {
+  return broadcastAvatars.get(pubkey) ?? null;
+}
+/** App 於聯絡人清單變動時整批鏡射；內容有變才觸發重繪。 */
+export function setBroadcastAvatars(entries: Iterable<[string, string]>): void {
+  const next = new Map(entries);
+  if (next.size === broadcastAvatars.size && [...next].every(([k, v]) => broadcastAvatars.get(k) === v)) return;
+  broadcastAvatars.clear();
+  for (const [k, v] of next) broadcastAvatars.set(k, v);
+  notify();
+}
+
 // ── O3 每對話背景：preset id 或圖片 data URI（型別/預設/CSS 產生見 @cinder/theme）──────────
 export function getChatBg(pubkey: string): ChatBg | null {
   const raw = lsGet(CHATBG_PREFIX + pubkey);
@@ -115,10 +132,11 @@ export function removeChatBg(pubkey: string): void {
 }
 
 /**
- * 本機縮圖（O2/O3）：讀 File → 等比縮到 maxEdge → JPEG data URI（壓縮）。
- * 需 DOM（瀏覽器/webview）；解碼或無 canvas 時 reject。
+ * 本機縮圖（O2/O3）：讀 File/Blob → 等比縮到 maxEdge → JPEG data URI（壓縮）。
+ * 需 DOM（瀏覽器/webview）；解碼或無 canvas 時 reject。Blob 供「從網址」路徑
+ * （ADR-0154：本人裝置抓圖後轉縮圖）復用。
  */
-export async function downscaleImage(file: File, maxEdge: number, quality = 0.82): Promise<string> {
+export async function downscaleImage(file: Blob, maxEdge: number, quality = 0.82): Promise<string> {
   const bitmap = await createImageBitmap(file);
   try {
     const scale = Math.min(1, maxEdge / Math.max(bitmap.width, bitmap.height));

@@ -5,7 +5,7 @@
 import { useMemo, useState } from "react";
 import { type Locale, type MessageKey, translate } from "@cinder/i18n";
 import { resolveTheme, STATUS_COLORS, type Theme, type ThemeTokens } from "@cinder/theme";
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native-web";
+import { Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native-web";
 import { type ChatListEntry, chatTimeLabel } from "../chat-list.js";
 
 /** 頭像底色：由 id 決定性挑一個柔和色（LINE/Signal 風格的彩色圓）。 */
@@ -45,6 +45,8 @@ function makeStyles(tk: ThemeTokens) {
     row: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 10, paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: tk.border },
     avatar: { width: 46, height: 46, borderRadius: 23, alignItems: "center", justifyContent: "center" },
     avatarText: { color: "#ffffff", fontWeight: "700", fontSize: 18 },
+    /** 廣播頭像圖（ADR-0154）：蓋滿色圓；狀態點為 absolute 不受影響。 */
+    avatarImg: { width: 46, height: 46, borderRadius: 23 },
     statusDot: { position: "absolute", right: 0, bottom: 0, width: 13, height: 13, borderRadius: 7, borderWidth: 2, borderColor: tk.panel },
     main: { flex: 1, minWidth: 0, gap: 3 },
     topRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
@@ -233,7 +235,11 @@ export function ChatsListScreen({
           {entries.map((e) => (
             <Pressable key={e.id} style={styles.row} accessibilityRole="button" onPress={() => onOpen(e.id)}>
               <View style={[styles.avatar, { backgroundColor: avatarColor(e.id) }]}>
-                <Text style={styles.avatarText}>{e.isGroup ? "#" : initial(e.name)}</Text>
+                {e.avatar ? (
+                  <Image source={{ uri: e.avatar }} style={styles.avatarImg} accessibilityLabel={e.name} />
+                ) : (
+                  <Text style={styles.avatarText}>{e.isGroup ? "#" : initial(e.name)}</Text>
+                )}
                 {!e.isGroup && e.status ? (
                   <View style={[styles.statusDot, { backgroundColor: STATUS_COLORS[e.status] }]} />
                 ) : null}

@@ -57,4 +57,11 @@ describe("DeckSidebar 三欄左側欄（ADR-0079 Q2）", () => {
     const html = render({ onNowPlaying: () => {} });
     expect(html).toContain("me__np");
   });
+
+  it("自己的頭像可編輯（ADR-0154 補入口）：渲染 avatar-wrap＋可點擊角色與換圖提示", () => {
+    const html = render({ onSelfAvatar: () => true });
+    expect(html).toContain("avatar-wrap"); // EditableAvatar 外殼（過去是純顯示 <Avatar>）
+    expect(html).toContain("avatar--edit");
+    expect(html).toContain('data-testid="avatar-file"');
+  });
 });

@@ -13,6 +13,8 @@ export interface ChatListEntry {
   memberCount?: number;
   /** 上線狀態（聯絡人才有）。 */
   status?: Status;
+  /** 對方廣播的頭像 data URI（ADR-0154；聯絡人才有，未廣播＝undefined 用生成色圓）。 */
+  avatar?: string;
   /** 最後一則訊息預覽（無訊息＝空字串）。 */
   lastText: string;
   /** 最後互動時間（ms epoch；無互動＝0）。 */
@@ -58,7 +60,7 @@ export function buildChatList(
     };
   };
   return [
-    ...contacts.map((c) => make(c.pubkey, contactLabel(c), false, { status: c.status })), // ADR-0148：暱稱優先
+    ...contacts.map((c) => make(c.pubkey, contactLabel(c), false, { status: c.status, ...(c.avatar ? { avatar: c.avatar } : {}) })), // ADR-0148：暱稱優先；ADR-0154：廣播頭像
     ...groups.map((g) => make(g.id, g.name, true, { memberCount: g.members.length })),
   ];
 }

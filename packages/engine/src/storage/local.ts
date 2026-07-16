@@ -141,6 +141,7 @@ export class LocalStorage implements AppStorage {
     }
     return {
       identity: read<StoredIdentity | null>(this.k("identity"), null, this.dek),
+      selfAvatar: read<string | null>(this.k("selfAvatar"), null, this.dek), // ADR-0154
       contacts,
       blocked: read<StoredContact[]>(this.k("blocked"), [], this.dek),
       requests: read<StoredContact[]>(this.k("requests"), [], this.dek), // ADR-0121
@@ -200,6 +201,18 @@ export class LocalStorage implements AppStorage {
   setContactNotifySound(pubkey: string, soundId: string | undefined): void {
     this.mem.setContactNotifySound(pubkey, soundId); // ADR-0149：依聯絡人通知音效
     this.writeContacts();
+  }
+  updateContactAvatar(pubkey: string, avatar: string | undefined): void {
+    this.mem.updateContactAvatar(pubkey, avatar); // ADR-0154：對方廣播的頭像
+    this.writeContacts();
+    this.writeRequests(); // 請求區的人也認得出臉（同名稱，ADR-0121）
+  }
+  loadSelfAvatar(): string | null {
+    return this.mem.loadSelfAvatar();
+  }
+  saveSelfAvatar(avatar: string | undefined): void {
+    this.mem.saveSelfAvatar(avatar);
+    write(this.k("selfAvatar"), avatar ?? null, this.dek); // ADR-0154
   }
   removeContact(pubkey: string): void {
     this.mem.removeContact(pubkey);

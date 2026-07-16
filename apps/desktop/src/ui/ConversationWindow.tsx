@@ -260,6 +260,8 @@ export interface ConversationProps {
   onSetAlias?: (pubkey: string, alias: string | undefined) => void;
   /** 設定/清除此聯絡人的通知音效（ADR-0149）；空＝清除退回全域預設。未提供＝不顯示 🔔（群組/示範）。 */
   onSetNotifySound?: (pubkey: string, soundId: string | undefined) => void;
+  /** 設定/移除自己的廣播頭像（ADR-0154）；接在 .pics 區自己的頭像選單上。 */
+  onSelfAvatar?: (uri: string | undefined) => boolean;
   /** 測試用：初始展開音效選擇列（SSR 測試無法點擊 🔔）。 */
   initialSoundEditing?: boolean;
   /** 離開群組（群組視窗才提供）。 */
@@ -913,7 +915,7 @@ export function ConversationWindow(props: ConversationProps): JSX.Element {
         <div className="pics">
           <EditableAvatar id={contact.pubkey} name={contact.name} />
           <div className="cap">{contactLabel(contact)}</div>
-          <EditableAvatar id={self.pubkey} name={self.name} />
+          <EditableAvatar id={self.pubkey} name={self.name} {...(props.onSelfAvatar ? { onBroadcast: props.onSelfAvatar } : {})} />
           <div className="cap">{self.name}</div>
         </div>
       </div>

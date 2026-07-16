@@ -34,14 +34,23 @@ export interface CloudSnapshotContent {
 }
 
 /** 組裝快照內容：基本＝聯絡人/群組/封鎖；完整＝＋近期訊息。 */
+/**
+ * 剝除廣播頭像（ADR-0154）：data URI 每人數 KB，N 個聯絡人即撐爆 180KB 明文預算
+ * （relay 單顆 256KB 上限、超過即拒收＝備份靜默失敗）。開機廣播會重新學到，不損失。
+ */
+function stripAvatar(c: StoredContact): StoredContact {
+  const { avatar: _drop, ...rest } = c;
+  return rest;
+}
+
 export function buildSnapshotContent(
   storage: AppStorage,
   mode: Exclude<CloudSyncMode, "off">,
   opts: { now?: number } = {},
 ): CloudSnapshotContent {
-  const contacts = storage.loadContacts();
+  const contacts = storage.loadContacts().map(stripAvatar);
   const groups = storage.loadGroups();
-  const blocked = storage.loadBlocked();
+  const blocked = storage.loadBlocked().map(stripAvatar);
   const base: CloudSnapshotContent = { v: 1, at: opts.now ?? Date.now(), mode, contacts, groups, blocked };
   if (mode !== "full") return base;
   const all: StoredMessage[] = [];

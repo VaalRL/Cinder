@@ -31,6 +31,8 @@ interface Convo {
 /** 記憶體儲存（測試用；不持久）。 */
 export class MemoryStorage implements AppStorage {
   private identity: StoredIdentity | null = null;
+  /** 自己的廣播頭像（ADR-0154）：null＝從未設定；""＝已移除記號。 */
+  private selfAvatar: string | null = null;
   private contacts: StoredContact[] = [];
   private readonly convos = new Map<string, Convo>();
   private reactions: StoredReaction[] = [];
@@ -115,6 +117,12 @@ export class MemoryStorage implements AppStorage {
   saveIdentity(identity: StoredIdentity): void {
     this.identity = identity;
   }
+  loadSelfAvatar(): string | null {
+    return this.selfAvatar;
+  }
+  saveSelfAvatar(avatar: string | undefined): void {
+    this.selfAvatar = avatar ?? null;
+  }
   loadContacts(): StoredContact[] {
     return [...this.contacts];
   }
@@ -160,6 +168,16 @@ export class MemoryStorage implements AppStorage {
       const { notifySound: _drop, ...rest } = c;
       return trimmed ? { ...rest, notifySound: trimmed } : rest;
     });
+  }
+  updateContactAvatar(pubkey: string, avatar: string | undefined): void {
+    // ADR-0154：對方廣播的頭像。請求區的人也要更新（同 updateContactName 的理由，ADR-0121）。
+    const put = (c: StoredContact): StoredContact => {
+      if (c.pubkey !== pubkey) return c;
+      const { avatar: _drop, ...rest } = c;
+      return avatar ? { ...rest, avatar } : rest;
+    };
+    this.contacts = this.contacts.map(put);
+    this.requests = this.requests.map(put);
   }
   removeContact(pubkey: string): void {
     const ids = new Set(this.convos.get(pubkey)?.byId.keys() ?? []);
@@ -346,6 +364,7 @@ export class MemoryStorage implements AppStorage {
     for (const [k, v] of this.convos) messages[k] = [...v.list];
     return {
       identity: this.identity,
+      selfAvatar: this.selfAvatar, // ADR-0154
       contacts: [...this.contacts],
       blocked: [...this.blocked],
       requests: [...this.requests],
@@ -361,6 +380,7 @@ export class MemoryStorage implements AppStorage {
   /** 以快照覆蓋內部狀態（開機從加密 blob 灌入）。 */
   importSnapshot(s: StorageSnapshot): void {
     this.identity = s.identity;
+    this.selfAvatar = s.selfAvatar ?? null; // 舊快照沒有這個欄位（ADR-0154）
     this.contacts = [...s.contacts];
     this.blocked = [...s.blocked];
     this.requests = [...(s.requests ?? [])]; // 舊快照沒有 requests（ADR-0121）

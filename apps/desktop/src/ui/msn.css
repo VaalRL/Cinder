@@ -388,6 +388,8 @@ button:disabled { opacity: .5; cursor: default; filter: none; }
 }
 .avatar-menu button { text-align: left; padding: 6px 10px; background: none; border: none; color: var(--ink); font: inherit; cursor: pointer; }
 .avatar-menu button:hover { background: var(--hover); }
+/* ADR-0154：自己的頭像選單頂端「會同步給聯絡人」提示（非按鈕，僅說明） */
+.avatar-menu__hint { padding: 5px 10px 3px; font-size: 11px; color: var(--ink-soft, #888); border-bottom: 1px solid var(--border); white-space: nowrap; }
 .bgpick { position: relative; display: inline-flex; }
 .bgpick__menu {
   position: absolute; top: calc(100% + 6px); right: 0; z-index: 30; width: 176px;

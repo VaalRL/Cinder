@@ -34,6 +34,11 @@ export interface Contact {
    * 未設＝全域預設音效；指向已移除 id 時播放端退回經典叮咚。
    */
   notifySound?: string;
+  /**
+   * 對方廣播的頭像（ADR-0154）：data URI 縮圖，收自加密個人檔（parse 側已過白名單與
+   * 大小上限）。顯示優先序：本地覆寫（ADR-0077）＞此欄位＞生成頭像。
+   */
+  avatar?: string;
   status: Status;
   /** 個人狀態訊息（暱稱後方那行字）。 */
   statusMessage: string;
@@ -215,6 +220,14 @@ export interface ChatBackend {
    * 退回全域預設。純本地偏好——**不廣播、不送對方/中繼站**。
    */
   setContactNotifySound?(pubkey: PubkeyHex, soundId: string | undefined): void;
+  /**
+   * 設定/移除自己的**廣播頭像**（ADR-0154）：`avatar` 為 data URI 縮圖（來源端 128px），
+   * 空字串或 undefined＝移除（廣播移除記號，聯絡人端清掉舊圖）。設定即比照改名
+   * （ADR-0144）全量重播個人檔。格式不合（非白名單 data URI 或超過上限）回 false 不套用。
+   */
+  setSelfAvatar?(avatar: string | undefined): boolean;
+  /** 自己目前的廣播頭像（ADR-0154）；未設定或已移除回 undefined。 */
+  selfAvatar?(): string | undefined;
   /**
    * 送出訊息；`ttlSeconds` 設定時為限時訊息（閱後即焚，NIP-40 短期過期）；
    * `mentions` 為 @提及公鑰（ADR-0050）；`replyTo` 為對話串根訊息 id（ADR-0051）。

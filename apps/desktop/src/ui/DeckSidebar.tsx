@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { ChatMessage, Contact, Group, Self, Status } from "@cinder/engine";
 import { useI18n } from "../i18n.js";
-import { Avatar } from "./Avatar.js";
+import { EditableAvatar } from "./Avatar.js";
 import { AddContact, StatusPicker } from "./ContactListWindow.js";
 import { hasRichStatus, renderStatus } from "./status-text.js";
 import { buildEntries, type SidebarEntry, visibleEntries } from "./deck-sidebar.js";
@@ -27,6 +27,8 @@ export interface DeckSidebarProps {
   onFilterLabel: (label: string | undefined) => void;
   selfNpub?: string;
   onAddContact?: (npub: string) => void;
+  /** 設定/移除自己的廣播頭像（ADR-0154）；三欄版過去連本地換圖入口都缺，一併補上。 */
+  onSelfAvatar?: (uri: string | undefined) => boolean;
 }
 
 /** 某對話最後一則訊息的預覽文字（檔案訊息以佔位表示）。 */
@@ -60,7 +62,13 @@ export function DeckSidebar(props: DeckSidebarProps): JSX.Element {
   return (
     <div className="dsb">
       <div className="dsb__me">
-        <Avatar id={props.self.pubkey} name={props.self.name} ring={`ring-${props.self.status}`} className="sm" />
+        <EditableAvatar
+          id={props.self.pubkey}
+          name={props.self.name}
+          ring={`ring-${props.self.status}`}
+          className="sm"
+          {...(props.onSelfAvatar ? { onBroadcast: props.onSelfAvatar } : {})}
+        />
         <div className="dsb__meinfo">
           <div className="dsb__mename">{props.self.name}</div>
           <StatusPicker value={props.self.status} onChange={props.onStatus} />

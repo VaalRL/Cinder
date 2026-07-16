@@ -37,6 +37,7 @@ export function exportFullSnapshot(storage: AppStorage, identity?: StoredIdentit
   }
   return {
     identity: identity ?? storage.loadIdentity(),
+    selfAvatar: storage.loadSelfAvatar(), // ADR-0154：搬家帶上自己的廣播頭像（含 "" 移除記號）
     contacts,
     blocked,
     messages,
@@ -97,6 +98,8 @@ export function parsePairBundle(json: string): PairBundle | null {
 export function applyPairBundle(storage: AppStorage, bundle: PairBundle): void {
   const s = bundle.snapshot;
   if (s.identity) storage.saveIdentity(s.identity);
+  // ADR-0154：舊捆包沒有 selfAvatar（undefined）→ 維持未設定；null 亦同（無可搬）。
+  if (typeof s.selfAvatar === "string") storage.saveSelfAvatar(s.selfAvatar);
   for (const c of s.contacts) storage.addContact(c);
   for (const g of s.groups) storage.saveGroup(g);
   for (const [, msgs] of Object.entries(s.messages)) {

@@ -510,6 +510,8 @@ export function MobileApp({
     setProfiles((p) => ({ ...p })); // 觸發重繪，讓 remembered 重新由 blob 導出
     return true;
   };
+  // 設定/移除自己的廣播頭像（ADR-0154）：引擎落地＋加密廣播；回 false＝格式拒收。
+  const changeAvatar = (uri: string | undefined): boolean => backendRef.current?.setSelfAvatar?.(uri) ?? false;
   // 更改顯示名稱（ADR-0144）：後端落地本機＋廣播給聯絡人（ADR-0061）；更新 self 與登錄/記住的 blob。
   const renameSelf = (name: string): boolean => {
     const trimmed = name.trim();
@@ -993,6 +995,12 @@ export function MobileApp({
                 })),
                 onSwitchIdentity: beginSwitch,
                 onAddIdentity: () => setScreen("addIdentity"),
+                // 頭像（ADR-0154）：真實 relay 模式才有廣播意義（示範後端僅記憶體）。
+                onAvatar: changeAvatar,
+                ...(() => {
+                  const av = backendRef.current?.selfAvatar?.();
+                  return av ? { selfAvatar: av } : {};
+                })(),
               }
             : {})}
           {...(remembered ? { onChangePassword: changePassword } : {})}

@@ -99,6 +99,8 @@ export interface ContactListProps {
   onRemoveGroupLabel?: (groupId: string, label: string) => void;
   /** 切換群組置頂。 */
   onToggleGroupPin?: (groupId: string) => void;
+  /** 設定/移除自己的廣播頭像（ADR-0154）；回 false＝引擎拒收。未提供＝僅本地（ADR-0077）。 */
+  onSelfAvatar?: (uri: string | undefined) => boolean;
 }
 
 /** MSN 風狀態選單：目前狀態的彩色圓點＋下拉，每項附對應顏色圓點（取代原生 select）。 */
@@ -199,7 +201,12 @@ export function ContactListWindow(props: ContactListProps): JSX.Element {
       ) : null}
 
       <div className="me">
-        <EditableAvatar id={self.pubkey} name={self.name} ring={`ring-${self.status}`} />
+        <EditableAvatar
+          id={self.pubkey}
+          name={self.name}
+          ring={`ring-${self.status}`}
+          {...(props.onSelfAvatar ? { onBroadcast: props.onSelfAvatar } : {})}
+        />
         <div className="me__info">
           <div className="me__name">
             <span className="me__name-txt">{self.name}</span>

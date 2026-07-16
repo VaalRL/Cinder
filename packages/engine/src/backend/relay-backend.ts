@@ -68,6 +68,7 @@ import {
   receiptOf,
   wrapProfile,
   parseProfile,
+  validAvatarDataUri,
   type CallMedia,
   type Group,
   type GroupControl,
@@ -425,10 +426,12 @@ export class RelayChatBackend implements ChatBackend {
    * 只在記憶體：session 內重連走增量，App 重啟仍全量抓一次。
    */
   private readonly inboxWatermark = new Map<string, number>();
-  private contacts: { pubkey: PubkeyHex; name: string; relayUrl?: string; alias?: string; notifySound?: string }[];
+  private contacts: { pubkey: PubkeyHex; name: string; relayUrl?: string; alias?: string; notifySound?: string; avatar?: string }[];
+  /** 自己的廣播頭像（ADR-0154）：null＝從未設定；""＝已移除（持續廣播移除記號）。 */
+  private myAvatar: string | null = null;
   private blocked: { pubkey: PubkeyHex; name: string }[];
   /** 訊息請求（ADR-0121）：陌生人傳來訊息但你還沒接受。**不是聯絡人。** */
-  private requests: { pubkey: PubkeyHex; name: string; relayUrl?: string }[];
+  private requests: { pubkey: PubkeyHex; name: string; relayUrl?: string; avatar?: string }[];
   private groups: Group[];
   private readonly transfer: WebRtcTransfer;
   private readonly call: WebRtcCall;
@@ -489,6 +492,7 @@ export class RelayChatBackend implements ChatBackend {
     this.selfNpub = npubEncode(pubkey);
     this.selfNsec = identity.nsec;
     this.contacts = storage.loadContacts();
+    this.myAvatar = storage.loadSelfAvatar(); // ADR-0154：開機廣播帶上頭像（或移除記號）
     this.blocked = storage.loadBlocked();
     this.requests = storage.loadRequests();
     this.groups = storage.loadGroups();
@@ -1192,19 +1196,31 @@ export class RelayChatBackend implements ChatBackend {
       return;
     }
 
-    const profileName = parseProfile(rumor);
-    if (profileName) {
+    const profile = parseProfile(rumor);
+    if (profile) {
       // ADR-0061：以對方自選暱稱更新顯示名稱（僅在變動時）。
       // **請求區的人也算**（ADR-0121）：否則請求清單只看得到 `npub1abc…`，使用者無從判斷；
       // 而且 `acceptRequest()` 會把那個陳舊的縮寫帶進聯絡人。
       const known =
         this.contacts.find((c) => c.pubkey === sender) ?? this.requests.find((r) => r.pubkey === sender);
-      if (known && profileName !== known.name) {
-        this.storage.updateContactName(sender, profileName);
-        this.contacts = this.storage.loadContacts();
-        this.requests = this.storage.loadRequests();
-        this.emitContacts();
-        this.emitRequests();
+      if (known) {
+        let changed = false;
+        if (profile.name && profile.name !== known.name) {
+          this.storage.updateContactName(sender, profile.name);
+          changed = true;
+        }
+        // ADR-0154：對方廣播的頭像。""＝移除記號 → 清掉；缺席＝無變更（不清不改）。
+        const incoming = profile.avatar === "" ? undefined : profile.avatar;
+        if (profile.avatar !== undefined && incoming !== known.avatar) {
+          this.storage.updateContactAvatar(sender, incoming);
+          changed = true;
+        }
+        if (changed) {
+          this.contacts = this.storage.loadContacts();
+          this.requests = this.storage.loadRequests();
+          this.emitContacts();
+          this.emitRequests();
+        }
       }
       // 尚未送過自己的個人檔給對方（例如對方單向加我）→ 回送一次，讓對方也學到我的暱稱。
       // **但只回給真正的聯絡人**（ADR-0121）：對還在請求區的陌生人回送，等於向他確認
@@ -1572,6 +1588,27 @@ export class RelayChatBackend implements ChatBackend {
     this.emitContacts();
   }
 
+  /**
+   * 設定/移除自己的廣播頭像（ADR-0154）：落地本機 → 比照改名（ADR-0144）清掉「已送過」
+   * 記號全量重播。移除持久化為 `""`（繼續廣播移除記號，晚上線的聯絡人也會清掉舊圖）。
+   * 格式不合（非白名單 data URI 或超長）回 false 不套用——縮圖產生端壞掉時的最後防線。
+   */
+  setSelfAvatar(avatar: string | undefined): boolean {
+    const next = avatar || ""; // undefined/"" 統一為移除記號
+    if (next !== "" && !validAvatarDataUri(next)) return false;
+    if (next === this.myAvatar) return true; // 無變更不重播
+    this.myAvatar = next;
+    this.storage.saveSelfAvatar(next);
+    this.profileSentTo.clear();
+    this.broadcastProfile();
+    return true;
+  }
+
+  /** 自己目前的廣播頭像（ADR-0154）；未設定或已移除回 undefined。 */
+  selfAvatar(): string | undefined {
+    return this.myAvatar || undefined;
+  }
+
   blockContact(pubkey: PubkeyHex): void {
     const existing =
       this.contacts.find((c) => c.pubkey === pubkey) ?? this.requests.find((r) => r.pubkey === pubkey);
@@ -1775,6 +1812,7 @@ export class RelayChatBackend implements ChatBackend {
         name: c.name,
         ...(c.alias ? { alias: c.alias } : {}), // ADR-0148：本地暱稱（有設才帶）
         ...(c.notifySound ? { notifySound: c.notifySound } : {}), // ADR-0149：依聯絡人通知音效
+        ...(c.avatar ? { avatar: c.avatar } : {}), // ADR-0154：對方廣播的頭像
         status: online ? payload?.s ?? "online" : "offline",
         statusMessage: (online ? payload?.m : undefined) ?? "",
         nowPlaying: (online ? payload?.np : undefined) ?? "",
@@ -1888,11 +1926,13 @@ export class RelayChatBackend implements ChatBackend {
   /** 本 session 已送過個人檔的對象（避免收到對方個人檔時來回反覆傳送）。 */
   private readonly profileSentTo = new Set<PubkeyHex>();
 
-  /** ADR-0061：把自己的顯示名稱（加密個人檔）送給某聯絡人；帶 home hint（ADR-0066）。 */
+  /** ADR-0061：把自己的顯示名稱與頭像（加密個人檔）送給某聯絡人；帶 home hint（ADR-0066）。 */
   private sendProfileTo(pubkey: PubkeyHex): void {
     this.profileSentTo.add(pubkey);
+    // 頭像（ADR-0154）：null＝從未設定 → 欄位缺席（不影響對方）；""＝移除記號照送。
+    const profile = { name: this.self.name, ...(this.myAvatar !== null ? { avatar: this.myAvatar } : {}) };
     // hint 讓「每次開機廣播」同時成為全聯絡人的路由刷新——搬家後自動改道、陳舊自癒。
-    this.publishReliable(wrapProfile(this.self.name, this.sk, pubkey, this.homeUrl ? { relayHint: this.homeUrl } : {}));
+    this.publishReliable(wrapProfile(profile, this.sk, pubkey, this.homeUrl ? { relayHint: this.homeUrl } : {}));
   }
 
   /** 廣播自己的顯示名稱給所有聯絡人（開機時，讓既有聯絡人也學到暱稱）。 */
