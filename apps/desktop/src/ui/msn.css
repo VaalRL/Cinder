@@ -672,6 +672,8 @@ button:disabled { opacity: .5; cursor: default; filter: none; }
 .chip--role { background: var(--accent); color: #fff; border-color: var(--accent); font-weight: 600; }
 /* 對話視窗對方頭像旁的標籤列（ADR-0158 經典佈局入口）：窄欄直排、置中、可換行。 */
 .pics__labels { max-width: 96px; justify-content: center; flex-wrap: wrap; gap: 3px; margin: 2px 0 6px; }
+/* 下班提示（ADR-0159）：輸入區上方的非阻斷淡色橫幅。 */
+.offhours { padding: 4px 10px; font-size: 11px; color: var(--muted); background: var(--field); border-top: 1px solid var(--border); }
 .chip--add:hover { background: var(--hover); }
 .chip__x { border: none; background: none; color: inherit; font-size: 11px; line-height: 1; padding: 0 0 0 1px; cursor: pointer; }
 .chip__x:hover { color: var(--accent); }

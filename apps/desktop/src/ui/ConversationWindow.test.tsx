@@ -305,3 +305,45 @@ describe("私有標籤與企業頭銜（ADR-0158）", () => {
     expect(html).not.toContain('data-testid="convo-labels"');
   });
 });
+
+describe("下班時間發訊提示（ADR-0159）", () => {
+  const renderHours = (extra: Record<string, unknown>) =>
+    renderToStaticMarkup(
+      <I18nProvider locale="zh-Hant">
+        <ThemeProvider>
+          <ConversationWindow
+            self={self}
+            contact={contact}
+            messages={[]}
+            typing={false}
+            nudgeSignal={0}
+            onSend={() => {}}
+            onTyping={() => {}}
+            onNudge={() => {}}
+            onClose={() => {}}
+            {...extra}
+          />
+        </ThemeProvider>
+      </I18nProvider>,
+    );
+  const wh = { start: "09:00", end: "18:00" };
+
+  it("表定時間外 → 顯示非阻斷橫幅（含班表與『照常送達』說明），輸入列仍在", () => {
+    const html = renderHours({ orgWorkHours: wh, nowMinutes: 20 * 60 });
+    expect(html).toContain('data-testid="offhours-hint"');
+    expect(html).toContain("09:00–18:00");
+    expect(html).toContain("照常送達"); // 不擋送出的說明
+    expect(html).toContain("composer"); // 輸入區照常渲染
+  });
+
+  it("上班時間內 → 不顯示；未傳班表（非組織對話）→ 不顯示", () => {
+    expect(renderHours({ orgWorkHours: wh, nowMinutes: 10 * 60 })).not.toContain('data-testid="offhours-hint"');
+    expect(renderHours({ nowMinutes: 20 * 60 })).not.toContain('data-testid="offhours-hint"');
+  });
+
+  it("跨夜班表（22:00–06:00）：中午顯示、深夜不顯示", () => {
+    const night = { start: "22:00", end: "06:00" };
+    expect(renderHours({ orgWorkHours: night, nowMinutes: 12 * 60 })).toContain('data-testid="offhours-hint"');
+    expect(renderHours({ orgWorkHours: night, nowMinutes: 23 * 60 })).not.toContain('data-testid="offhours-hint"');
+  });
+});

@@ -3,6 +3,7 @@ import {
   calcPreview,
   contentHash,
   groupReceiptMode,
+  inWorkHours,
   parseMentions,
   REACTION_EMOJIS,
   suggestMentions,
@@ -262,6 +263,13 @@ export interface ConversationProps {
   onSetNotifySound?: (pubkey: string, soundId: string | undefined) => void;
   /** 設定/移除自己的廣播頭像（ADR-0154）；接在 .pics 區自己的頭像選單上。 */
   onSelfAvatar?: (uri: string | undefined) => boolean;
+  /**
+   * 組織班表（ADR-0159）：對象是組織成員/組織群組且名冊有班表時由 App 傳入——
+   * 表定時間外於輸入區上方顯示非阻斷提示（對方通知已靜音；訊息照常送達）。
+   */
+  orgWorkHours?: { start: string; end: string };
+  /** 測試用：注入當日分鐘數（SSR 無法控制時鐘）。 */
+  nowMinutes?: number;
   /** 此聯絡人的私有標籤（ADR-0158：經典佈局入口）；與 onAddLabel 一起提供才顯示標籤列。 */
   labels?: string[];
   /** 新增私有標籤（ADR-0040 資料層；App 負責正規化/去重/持久化）。 */
@@ -334,6 +342,20 @@ export function ConversationWindow(props: ConversationProps): JSX.Element {
   // ADR-0149：依聯絡人通知音效。🔔 展開/收合選擇列；換對話即收回。
   const [soundEditing, setSoundEditing] = useState(props.initialSoundEditing ?? false);
   useEffect(() => setSoundEditing(false), [contact.pubkey]);
+  // 下班提示（ADR-0159）：僅組織對話啟用分鐘計時，跨越上下班邊界時自動出現/消失。
+  const [nowMin, setNowMin] = useState(() => {
+    const d = new Date();
+    return d.getHours() * 60 + d.getMinutes();
+  });
+  useEffect(() => {
+    if (!props.orgWorkHours) return;
+    const timer = setInterval(() => {
+      const d = new Date();
+      setNowMin(d.getHours() * 60 + d.getMinutes());
+    }, 60_000);
+    return () => clearInterval(timer);
+  }, [props.orgWorkHours]);
+  const offHours = props.orgWorkHours && !inWorkHours(props.orgWorkHours, props.nowMinutes ?? nowMin);
   // 私有標籤編輯（ADR-0158 經典佈局入口）：換聯絡人時收起。
   const [labelEditing, setLabelEditing] = useState(false);
   const [labelDraft, setLabelDraft] = useState("");
@@ -987,6 +1009,13 @@ export function ConversationWindow(props: ConversationProps): JSX.Element {
       </div>
 
       <div className="typing">{props.typing ? t("convo_typing", { name: contactLabel(contact) }) : ""}</div>
+
+      {/* 下班提示（ADR-0159）：非阻斷——訊息照常送達，只是對方通知已靜音。 */}
+      {offHours && props.orgWorkHours ? (
+        <div className="offhours" role="status" data-testid="offhours-hint">
+          🌙 {t("convo_offHours", { start: props.orgWorkHours.start, end: props.orgWorkHours.end })}
+        </div>
+      ) : null}
 
       <div className="toolbar" style={props.readOnly ? { display: "none" } : undefined}>
         <button className="tool" title={t("convo_emojiTitle")} onClick={() => setShowEmo((v) => !v)}>🙂</button>

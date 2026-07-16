@@ -2118,6 +2118,8 @@ export function App(): JSX.Element {
               {...(rewriteFn ? { onRewrite: rewriteFn } : {})}
               {...(checkAiAvailable ? { onCheckAiAvailable: checkAiAvailable } : {})}
               onSelfAvatar={broadcastSelfAvatar}
+              // 下班提示（ADR-0159）：組織群組同樣適用。
+              {...(orgInfo?.workHours && group.org ? { orgWorkHours: orgInfo.workHours } : {})}
               senderName={senderName}
               mentionCandidates={group.members
                 .filter((m) => m !== self.pubkey)
@@ -2198,6 +2200,8 @@ export function App(): JSX.Element {
               ? { onSetNotifySound: (cp: string, sid: string | undefined) => activeBackend.setContactNotifySound!(cp, sid) }
               : {})}
             onSelfAvatar={broadcastSelfAvatar}
+            // 下班提示（ADR-0159）：對象是組織成員且名冊有班表 → 表定時間外顯示非阻斷橫幅。
+            {...(orgInfo?.workHours && orgInfo.members.includes(pk) ? { orgWorkHours: orgInfo.workHours } : {})}
             // 私有標籤（ADR-0158 經典佈局入口）：資料同三欄側欄（ADR-0040，id 通用）。
             labels={labelsOf(groupPrefs, pk)}
             onAddLabel={(label: string) => updatePrefs(withLabel(groupPrefs, pk, label))}

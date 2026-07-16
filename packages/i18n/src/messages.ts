@@ -122,6 +122,7 @@ export interface Messages {
   settings_orgTitle: string;
   settings_orgTitleHint: string;
   settings_orgTitleUpdated: string;
+  convo_offHours: string;
   signIn_joinHint: string;
   signIn_joinName: string;
   signIn_joinButton: string;
@@ -706,6 +707,7 @@ const zhHant: Messages = {
   settings_orgTitle: "頭銜",
   settings_orgTitleHint: "自填頭銜（最多 24 字），會廣播給這個身分的所有聯絡人——工作身分即全組織同事看得到。留空套用＝移除。",
   settings_orgTitleUpdated: "頭銜已更新並廣播。",
+  convo_offHours: "目前非上班時間（{start}–{end}）——對方的通知已靜音，可能不會即時看到；訊息照常送達。",
   signIn_joinHint: "偵測到入職邀請：將在 {host} 建立企業成員身分，並自動向管理者提出入職。",
   signIn_joinName: "你的顯示名稱（同事會看到）",
   signIn_joinButton: "加入組織",
@@ -1261,6 +1263,7 @@ const en: Messages = {
   settings_orgTitle: "Job title",
   settings_orgTitleHint: "Self-declared title (up to 24 chars), broadcast to all contacts of this identity — on a work identity that means every colleague. Apply empty to remove.",
   settings_orgTitleUpdated: "Title updated and broadcast.",
+  convo_offHours: "Outside work hours ({start}–{end}) — their notifications are muted, so they may not see this right away. The message is still delivered.",
   signIn_joinHint: "Onboarding invite detected: an organization member identity will be created on {host} and a join request sent to the admin automatically.",
   signIn_joinName: "Your display name (visible to colleagues)",
   signIn_joinButton: "Join organization",
