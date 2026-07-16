@@ -384,3 +384,24 @@ describe("公司儲存槽設定（ADR-0161）", () => {
     expect(html).not.toContain('data-testid="settings-slot-dir"');
   });
 });
+
+describe("離職帳號接管（ADR-0163）", () => {
+  it("企業主：提供 offboarded → 顯示接管清單（接管登入＋刪除）", () => {
+    const html = render({
+      initialTab: "identity",
+      selfName: "老闆",
+      onRename: () => true,
+      offboarded: [{ pubkey: "a".repeat(64), name: "小美" }],
+      onTakeover: () => {},
+      onDeleteEscrow: () => {},
+    });
+    expect(html).toContain('data-testid="settings-offboard"');
+    expect(html).toContain("離職·小美");
+    expect(html).toContain('data-testid="offboard-takeover"');
+  });
+
+  it("無離職託管條目 → 不顯示接管區", () => {
+    const html = render({ initialTab: "identity", selfName: "老闆", onRename: () => true, offboarded: [] });
+    expect(html).not.toContain('data-testid="settings-offboard"');
+  });
+});

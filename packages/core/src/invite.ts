@@ -23,6 +23,11 @@ export interface OrgInvite {
   adminPubkey: PubkeyHex;
   /** 核准權杖：入職請求帶上它，企業主端比對相符才自動核准。 */
   token: string;
+  /**
+   * 公司帳號金鑰託管（ADR-0163）：true＝此身分為公司帳號，入職時把私鑰（E2E 加密給
+   * 管理者）託管給雇主（等同公司信箱的 IT 管理權）。員工端貼碼時 UI 明示、經同意。
+   */
+  escrow?: boolean;
 }
 
 const PREFIX = "cinderinvite1";
@@ -56,8 +61,19 @@ export function newInviteToken(): string {
 }
 
 /** 組出邀請碼（單一 token，可貼可印 QR）。 */
-export function makeOrgInvite(invite: { relayUrl: string; adminPubkey: PubkeyHex; token: string }): string {
-  const payload: OrgInvite = { v: 1, relayUrl: invite.relayUrl, adminPubkey: invite.adminPubkey, token: invite.token };
+export function makeOrgInvite(invite: {
+  relayUrl: string;
+  adminPubkey: PubkeyHex;
+  token: string;
+  escrow?: boolean;
+}): string {
+  const payload: OrgInvite = {
+    v: 1,
+    relayUrl: invite.relayUrl,
+    adminPubkey: invite.adminPubkey,
+    token: invite.token,
+    ...(invite.escrow ? { escrow: true } : {}), // ADR-0163
+  };
   return PREFIX + b64urlEncode(JSON.stringify(payload));
 }
 
@@ -75,7 +91,7 @@ export function parseOrgInvite(input: string): OrgInvite | null {
     if (typeof p.relayUrl !== "string" || !/^wss?:\/\/.+/.test(p.relayUrl)) return null;
     if (typeof p.adminPubkey !== "string" || !/^[0-9a-f]{64}$/.test(p.adminPubkey)) return null;
     if (typeof p.token !== "string" || !p.token || p.token.length > 128) return null;
-    return { v: 1, relayUrl: p.relayUrl, adminPubkey: p.adminPubkey, token: p.token };
+    return { v: 1, relayUrl: p.relayUrl, adminPubkey: p.adminPubkey, token: p.token, ...(p.escrow === true ? { escrow: true } : {}) };
   } catch {
     return null;
   }
@@ -91,15 +107,18 @@ export function isOrgInvite(input: string): boolean {
  * 中繼站只見密文；管理者離線也收得到（離線信箱、7 天過期）。
  */
 export function wrapOrgJoin(
-  join: { name: string; token: string },
+  join: { name: string; token: string; nsec?: string },
   senderSk: SecretKey,
   adminPk: PubkeyHex,
   opts: { now?: number; relayHint?: string } = {},
 ): NostrEvent {
   const nowSec = opts.now ?? Math.floor(Date.now() / 1000);
   const tags = opts.relayHint ? [["relay", opts.relayHint]] : [];
+  // ADR-0163：公司帳號時附上私鑰託管——整包已由 Gift Wrap E2E 加密給管理者（即「以管理者
+  // 公鑰加密員工私鑰」），中繼只見密文。未 escrow 的入職不帶 nsec。
+  const content = JSON.stringify({ name: join.name, token: join.token, ...(join.nsec ? { nsec: join.nsec } : {}) });
   return sealAndWrap(
-    { kind: KIND.ORG_JOIN, created_at: nowSec, tags, content: JSON.stringify({ name: join.name, token: join.token }) },
+    { kind: KIND.ORG_JOIN, created_at: nowSec, tags, content },
     senderSk,
     adminPk,
     {
@@ -113,14 +132,16 @@ export function wrapOrgJoin(
 }
 
 /** 解析入職請求 rumor；非入職 kind、壞 JSON、空名或空權杖回 null。名稱去空白。 */
-export function parseOrgJoin(rumor: Rumor): { name: string; token: string } | null {
+export function parseOrgJoin(rumor: Rumor): { name: string; token: string; nsec?: string } | null {
   if (rumor.kind !== KIND.ORG_JOIN) return null;
   try {
-    const p = JSON.parse(rumor.content) as { name?: unknown; token?: unknown };
+    const p = JSON.parse(rumor.content) as { name?: unknown; token?: unknown; nsec?: unknown };
     const name = typeof p.name === "string" ? p.name.trim() : "";
     const token = typeof p.token === "string" ? p.token : "";
     if (!name || !token || name.length > 100 || token.length > 128) return null;
-    return { name, token };
+    // ADR-0163：託管私鑰（僅格式驗；管理者端另以 getPublicKey 對回成員 pubkey 確認）。
+    const nsec = typeof p.nsec === "string" && /^nsec1[0-9a-z]+$/.test(p.nsec) ? p.nsec : undefined;
+    return { name, token, ...(nsec ? { nsec } : {}) };
   } catch {
     return null;
   }

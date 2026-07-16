@@ -208,6 +208,11 @@ export interface ChatBackendEvents {
    * 歡迎詞/基本規範、表定上下班時間。每次採用名冊時發出（含開機重放）。
    */
   onOrgInfo?(info: OrgInfo): void;
+  /**
+   * 入職金鑰託管到達（ADR-0163，管理者端）：公司帳號成員入職時把私鑰（E2E 加密給
+   * 管理者）託管過來。App 持久化，供日後離職接管。權杖已驗、nsec 已對回成員 pubkey。
+   */
+  onOrgEscrow?(escrow: { pubkey: PubkeyHex; name: string; nsec: string; relayUrl: string }): void;
   /** 收到自己的雲端快照時回報其模式（ADR-0071）：App 於本機從未設定時採用（還原接續備份習慣）。 */
   onCloudSyncMode?(mode: "basic" | "full"): void;
   /**

@@ -36,6 +36,11 @@ describe("入職邀請碼（ADR-0156）", () => {
     expect(parseOrgInvite(makeOrgInvite({ ...invite, token: "" }))).toBeNull();
   });
 
+  it("escrow 旗標（ADR-0163）：round-trip；未帶＝undefined", () => {
+    expect(parseOrgInvite(makeOrgInvite({ ...invite, escrow: true }))?.escrow).toBe(true);
+    expect(parseOrgInvite(makeOrgInvite(invite))?.escrow).toBeUndefined();
+  });
+
   it("newInviteToken：夠長、每次不同", () => {
     const a = newInviteToken();
     const b = newInviteToken();
@@ -53,6 +58,15 @@ describe("入職請求（ADR-0156，加密 rumor）", () => {
     expect(opened.rumor.kind).toBe(KIND.ORG_JOIN);
     expect(parseOrgJoin(opened.rumor)).toEqual({ name: "小美", token: "tok123" });
     expect(() => openWrap(wrap, generateSecretKey())).toThrow();
+  });
+
+  it("金鑰託管（ADR-0163）：wrapOrgJoin 帶 nsec → 管理者解出；未帶＝undefined；壞 nsec 丟棄", () => {
+    const nsec = "nsec1" + "q".repeat(58);
+    const opened = openWrap(wrapOrgJoin({ name: "小美", token: "t", nsec }, memberSk, adminPk), adminSk);
+    expect(parseOrgJoin(opened.rumor)?.nsec).toBe(nsec);
+    const none = openWrap(wrapOrgJoin({ name: "小美", token: "t" }, memberSk, adminPk), adminSk);
+    expect(parseOrgJoin(none.rumor)?.nsec).toBeUndefined();
+    expect(parseOrgJoin(rumor(KIND.ORG_JOIN, JSON.stringify({ name: "x", token: "t", nsec: "notansec" })))?.nsec).toBeUndefined();
   });
 
   it("parseOrgJoin：非入職 kind、壞 JSON、空名/空權杖 → null；名稱去空白", () => {

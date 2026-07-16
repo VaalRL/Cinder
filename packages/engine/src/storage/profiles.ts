@@ -30,6 +30,13 @@ export interface Profile {
    * 自動向管理者送入職請求（冪等）。
    */
   orgJoinToken?: string;
+  /** 公司帳號金鑰託管（ADR-0163）：來自邀請碼 escrow 旗標。入職時把 nsec 託管給雇主。 */
+  orgEscrow?: boolean;
+  /**
+   * 離職接管身分（ADR-0163）：以託管金鑰匯入的離職員工身分（僅管理者裝置存在）。
+   * 供切換器標示「離職·」並與正常身分區隔。
+   */
+  orgOffboarded?: boolean;
   /** localStorage 命名空間；空＝既有單一身分的舊鍵（ADR-0045）。 */
   namespace: string;
   /** 企業名冊管理者 hex pubkey（工作身分可選，ADR-0047）：訂閱並自動採用組織通訊錄。 */

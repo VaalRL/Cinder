@@ -166,3 +166,21 @@ describe("ADR-0156：登入畫面貼入職邀請碼 → 加入組織面板", () 
     expect(html).not.toContain('data-testid="signin-join"');
   });
 });
+
+describe("公司帳號邀請碼託管揭露（ADR-0163）", () => {
+  const render = (extra: Record<string, unknown>) =>
+    renderToStaticMarkup(
+      <I18nProvider locale="zh-Hant">
+        <ThemeProvider>
+          <SignIn onSignIn={() => {}} {...extra} />
+        </ThemeProvider>
+      </I18nProvider>,
+    );
+
+  it("escrow 邀請 → 加入面板顯示託管警語；一般邀請不顯示", () => {
+    const escrowInvite = makeOrgInvite({ relayUrl: "wss://corp.example", adminPubkey: "a".repeat(64), token: "t", escrow: true });
+    const plainInvite = makeOrgInvite({ relayUrl: "wss://corp.example", adminPubkey: "a".repeat(64), token: "t" });
+    expect(render({ onJoinOrg: () => {}, initialName: escrowInvite })).toContain('data-testid="signin-join-escrow"');
+    expect(render({ onJoinOrg: () => {}, initialName: plainInvite })).not.toContain('data-testid="signin-join-escrow"');
+  });
+});

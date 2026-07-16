@@ -1,4 +1,4 @@
-import { KIND, RelayClient, applyRosterRotations, generateSecretKey, getPublicKey, npubEncode, nsecEncode, signOrgRoster, type NostrEvent, type RelayClientHandlers, wrapGroupControl, wrapGroupMessage, wrapMessage, wrapReceipt } from "@cinder/core";
+import { KIND, RelayClient, applyRosterRotations, generateSecretKey, getPublicKey, npubEncode, nsecDecode, nsecEncode, signOrgRoster, type NostrEvent, type RelayClientHandlers, wrapGroupControl, wrapGroupMessage, wrapMessage, wrapReceipt } from "@cinder/core";
 import { createInMemoryRelayNetwork, MessageStore } from "@cinder/relay";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryStorage } from "../storage/memory.js";
@@ -292,6 +292,43 @@ describe("RelayChatBackend（真實後端 + 持久化）", () => {
     evil.stop();
     c.stop();
     owner2.stop();
+  });
+
+  it("入職金鑰託管（ADR-0163）：公司帳號成員入職 → 管理者收 onOrgEscrow（nsec 對回成員）；未 escrow 不帶；一般身分不觸發", () => {
+    const net = createInMemoryRelayNetwork();
+    const token = "tok-escrow";
+    const escrows: { pubkey: string; nsec: string; name: string }[] = [];
+    const owner = new RelayChatBackend(new MemoryStorage(), (h) => net.connect("o", h), "老闆", {
+      orgOwner: true,
+      orgInviteToken: token,
+    });
+    owner.start({ ...noop, onOrgEscrow: (e) => escrows.push({ pubkey: e.pubkey, nsec: e.nsec, name: e.name }) });
+    owner.publishRoster("小公司", [{ pubkey: owner.self.pubkey, name: "老闆" }]);
+
+    // 公司帳號成員（orgEscrow=true）→ 入職帶 nsec 託管。
+    const a = new RelayChatBackend(new MemoryStorage(), (h) => net.connect("a", h), "小美", {
+      orgAdminPubkey: owner.self.pubkey,
+      orgJoinToken: token,
+      orgEscrow: true,
+    });
+    a.start(noop);
+    expect(escrows.length).toBe(1);
+    expect(escrows[0]!.pubkey).toBe(a.self.pubkey);
+    expect(escrows[0]!.name).toBe("小美");
+    // 託管 nsec 必須對回成員 pubkey（防塞他人金鑰）。
+    expect(getPublicKey(nsecDecode(escrows[0]!.nsec))).toBe(a.self.pubkey);
+
+    // 一般工作身分（無 orgEscrow）入職 → 不託管。
+    const b = new RelayChatBackend(new MemoryStorage(), (h) => net.connect("b", h), "阿強", {
+      orgAdminPubkey: owner.self.pubkey,
+      orgJoinToken: token,
+    });
+    b.start(noop);
+    expect(escrows.length).toBe(1); // 沒有新增
+
+    a.stop();
+    b.stop();
+    owner.stop();
   });
 
   it("NIP-42 AUTH（ADR-0057）：requireAuth 下兩端仍能對話（自動認證 + 認證後訂閱）", () => {

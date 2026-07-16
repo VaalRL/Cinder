@@ -254,6 +254,10 @@ export function SignIn({
           {invite ? (
             <div className="signin__join" data-testid="signin-join">
               <p className="hint">{t("signIn_joinHint", { host: hostOf(invite.relayUrl) })}</p>
+              {/* 公司帳號金鑰託管揭露（ADR-0163）：貼碼帶 escrow 時明示，員工建立即同意。 */}
+              {invite.escrow ? (
+                <p className="settings__warn" data-testid="signin-join-escrow">{t("signIn_joinEscrow")}</p>
+              ) : null}
               <input
                 aria-label={t("signIn_joinName")}
                 value={joinName}

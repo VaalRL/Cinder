@@ -304,6 +304,8 @@ export interface RelayPoolOptions {
    * 即把 `{name, token}` 加密送給管理者（冪等；管理者對已在冊者忽略）。
    */
   orgJoinToken?: string;
+  /** 公司帳號金鑰託管（ADR-0163，成員側）：邀請碼 escrow 旗標。入職請求附上 nsec 託管。 */
+  orgEscrow?: boolean;
   /**
    * 企業主（ADR-0155/0156，管理者側）：訂閱**自己簽章**的名冊（重啟後找回 lastRoster），
    * 並開啟入職請求的自動核准管線。
@@ -388,6 +390,8 @@ export class RelayChatBackend implements ChatBackend {
   private lastRoster: OrgRosterDoc | null = null;
   /** 入職權杖（ADR-0156 成員側）：開機時名冊未含自己 → 送入職請求。 */
   private readonly orgJoinToken: string | undefined;
+  /** 公司帳號金鑰託管（ADR-0163 成員側）：true＝入職請求附上 nsec 託管給管理者。 */
+  private readonly orgEscrowSelf: boolean;
   /** 企業主旗標與核准權杖（ADR-0156 管理者側）。 */
   private readonly orgOwnerFlag: boolean;
   private readonly orgInviteToken: string | undefined;
@@ -504,6 +508,7 @@ export class RelayChatBackend implements ChatBackend {
     this.maintainerPubkey = pool?.maintainerPubkey;
     this.orgAdminPubkey = pool?.orgAdminPubkey;
     this.orgJoinToken = pool?.orgJoinToken; // ADR-0156
+    this.orgEscrowSelf = pool?.orgEscrow === true; // ADR-0163
     this.orgOwnerFlag = pool?.orgOwner === true;
     this.orgInviteToken = pool?.orgInviteToken;
     this.turnServers = pool?.turnServers;
@@ -2694,9 +2699,11 @@ export class RelayChatBackend implements ChatBackend {
     const admin = this.orgAdminPubkey;
     if (!admin || !this.orgJoinToken) return;
     if (this.lastRoster?.members.some((m) => m.pubkey === this.self.pubkey)) return; // 已在冊
+    // ADR-0163：公司帳號附上 nsec 託管（整包 E2E 給管理者）；一般工作身分不帶。
+    const escrow = this.orgEscrowSelf && this.selfNsec ? { nsec: this.selfNsec } : {};
     this.publishReliable(
       wrapOrgJoin(
-        { name: this.self.name, token: this.orgJoinToken },
+        { name: this.self.name, token: this.orgJoinToken, ...escrow },
         this.sk,
         admin,
         this.homeUrl ? { relayHint: this.homeUrl } : {},
@@ -2709,9 +2716,19 @@ export class RelayChatBackend implements ChatBackend {
    * capability，撿到管理者 npub 的人不能憑空入冊。名冊已到位 → 立即核准；
    * 首份名冊尚未發佈 → 排隊（發佈時自動併入）。
    */
-  private handleOrgJoin(sender: PubkeyHex, join: { name: string; token: string }): void {
+  private handleOrgJoin(sender: PubkeyHex, join: { name: string; token: string; nsec?: string }): void {
     if (!this.orgOwnerFlag || !this.orgInviteToken || join.token !== this.orgInviteToken) return;
     if (sender === this.self.pubkey || this.isBlocked(sender)) return;
+    // ADR-0163：金鑰託管——nsec 必須對回寄件人 pubkey（防塞入他人金鑰）；相符才交 App 持久化。
+    if (join.nsec) {
+      try {
+        if (getPublicKey(nsecDecode(join.nsec)) === sender) {
+          this.handlers?.onOrgEscrow?.({ pubkey: sender, name: join.name, nsec: join.nsec, relayUrl: this.homeUrl ?? "" });
+        }
+      } catch {
+        /* 壞 nsec：忽略託管，入職照常 */
+      }
+    }
     if (this.lastRoster) this.approveJoin(sender, join.name);
     else this.pendingJoins.set(sender, join.name);
   }

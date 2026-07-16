@@ -114,6 +114,12 @@ export interface Messages {
   addId_inviteApplied: string;
   roster_inviteHint: string;
   roster_inviteCopy: string;
+  roster_escrow: string;
+  signIn_joinEscrow: string;
+  settings_offboard: string;
+  settings_offboardHint: string;
+  offboard_takeover: string;
+  offboard_delete: string;
   roster_welcomeLabel: string;
   roster_workHoursLabel: string;
   roster_ttlLabel: string;
@@ -714,6 +720,12 @@ const zhHant: Messages = {
   addId_inviteApplied: "已套用邀請碼：建立後會自動向管理者提出入職，核准後全公司通訊錄自動同步。",
   roster_inviteHint: "入職邀請碼（含中繼站＋你的身分＋核准權杖）：員工在登入畫面或「企業成員」表單貼上即自動加入",
   roster_inviteCopy: "複製",
+  roster_escrow: "建立為公司帳號（雇主持有金鑰備份，供離職接管；員工建立時會明示同意）",
+  signIn_joinEscrow: "⚠️ 這是公司帳號：你的登入金鑰會加密託管給雇主（等同公司信箱的管理權），供你離職時由雇主接管或封鎖。個人隱私聯絡請用個人身分。",
+  settings_offboard: "離職帳號接管",
+  settings_offboardHint: "已從名冊移除（離職）且當初以公司帳號託管金鑰的成員。接管＝以其金鑰在本機登入查看中繼站仍保留的訊息；也可直接刪除託管。",
+  offboard_takeover: "接管登入",
+  offboard_delete: "刪除託管",
   roster_welcomeLabel: "歡迎詞／基本規範（可選：新成員加入時一次性顯示，並可隨時在設定 → 組織資訊查看）",
   roster_workHoursLabel: "表定上下班時間（可選：下班時間成員端自動靜音公司通知；留空＝不設）",
   roster_ttlLabel: "離線訊息保留天數（可選，1–365；留空＝預設 7 天。需自架 relay 以 MAX_TTL_DAYS 放寬上限，站方上限恆為權威）",
@@ -1285,6 +1297,12 @@ const en: Messages = {
   addId_inviteApplied: "Invite applied: after creation your join request is sent automatically; once approved the whole org address book syncs.",
   roster_inviteHint: "Onboarding invite code (relay + your identity + approval token): staff paste it at sign-in or in the “Organization member” form to join automatically",
   roster_inviteCopy: "Copy",
+  roster_escrow: "Create as a company account (employer holds a key backup for offboarding; the employee consents explicitly on creation)",
+  signIn_joinEscrow: "⚠️ This is a company account: your sign-in key is encrypted and escrowed to your employer (like company email admin rights), so they can take it over or revoke it when you leave. Use a personal identity for private contacts.",
+  settings_offboard: "Offboarded accounts",
+  settings_offboardHint: "Members removed from the roster (offboarded) whose key was escrowed as a company account. Take over = sign in with their key locally to view what the relay still holds; or delete the escrow.",
+  offboard_takeover: "Take over",
+  offboard_delete: "Delete escrow",
   roster_welcomeLabel: "Welcome message / ground rules (optional: shown once to new members, always available under Settings → Organization)",
   roster_workHoursLabel: "Scheduled work hours (optional: company notifications auto-mute off-hours on members' devices; leave blank to unset)",
   roster_ttlLabel: "Offline message retention in days (optional, 1–365; blank = default 7. Requires a self-hosted relay with MAX_TTL_DAYS raised — the relay's cap always wins)",

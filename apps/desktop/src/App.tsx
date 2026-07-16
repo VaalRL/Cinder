@@ -113,6 +113,7 @@ import {
   type SlotItem,
 } from "./ui/slot-queue.js";
 import { pickSlotFolder, setSlotDir, slotDir, storeSlotDeposit } from "./native/slot-store.js";
+import { type EscrowEntry, loadEscrow, offboardedEntries, removeEscrow, saveEscrow, upsertEscrow } from "./ui/org-escrow.js";
 import { createRinger, createRingback, DEFAULT_CHIME_ID, playChime } from "./ui/ringtone.js";
 import { CallWindow } from "./ui/CallWindow.js";
 import { ContactListWindow } from "./ui/ContactListWindow.js";
@@ -211,9 +212,9 @@ export function relayChangeTarget(p: Profile | null, url: string): string | null
   return norm;
 }
 
-/** 身分類型圖示（ADR-0155，純函式可測）：🗂 企業主 ＞ 🏢 企業成員 ＞ 👤 個人。 */
+/** 身分類型圖示（ADR-0155/0163，純函式可測）：🗄 離職接管 ＞ 🗂 企業主 ＞ 🏢 企業成員 ＞ 👤 個人。 */
 export function profileGlyph(p: Profile | null | undefined): string {
-  return p?.orgOwner ? "🗂" : p?.enterprise ? "🏢" : "👤";
+  return p?.orgOffboarded ? "🗄" : p?.orgOwner ? "🗂" : p?.enterprise ? "🏢" : "👤";
 }
 
 /**
@@ -294,6 +295,7 @@ function buildBackend(p: Profile, nsecOverride?: string, storage?: AppStorage): 
         ...cloud,
         ...(p.adminPubkey ? { orgAdminPubkey: p.adminPubkey } : {}),
         ...(p.orgJoinToken ? { orgJoinToken: p.orgJoinToken } : {}), // ADR-0156：開機自動入職
+        ...(p.orgEscrow ? { orgEscrow: true } : {}), // ADR-0163：公司帳號金鑰託管
       }
     : {
         relayUrl: p.relayUrl,
@@ -430,6 +432,12 @@ export function App(): JSX.Element {
   const [policy, setPolicy] = useState<OrgPolicy>({});
   /** 組織資訊（ADR-0157）：採用名冊時由引擎發出；null＝非工作身分或尚未採用。 */
   const [orgInfo, setOrgInfo] = useState<OrgInfo | null>(null);
+  /** 入職金鑰託管（ADR-0163，企業主端）：依作用中身分載入。 */
+  const [escrow, setEscrow] = useState<EscrowEntry[]>([]);
+  useEffect(() => {
+    const pk = profilesState.active;
+    setEscrow(pk ? loadEscrow(pk) : []);
+  }, [profilesState.active]);
   /** 公司儲存槽（ADR-0161）：員工端待存放佇列＋企業主端槽目錄（依身分載入）。 */
   const [slotQueue, setSlotQueue] = useState<SlotItem[]>([]);
   const [slotDirVal, setSlotDirVal] = useState("");
@@ -846,6 +854,15 @@ export function App(): JSX.Element {
       onConnection: setConn,
       onRelayPool: setRelays,
       onPolicy: setPolicy,
+      onOrgEscrow: (e) => {
+        // ADR-0163：公司帳號成員入職託管的私鑰 → 持久化（依管理者身分），供日後離職接管。
+        const adminPk = backend.self.pubkey;
+        setEscrow((prev) => {
+          const next = upsertEscrow(prev, { ...e, at: Date.now() });
+          saveEscrow(adminPk, next);
+          return next;
+        });
+      },
       onSlotDeposit: (sender, dep) => {
         // 公司儲存槽（ADR-0161，企業主端）：靜默落盤（無通知）；槽目錄未設＝appData 預設槽。
         const senderName = contactsRef.current.find((c) => c.pubkey === sender)?.name ?? sender.slice(0, 8);
@@ -1389,6 +1406,10 @@ export function App(): JSX.Element {
       orgOwner?: boolean | undefined;
       /** 入職權杖（ADR-0156）：來自邀請碼；成員身分開機自動向管理者提出入職。 */
       orgJoinToken?: string | undefined;
+      /** 公司帳號金鑰託管（ADR-0163）：入職時把 nsec 託管給雇主。 */
+      orgEscrow?: boolean | undefined;
+      /** 離職接管身分（ADR-0163）：以託管金鑰匯入的離職員工身分（純本機、不再入職/廣播）。 */
+      orgOffboarded?: boolean | undefined;
     } = {},
   ) => {
     const sk = opts.nsec?.trim() ? nsecDecode(opts.nsec.trim()) : generateSecretKey();
@@ -1404,7 +1425,13 @@ export function App(): JSX.Element {
       ...(admin ? { adminPubkey: admin } : {}),
       // ADR-0155/0156：企業主標記＋核准權杖（嵌入邀請碼）；成員帶入職權杖。
       ...(opts.orgOwner ? { orgOwner: true, orgInviteToken: newInviteToken() } : {}),
-      ...(enterprise && admin && opts.orgJoinToken ? { orgJoinToken: opts.orgJoinToken } : {}),
+      // 離職接管身分（ADR-0163）：不入職、不託管——只是本機查看用；故不帶 orgJoinToken/orgEscrow。
+      ...(opts.orgOffboarded
+        ? { orgOffboarded: true }
+        : {
+            ...(enterprise && admin && opts.orgJoinToken ? { orgJoinToken: opts.orgJoinToken } : {}),
+            ...(enterprise && admin && opts.orgEscrow ? { orgEscrow: true } : {}), // ADR-0163
+          }),
       ...(!isTauri() ? { locked: true } : {}), // 瀏覽器：以密碼包裹（ADR-0122）→ 下次開機走解鎖
     };
     const next = upsertProfile(profilesState, profile);
@@ -1480,7 +1507,12 @@ export function App(): JSX.Element {
         // 入職邀請（ADR-0156）：名稱欄貼碼 → 以邀請碼的 relay/管理者建立企業成員身分，
         // 並帶入職權杖（開機自動向管理者提出入職、核准後全公司通訊錄自動同步）。
         onJoinOrg={(inv, n, pw) => {
-          void addIdentity(n, inv.relayUrl, true, { adminPubkey: inv.adminPubkey, password: pw, orgJoinToken: inv.token });
+          void addIdentity(n, inv.relayUrl, true, {
+            adminPubkey: inv.adminPubkey,
+            password: pw,
+            orgJoinToken: inv.token,
+            ...(inv.escrow ? { orgEscrow: true } : {}), // ADR-0163：公司帳號託管
+          });
         }}
         {...enterNsec}
       />
@@ -1887,10 +1919,10 @@ export function App(): JSX.Element {
           onPublish={(org, members, pol, groups, profile) => activeBackend.publishRoster!(org, members, pol, groups, profile)}
           initial={activeBackend.currentRoster?.() ?? null}
           {...(() => {
-            // 入職邀請碼（ADR-0156）：relay＋自己的 pubkey＋核准權杖組成單一字串，一鍵複製。
+            // 入職邀請碼（ADR-0156）：relay＋自己的 pubkey＋核准權杖；escrow 旗標由 0163 的核取決定。
             const p = activeProfile(profilesState);
             return p?.orgOwner && p.orgInviteToken && p.relayUrl
-              ? { inviteCode: makeOrgInvite({ relayUrl: p.relayUrl, adminPubkey: p.pubkey, token: p.orgInviteToken }) }
+              ? { invite: { relayUrl: p.relayUrl, adminPubkey: p.pubkey, token: p.orgInviteToken } }
               : {};
           })()}
         />
@@ -1974,6 +2006,30 @@ export function App(): JSX.Element {
                 onSlotRemove: (id: string) => updateSlotQueue((q) => removeSlot(q, id)),
               }
             : {})}
+          {...(() => {
+            // 離職帳號接管（ADR-0163，企業主端）：託管中但不在現行名冊在世成員＝已離職。
+            const p = activeProfile(profilesState);
+            if (!p?.orgOwner) return {};
+            const live = new Set(
+              (activeBackend.currentRoster?.()?.members ?? []).filter((m) => !m.supersededBy).map((m) => m.pubkey),
+            );
+            return {
+              offboarded: offboardedEntries(escrow, live).map((e) => ({ pubkey: e.pubkey, name: e.name })),
+              onTakeover: (pubkey: string) => {
+                const e = escrow.find((x) => x.pubkey === pubkey);
+                if (!e) return;
+                // 以託管金鑰匯入為本機離職身分（不再入職/廣播）；切換過去查看 relay 殘留、之後可刪。
+                void addIdentity(`離職·${e.name}`, e.relayUrl, false, { nsec: e.nsec, orgOffboarded: true });
+              },
+              onDeleteEscrow: (pubkey: string) => {
+                setEscrow((prev) => {
+                  const next = removeEscrow(prev, pubkey);
+                  saveEscrow(backend.self.pubkey, next);
+                  return next;
+                });
+              },
+            };
+          })()}
           {...(activeProfile(profilesState)?.orgOwner && isTauri()
             ? {
                 // 儲存槽目錄（ADR-0161，企業主端）；空＝appData 預設槽。
@@ -2395,6 +2451,8 @@ export function AddIdentityModal({
       password?: string | undefined;
       /** 企業主（ADR-0155）：一般身分＋名冊管理權標記。 */
       orgOwner?: boolean | undefined;
+    orgJoinToken?: string | undefined;
+    orgEscrow?: boolean | undefined;
     },
   ) => void;
   onCancel: () => void;
@@ -2416,6 +2474,7 @@ export function AddIdentityModal({
   // 入職邀請碼（ADR-0156）：貼上即自動填 relay＋管理者並記下核准權杖（建立後自動入職）。
   const [inviteInput, setInviteInput] = useState("");
   const [inviteToken, setInviteToken] = useState("");
+  const [inviteEscrow, setInviteEscrow] = useState(false); // ADR-0163：公司帳號託管
   // 加密備份碼匯入（ADR-0070）：偵測到備份碼即要求備份密碼；信封 relay（明文）自動預填。
   const [backupPw, setBackupPw] = useState("");
   const [backupErr, setBackupErr] = useState(false);
@@ -2430,7 +2489,7 @@ export function AddIdentityModal({
     const adminPubkey = enterprise ? admin.trim() || undefined : undefined;
     const password_ = requirePassword ? password : undefined;
     const owner = mode === "owner" ? { orgOwner: true } : {}; // ADR-0155
-    const join = enterprise && inviteToken ? { orgJoinToken: inviteToken } : {}; // ADR-0156
+    const join = enterprise && inviteToken ? { orgJoinToken: inviteToken, ...(inviteEscrow ? { orgEscrow: true } : {}) } : {}; // ADR-0156/0163
     if (isCode) {
       if (!backupPw) return;
       // scrypt 解碼約需一秒（審查修正 #9）：先讓「還原中…」上畫再執行，避免無回饋凍結。
@@ -2553,11 +2612,16 @@ export function AddIdentityModal({
                         setRelayUrl(inv.relayUrl);
                         setAdmin(inv.adminPubkey);
                         setInviteToken(inv.token);
+                        setInviteEscrow(inv.escrow === true); // ADR-0163
                       }
                     }}
                   />
                   {inviteToken ? (
                     <p className="hint" data-testid="addid-invite-ok">{t("addId_inviteApplied")}</p>
+                  ) : null}
+                  {/* 公司帳號金鑰託管揭露（ADR-0163）：邀請碼帶 escrow 時明示同意。 */}
+                  {inviteEscrow ? (
+                    <p className="settings__warn" data-testid="addid-escrow">{t("signIn_joinEscrow")}</p>
                   ) : null}
                   <input
                     className="groupmodal__name"
@@ -2618,7 +2682,7 @@ export function RosterAdminModal({
   selfNpub,
   onPublish,
   onCancel,
-  inviteCode,
+  invite,
   initial,
 }: {
   selfNpub: string;
@@ -2630,13 +2694,16 @@ export function RosterAdminModal({
     profile?: { welcome?: string; workHours?: { start: string; end: string } },
   ) => string[];
   onCancel: () => void;
-  /** 入職邀請碼（ADR-0156）：一鍵複製給員工；未提供（缺權杖/relay）則不顯示。 */
-  inviteCode?: string;
+  /** 入職邀請碼組件（ADR-0156）：一鍵複製給員工；未提供（缺權杖/relay）則不顯示。 */
+  invite?: { relayUrl: string; adminPubkey: string; token: string };
   /** 現行名冊（ADR-0157）：預填組織名/成員/政策/公司設定——修一項不必重打整份。 */
   initial?: OrgRosterDoc | null;
 }): JSX.Element {
   const { t } = useI18n();
   const [inviteCopied, setInviteCopied] = useState(false);
+  // 公司帳號金鑰託管（ADR-0163）：勾選後邀請碼帶 escrow 旗標，員工端貼碼時明示並託管私鑰。
+  const [escrowInvite, setEscrowInvite] = useState(false);
+  const inviteCode = invite ? makeOrgInvite({ ...invite, ...(escrowInvite ? { escrow: true } : {}) }) : undefined;
   const copyInvite = (): void => {
     if (!inviteCode) return;
     try {
@@ -2786,6 +2853,19 @@ export function RosterAdminModal({
                   {inviteCopied ? "✓" : t("roster_inviteCopy")}
                 </button>
               </div>
+              {/* 公司帳號金鑰託管（ADR-0163）：勾選＝此邀請建立的是公司帳號、雇主持有金鑰備份。 */}
+              <label className="groupmodal__item">
+                <input
+                  type="checkbox"
+                  data-testid="roster-escrow"
+                  checked={escrowInvite}
+                  onChange={() => {
+                    setEscrowInvite((v) => !v);
+                    setInviteCopied(false);
+                  }}
+                />
+                <span>{t("roster_escrow")}</span>
+              </label>
             </>
           ) : null}
           <input className="groupmodal__name" placeholder="組織名稱" value={org} onChange={(e) => setOrg(e.target.value)} />

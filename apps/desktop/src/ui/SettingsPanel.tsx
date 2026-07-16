@@ -54,6 +54,12 @@ export interface SettingsPanelProps {
   /** 儲存槽目錄（ADR-0161，企業主端）；與 onPickSlotDir 一起提供才顯示。空＝appData 預設槽。 */
   slotDirValue?: string;
   onPickSlotDir?: () => void;
+  /** 離職帳號接管（ADR-0163，企業主端）：託管中且已離職（不在現行名冊）的條目。 */
+  offboarded?: { pubkey: string; name: string }[];
+  /** 以託管金鑰匯入為本機離職身分（查看 relay 殘留）。 */
+  onTakeover?: (pubkey: string) => void;
+  /** 刪除該託管條目。 */
+  onDeleteEscrow?: (pubkey: string) => void;
   /** 目前顯示名稱（ADR-0144）；與 onRename 一起提供才顯示改名欄。 */
   selfName?: string;
   /** 更改顯示名稱（ADR-0144）：落地本機並廣播給聯絡人（ADR-0061）。回 false＝撞本機同名（ADR-0146）。 */
@@ -961,6 +967,29 @@ export function SettingsPanel(props: SettingsPanelProps): JSX.Element {
               <button type="button" className="settings__reveal" data-testid="slot-dir-pick" onClick={props.onPickSlotDir}>
                 {t("settings_slotDirPick")}
               </button>
+            </section>
+          ) : null}
+
+          {/* 離職帳號接管（ADR-0163，企業主端）：託管中且已離職者，可接管查看或刪除。 */}
+          {tab === "identity" && props.offboarded && props.offboarded.length > 0 ? (
+            <section className="settings__sec" data-testid="settings-offboard">
+              <h4>{t("settings_offboard")}</h4>
+              <p className="hint">{t("settings_offboardHint")}</p>
+              {props.offboarded.map((o) => (
+                <div key={o.pubkey} className="settings__keyrow slotrow" data-testid="offboard-row">
+                  <span className="slotrow__name">離職·{o.name}</span>
+                  {props.onTakeover ? (
+                    <button type="button" data-testid="offboard-takeover" onClick={() => props.onTakeover!(o.pubkey)}>
+                      {t("offboard_takeover")}
+                    </button>
+                  ) : null}
+                  {props.onDeleteEscrow ? (
+                    <button type="button" className="chip__x" aria-label={t("offboard_delete")} onClick={() => props.onDeleteEscrow!(o.pubkey)}>
+                      ×
+                    </button>
+                  ) : null}
+                </div>
+              ))}
             </section>
           ) : null}
 
