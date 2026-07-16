@@ -18,6 +18,10 @@
   --field: #ffffff;
   --in-name: #b5398a;
   --code-bg: #eef2f9;
+  /* 可視高度（ADR-0150）：預設整個視窗；Tauri 自繪外框時由 .window-chrome 扣掉標題列高。
+     版面一律用 var(--viewport-h) 取代 100vh，瀏覽器版不受影響。 */
+  --titlebar-h: 32px;
+  --viewport-h: 100vh;
   font-family: "Segoe UI", "Microsoft JhengHei", system-ui, sans-serif;
 }
 
@@ -68,7 +72,7 @@ body { margin: 0; background: var(--bg-b); color: var(--ink); }
 .idbar__settings { margin-left: auto; }
 
 .desktop {
-  min-height: 100vh;
+  min-height: var(--viewport-h);
   background: radial-gradient(120% 100% at 50% 0%, var(--bg-a) 0%, var(--bg-b) 60%, var(--bg-c) 100%);
   padding: 24px;
   display: flex;
@@ -81,7 +85,7 @@ body { margin: 0; background: var(--bg-b); color: var(--ink); }
    現有浮動視窗行為完全不變；modern 模式下 .deck 以 Grid 排成 左/中/右 三欄。 */
 .desktop .deckwrap { display: contents; }
 .deck {
-  height: 100vh;
+  height: var(--viewport-h);
   background: radial-gradient(120% 100% at 50% 0%, var(--bg-a) 0%, var(--bg-b) 60%, var(--bg-c) 100%);
   display: grid;
   grid-template-columns: minmax(240px, 340px) minmax(0, 1fr) minmax(220px, 320px);
@@ -212,6 +216,40 @@ body { margin: 0; background: var(--bg-b); color: var(--ink); }
   width: 16px; height: 16px; border-radius: 3px; border: 1px solid #ffffff80;
   background: #ffffff30; color: #fff; font-size: 11px; line-height: 14px; text-align: center; cursor: pointer;
 }
+
+/* ── 自繪視窗標題列（ADR-0150）────────────────────────────────────────────────
+   decorations:false 後這條就是視窗最外框。簡約扁平風（使用者選定）：
+   單色底、無漸層，按鈕 hover 才亮底、✕ hover 紅底（桌面慣例）。 */
+.window-chrome {
+  display: flex; flex-direction: column; height: 100vh;
+  --viewport-h: calc(100vh - var(--titlebar-h)); /* 內容區的「整個畫面」少一條標題列 */
+}
+.window-chrome__body { flex: 1; min-height: 0; overflow: auto; }
+.titlebar {
+  display: flex; align-items: center; height: var(--titlebar-h); flex: none; user-select: none;
+  background: var(--panel); color: var(--ink); border-bottom: 1px solid var(--border);
+}
+.titlebar__title { font-size: 12px; font-weight: 600; padding: 0 10px; white-space: nowrap; }
+.titlebar__spacer { flex: 1; align-self: stretch; }
+.titlebar__controls { display: flex; align-self: stretch; }
+.titlebar__btn {
+  width: 42px; border: none; background: transparent; color: var(--muted);
+  font-size: 12px; line-height: 1; padding: 0; display: grid; place-items: center;
+}
+.titlebar__btn:hover { background: var(--hover); color: var(--ink); }
+.titlebar__btn--close:hover { background: #e81123; color: #fff; }
+/* 設定頁迷你預覽：縮一圈、整條不可互動。 */
+.titlebar--preview { border: 1px solid var(--border); border-radius: 6px; pointer-events: none; max-width: 320px; margin-bottom: 8px; }
+/* 視窗外框設定（位置/順序）。 */
+.titlebarset__side { display: flex; gap: 14px; font-size: 13px; }
+.titlebarset__side label { display: inline-flex; align-items: center; gap: 4px; }
+.titlebarset__order { display: flex; gap: 6px; flex-wrap: wrap; }
+.titlebarset__chip {
+  display: inline-flex; align-items: center; gap: 4px; font-size: 12px;
+  border: 1px solid var(--border); border-radius: 6px; padding: 2px 6px; background: var(--field);
+}
+.titlebarset__chip button { border: none; background: transparent; cursor: pointer; color: var(--accent); font-size: 12px; padding: 0 2px; }
+.titlebarset__chip button:hover { color: var(--ink); }
 
 /* 標題列控制（主題 + 語言） */
 .titlectl { display: flex; align-items: center; gap: 6px; }
@@ -640,7 +678,7 @@ button:disabled { opacity: .5; cursor: default; filter: none; }
 /* 彈窗一律不超過視窗：封頂高度、直向排列、標題列固定、內文區可捲（否則長設定頁會頂出畫面外）。 */
 .modal__box {
   width: 320px; max-width: calc(100vw - 24px);
-  max-height: calc(100vh - 24px);
+  max-height: calc(var(--viewport-h) - 24px);
   display: flex; flex-direction: column; overflow: hidden;
 }
 .modal__box > .win__title { flex: 0 0 auto; }

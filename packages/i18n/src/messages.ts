@@ -330,6 +330,16 @@ export interface Messages {
   chime_bell: string;
   chime_drop: string;
   chime_knock: string;
+  titlebar_minimize: string;
+  titlebar_maximize: string;
+  titlebar_close: string;
+  settings_titlebar: string;
+  titlebar_side: string;
+  titlebar_side_left: string;
+  titlebar_side_right: string;
+  titlebar_order: string;
+  titlebar_moveLeft: string;
+  titlebar_moveRight: string;
   settings_notifyHidePreview: string;
   notify_newMessage: string;
   settings_close: string;
@@ -867,6 +877,16 @@ const zhHant: Messages = {
   chime_bell: "鐘聲",
   chime_drop: "水滴",
   chime_knock: "叩叩",
+  titlebar_minimize: "最小化",
+  titlebar_maximize: "最大化／還原",
+  titlebar_close: "關閉",
+  settings_titlebar: "視窗外框",
+  titlebar_side: "按鈕位置",
+  titlebar_side_left: "靠左",
+  titlebar_side_right: "靠右",
+  titlebar_order: "按鈕順序",
+  titlebar_moveLeft: "往左移",
+  titlebar_moveRight: "往右移",
   settings_notifyHidePreview: "隱藏內文預覽（只顯示有新訊息）",
   notify_newMessage: "有新訊息",
   settings_close: "關閉",
@@ -1391,6 +1411,16 @@ const en: Messages = {
   chime_bell: "Bell",
   chime_drop: "Water drop",
   chime_knock: "Knock knock",
+  titlebar_minimize: "Minimize",
+  titlebar_maximize: "Maximize / restore",
+  titlebar_close: "Close",
+  settings_titlebar: "Window frame",
+  titlebar_side: "Button position",
+  titlebar_side_left: "Left",
+  titlebar_side_right: "Right",
+  titlebar_order: "Button order",
+  titlebar_moveLeft: "Move left",
+  titlebar_moveRight: "Move right",
   settings_notifyHidePreview: "Hide message preview (show only \"New message\")",
   notify_newMessage: "New message",
   settings_close: "Close",

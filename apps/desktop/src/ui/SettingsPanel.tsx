@@ -5,6 +5,9 @@ import { useLayout } from "../layout.js";
 import { useI18n } from "../i18n.js";
 import { useDialog } from "./Dialog.js";
 import { CHIME_PRESETS, DEFAULT_CHIME_ID, playChime } from "./ringtone.js";
+import { TitleBar } from "./TitleBar.js";
+import { moveControl, type ControlId } from "./titlebar-controls.js";
+import { useTitlebar } from "../titlebar.js";
 import { qrSvg } from "../qr.js";
 import type { CloudSyncMode } from "@cinder/engine";
 import {
@@ -57,6 +60,8 @@ export interface SettingsPanelProps {
   /** 全域通知音效（ADR-0149）：合成預設集 id；與 onSelectNotifyChime 一起提供才顯示下拉。 */
   notifyChime?: string;
   onSelectNotifyChime?: (id: string) => void;
+  /** 視窗外框設定（ADR-0150）：僅 Tauri（自繪標題列）顯示——App 以 `isTauri()` 決定。 */
+  showTitlebarSettings?: boolean;
   /** 通知隱藏內文預覽（ADR-0076）；未提供則不顯示該子開關。 */
   notifyHidePreview?: boolean;
   onToggleNotifyHidePreview?: () => void;
@@ -265,6 +270,67 @@ function LayoutSettings(): JSX.Element {
         </button>
       </div>
       <p className="settings__hint">{t("settings_layoutHint")}</p>
+    </section>
+  );
+}
+
+/** 視窗外框（ADR-0150）：自繪標題列按鈕的位置（左/右）與順序（←→ 逐顆調），附迷你預覽。 */
+function TitlebarSettings(): JSX.Element {
+  const { t } = useI18n();
+  const { controls, setControls } = useTitlebar();
+  const move = (id: ControlId, dir: -1 | 1): void =>
+    setControls({ ...controls, order: moveControl(controls.order, id, dir) });
+  const label: Record<ControlId, string> = {
+    min: `─ ${t("titlebar_minimize")}`,
+    max: `□ ${t("titlebar_maximize")}`,
+    close: `✕ ${t("titlebar_close")}`,
+  };
+  return (
+    <section className="settings__sec">
+      <h4>{t("settings_titlebar")}</h4>
+      {/* 迷你預覽：吃同一個 TitleBar 元件，改了立刻看到。 */}
+      <TitleBar preview controls={controls} actions={{ minimize() {}, toggleMaximize() {}, close() {} }} />
+      <div className="settings__field">
+        <span>{t("titlebar_side")}</span>
+        <div className="titlebarset__side" role="radiogroup" aria-label={t("titlebar_side")}>
+          <label>
+            <input
+              type="radio"
+              name="titlebar-side"
+              data-testid="titlebar-side-left"
+              checked={controls.side === "left"}
+              onChange={() => setControls({ ...controls, side: "left" })}
+            />
+            {t("titlebar_side_left")}
+          </label>
+          <label>
+            <input
+              type="radio"
+              name="titlebar-side"
+              data-testid="titlebar-side-right"
+              checked={controls.side === "right"}
+              onChange={() => setControls({ ...controls, side: "right" })}
+            />
+            {t("titlebar_side_right")}
+          </label>
+        </div>
+      </div>
+      <div className="settings__field">
+        <span>{t("titlebar_order")}</span>
+        <div className="titlebarset__order">
+          {controls.order.map((id) => (
+            <span key={id} className="titlebarset__chip" data-testid={`order-chip-${id}`}>
+              <button type="button" title={t("titlebar_moveLeft")} data-testid={`order-left-${id}`} onClick={() => move(id, -1)}>
+                ←
+              </button>
+              <span>{label[id]}</span>
+              <button type="button" title={t("titlebar_moveRight")} data-testid={`order-right-${id}`} onClick={() => move(id, 1)}>
+                →
+              </button>
+            </span>
+          ))}
+        </div>
+      </div>
     </section>
   );
 }
@@ -681,6 +747,7 @@ export function SettingsPanel(props: SettingsPanelProps): JSX.Element {
             <>
               <LayoutSettings />
               <AccentSettings />
+              {props.showTitlebarSettings ? <TitlebarSettings /> : null}
             </>
           ) : null}
           {tab === "relay" ? (

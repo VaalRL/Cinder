@@ -6,6 +6,7 @@ import { LayoutProvider } from "../layout.js";
 import { ThemeProvider } from "../theme.js";
 import { relayChangeReady, SettingsPanel, type SettingsPanelProps } from "./SettingsPanel.js";
 import { CHIME_PRESETS } from "./ringtone.js";
+import { TitlebarProvider } from "../titlebar.js";
 
 describe("relayChangeReady（更換輸入驗證）", () => {
   it("ws(s):// 且與現值不同才可套用", () => {
@@ -251,6 +252,50 @@ describe("通知音效下拉（ADR-0149）", () => {
     expect(render({ ...base, notifySound: false })).not.toContain('data-testid="notify-chime-select"');
     const { onSelectNotifyChime: _drop, ...noSelect } = base;
     expect(render(noSelect)).not.toContain('data-testid="notify-chime-select"');
+  });
+});
+
+describe("視窗外框設定（ADR-0150）", () => {
+  beforeEach(() => {
+    (globalThis as Record<string, unknown>).window = { matchMedia: () => ({ matches: false }) };
+    (globalThis as Record<string, unknown>).localStorage = { getItem: () => null };
+  });
+  afterEach(() => {
+    delete (globalThis as Record<string, unknown>).window;
+    delete (globalThis as Record<string, unknown>).localStorage;
+  });
+
+  const renderWithTitlebar = (extra: Partial<SettingsPanelProps> = {}): string =>
+    renderToStaticMarkup(
+      <ThemeProvider>
+        <AccentProvider>
+          <LayoutProvider>
+            <TitlebarProvider>
+              <I18nProvider locale="zh-Hant">
+                <SettingsPanel relayUrl="wss://x" notifications={false} onToggleNotifications={() => {}} onClose={() => {}} {...extra} />
+              </I18nProvider>
+            </TitlebarProvider>
+          </LayoutProvider>
+        </AccentProvider>
+      </ThemeProvider>,
+    );
+
+  it("showTitlebarSettings（Tauri）→ 外觀分頁有迷你預覽＋左右位置＋順序 chips ←→", () => {
+    const out = renderWithTitlebar({ showTitlebarSettings: true });
+    expect(out).toContain("titlebar--preview"); // 迷你預覽
+    expect(out).toContain('data-testid="titlebar-side-left"');
+    expect(out).toContain('data-testid="titlebar-side-right"');
+    for (const id of ["min", "max", "close"]) {
+      expect(out).toContain(`data-testid="order-chip-${id}"`);
+      expect(out).toContain(`data-testid="order-left-${id}"`);
+      expect(out).toContain(`data-testid="order-right-${id}"`);
+    }
+  });
+
+  it("未開 showTitlebarSettings（瀏覽器版）→ 整區不顯示", () => {
+    const out = renderWithTitlebar();
+    expect(out).not.toContain("titlebar--preview");
+    expect(out).not.toContain('data-testid="order-chip-min"');
   });
 });
 

@@ -3,5 +3,13 @@
   "identifier": "default",
   "description": "Cinder 主視窗預設能力（最小權限：僅核心 API）",
   "windows": ["main"],
-  "permissions": ["core:default", "notification:default"]
+  "permissions": [
+    "core:default",
+    "notification:default",
+    "core:window:allow-minimize",
+    "core:window:allow-toggle-maximize",
+    "core:window:allow-close",
+    "core:window:allow-start-dragging",
+    "core:window:allow-is-maximized"
+  ]
 }

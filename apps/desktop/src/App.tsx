@@ -1865,6 +1865,7 @@ export function App(): JSX.Element {
           onToggleNotifySound={toggleNotifySound}
           notifyChime={notifyChime}
           onSelectNotifyChime={selectNotifyChime}
+          showTitlebarSettings={isTauri()}
           notifyHidePreview={notifyHidePreview}
           onToggleNotifyHidePreview={toggleNotifyHidePreview}
           readReceipts={readReceipts}
