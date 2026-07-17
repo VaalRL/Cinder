@@ -250,6 +250,7 @@ export function ConversationScreen({
   onSetChatBg,
   onClearChatBg,
   onSendFile,
+  onDepositSlot,
   onStartCall,
   onNudge,
   onHistory,
@@ -283,6 +284,8 @@ export function ConversationScreen({
   groupMembers?: string[];
   /** 傳送檔案（ADR-0100）；未提供則不顯示 📎（如示範模式）。 */
   onSendFile?: () => void;
+  /** 存入公司儲存槽（ADR-0161／0177，員工端）；未提供則不顯示 🗄（非企業成員）。 */
+  onDepositSlot?: () => void;
   /** 發起通話（ADR-0101）；未提供則不顯示通話鈕（示範模式／平台無 WebRTC）。 */
   onStartCall?: (media: CallMedia) => void;
   /** 敲一下（ADR-0114）：1:1 才有；過去行動端只能收、不能發。 */
@@ -961,6 +964,12 @@ export function ConversationScreen({
         {onSendFile ? (
           <Pressable style={styles.attach} accessibilityRole="button" aria-label={t("convo_attach")} onPress={onSendFile}>
             <Text style={styles.attachText}>📎</Text>
+          </Pressable>
+        ) : null}
+        {/* 存入公司儲存槽（ADR-0161／0177）：企業成員才有；挑檔 → 佇列 → 企業主上線背景送。 */}
+        {onDepositSlot ? (
+          <Pressable style={styles.attach} accessibilityRole="button" aria-label={t("slot_deposit")} testID="deposit-slot" onPress={onDepositSlot}>
+            <Text style={styles.attachText}>🗄</Text>
           </Pressable>
         ) : null}
         {/* 貼圖（ADR-0137）：切換貼圖面板。 */}

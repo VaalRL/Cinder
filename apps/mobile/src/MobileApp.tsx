@@ -54,6 +54,7 @@ import {
 } from "./identities.js";
 import { createBackend } from "./backend.js";
 import { loadPresence, savePresence } from "./presence.js";
+import { enqueueSlot, type MobileSlotItem, nextPending, setSlotStatus } from "./slot-queue.js";
 import { chatList } from "./chat-list.js";
 import { BottomTabs, type Tab } from "./screens/BottomTabs.js";
 import { ChatsListScreen } from "./screens/ChatsListScreen.js";
@@ -362,6 +363,10 @@ export function MobileApp({
     setOrgTitle(backend.selfTitle?.() ?? ""); // ADR-0170：還原這個身分已廣播的頭銜（供設定頁預填）
     // ADR-0172／0174：企業身分旗標＝配對捆包 org 或已記住登錄的 org（跨重啟持久）；一般身分＝false。
     setSelfEnterprise(!!(org?.enterprise || org?.orgOwner));
+    // ADR-0177：公司儲存槽存放對象＝企業主 pubkey（成員才有）；換身分清空 session 佇列。
+    setSelfAdmin(org?.adminPubkey ?? null);
+    setSlotQueue([]);
+    slotBusyRef.current = false;
     setConnState("connecting"); // ADR-0169：換身分重連，先回連線中，待後端回報 online
     // ADR-0169 審查修正：換身分清掉殘留的 typing 狀態與計時器（衛生性，避免舊值誤帶到新身分）。
     setTypingFrom(null);
@@ -730,6 +735,11 @@ export function MobileApp({
    * 非企業身分（一般個人、示範）恒為 false → 不顯示頭銜編輯（與桌面設閘語意一致）。
    */
   const [selfEnterprise, setSelfEnterprise] = useState(false);
+  /** 企業主 pubkey（ADR-0177）：公司儲存槽的存放對象；企業成員（有 adminPubkey）才有。 */
+  const [selfAdmin, setSelfAdmin] = useState<string | null>(null);
+  /** 公司儲存槽佇列（ADR-0161／0177，員工端）：session 內待傳；企業主上線由背景效果 P2P 逐一送。 */
+  const [slotQueue, setSlotQueue] = useState<MobileSlotItem[]>([]);
+  const slotBusyRef = useRef(false);
   /** 企業自報頭銜（ADR-0158；行動端於 ADR-0170 補齊）：≤24 字，變更即全量重播個人檔給聯絡人。 */
   const [orgTitle, setOrgTitle] = useState("");
   const changeOrgTitle = (title: string): void => {
@@ -776,6 +786,28 @@ export function MobileApp({
     if (typingTimer.current) clearTimeout(typingTimer.current);
     if (statusBcTimer.current) clearTimeout(statusBcTimer.current);
   }, []);
+  // 公司儲存槽背景傳輸（ADR-0161／0177，員工端）：企業主在線且佇列有待傳 → 逐一 P2P 送出。
+  // 位元組已在佇列項（行動端 web 無路徑可重讀），故不需 async 讀檔（與桌面差異）。
+  useEffect(() => {
+    const admin = selfAdmin;
+    const b = backendRef.current;
+    if (!admin || !b?.depositFile || slotBusyRef.current) return;
+    // 企業主必須在線（P2P 直送，不經中繼儲存）。admin 由名冊採用後成為聯絡人（ADR-0173）。
+    if (!contacts.some((c) => c.pubkey === admin && c.status !== "offline")) return;
+    const item = nextPending(slotQueue);
+    if (!item) return;
+    slotBusyRef.current = true;
+    setSlotQueue((q) => setSlotStatus(q, item.id, "sending"));
+    try {
+      b.depositFile(admin, { name: item.name, mime: item.mime, bytes: item.bytes }, item.origin);
+      setSlotQueue((q) => setSlotStatus(q, item.id, "done")); // 已交 P2P（與桌面同語意，不追完成）
+    } catch {
+      setSlotQueue((q) => setSlotStatus(q, item.id, "failed"));
+    } finally {
+      slotBusyRef.current = false;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [contacts, slotQueue, selfAdmin]);
   /** 與中繼站連線狀態（ADR-0034）：非 online 時頂端顯示細條（連線中/離線）。 */
   const [connState, setConnState] = useState<ConnectionState>("connecting");
   /**
@@ -814,6 +846,19 @@ export function MobileApp({
       const thumb = await makeThumbnail(f.bytes, f.mime); // ADR-0102：只存本機、不外送
       // 行動端目前用 DOM <input>（無完整路徑）→ 不帶 savedPath；真 RN 的 document picker 會給 URI（ADR-0103）。
       b.sendFile?.(pk, f, thumb ? { thumb } : {});
+    });
+  };
+  /**
+   * 存入公司儲存槽（ADR-0161／0177，員工端）：**主動**挑一個檔 → 入 session 佇列（不是監控）。
+   * 企業主上線由背景效果逐一 P2P 送出；企業主端靜默落盤（ADR-0161，不跳通知）。`origin`＝來源
+   * 對話顯示名（供企業主端歸檔標註）。
+   */
+  const depositToSlot = (origin: string): void => {
+    void pickFile().then((f) => {
+      if (!f) return;
+      setSlotQueue((q) =>
+        enqueueSlot(q, { name: f.name, size: f.bytes.length, mime: f.mime, origin, bytes: f.bytes, queuedAt: Date.now() }),
+      );
     });
   };
 
@@ -1083,6 +1128,10 @@ export function MobileApp({
         : {};
     // 檔案：真實 relay 才有 P2P 傳輸（示範後端無 sendFile）。
     const fileProps = backendRef.current?.sendFile ? { onSendFile: sendFileFromPicker } : {};
+    // 公司儲存槽（ADR-0161／0177）：企業成員（有企業主 pubkey）＋後端支援才顯示 🗄；origin＝對話名。
+    const convoName = group ? group.name : contact ? contactLabel(contact) : activeId;
+    const slotProps =
+      selfEnterprise && selfAdmin && backendRef.current?.depositFile ? { onDepositSlot: () => depositToSlot(convoName) } : {};
     // 通話：需真實後端＋平台具備 WebRTC（ADR-0101）。
     const callProps = backendRef.current?.startCall && hasCallSupport() ? { onStartCall: startCall } : {};
     return (
@@ -1111,6 +1160,7 @@ export function MobileApp({
           {...groupProps}
           {...dmMentionProps}
           {...fileProps}
+          {...slotProps}
           {...callProps}
           {...themeProps}
         />

@@ -64,3 +64,15 @@ describe("行動端企業頭銜 chip（ADR-0170）", () => {
     expect(html).not.toContain('data-testid="convo-title-chip"');
   });
 });
+
+describe("行動端存入公司儲存槽鈕（ADR-0177）", () => {
+  it("提供 onDepositSlot（企業成員）→ 顯示 🗄 存入鈕", () => {
+    const html = renderToStaticMarkup(<ConversationScreen {...base} onDepositSlot={() => {}} />);
+    expect(html).toContain('data-testid="deposit-slot"');
+  });
+
+  it("未提供（非企業成員）→ 不顯示存入鈕", () => {
+    const html = renderToStaticMarkup(<ConversationScreen {...base} />);
+    expect(html).not.toContain('data-testid="deposit-slot"');
+  });
+});
