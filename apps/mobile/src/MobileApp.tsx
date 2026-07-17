@@ -41,6 +41,7 @@ import {
   isOwnIdentity,
   loadIdentities,
   nameTaken,
+  profileOrg,
   type ProfilesState,
   putRemembered,
   rememberInProfile,
@@ -284,8 +285,15 @@ export function MobileApp({
 
   // 配對搬家匯入（新機／ADR-0125）：套用全量捆包（身分＋聯絡人＋歷史＋群組）而非只還原身分。
   // 過去這裡只 `onSignIn(identity)` → 換手機後聯絡人與訊息全部不見，只搬了個空身分。
-  const importFromOldDevice = (bundle: PairBundle, identity: MobileIdentity): void => {
+  const importFromOldDevice = (bundle: PairBundle, identity: MobileIdentity, password?: string): void => {
     if (bundle.cloudSync) changeCloudSync(bundle.cloudSync); // 接續舊機的備份習慣（ADR-0071）
+    // ADR-0174：有密碼＝記住此裝置（連同企業身分精華 bundle.org 寫進登錄）→ 跨重啟解鎖即以企業身分
+    // 啟動；空＝這次是暫時 session（沿用既有行為，重啟需重新配對）。remember 用真 nsec，須在
+    // signInWith 抹掉 store 的 nsec **之前**（remembered blob 與 store 是分開的兩份）。
+    if (password) {
+      const res = rememberInProfile(profiles, identity, password, bundle.relayUrl, bundle.org);
+      if (res) setProfiles(res.state);
+    }
     signInWith(identity, bundle);
   };
 
@@ -314,20 +322,23 @@ export function MobileApp({
     // ADR-0164／0168：本機記住的上次手動狀態＋自訂文字，上線即還原（隱身另有攔截，不經此）。
     const pref = loadPresence(identity.pubkey);
     // ADR-0100：帶上錨點/簽章清單（backend.ts 內）與加密雲端備份模式。
+    // ADR-0173／0174：企業身分精華——配對當下取捆包 org；重啟解鎖則取**已記住的登錄 Profile**
+    // （rememberInProfile 已把 org 寫進登錄）＝跨重啟持久。兩者皆無＝一般身分。
+    const org = bundle?.org ?? profileOrg(profiles.profiles.find((p) => p.pubkey === identity.pubkey));
     const backend = createBackend(identity, relayUrl, {
       store: store ?? undefined,
       cloudSync,
       ...(pref ? { initialStatus: pref.status, initialStatusMessage: pref.statusMessage } : {}),
-      // ADR-0173：配對搬來的企業身分 → 後端唯讀採用公司名冊（同事/allowlist/政策/組織資訊）。
-      ...(bundle?.org ? { org: bundle.org } : {}),
+      // ADR-0173：企業身分 → 後端唯讀採用公司名冊（同事/allowlist/政策/組織資訊）。
+      ...(org ? { org } : {}),
     });
     backendRef.current = backend;
     setSelfStatus(pref?.status ?? "online");
     setSelfStatusMessage(pref?.statusMessage ?? "");
     setSelfNowPlaying("");
     setOrgTitle(backend.selfTitle?.() ?? ""); // ADR-0170：還原這個身分已廣播的頭銜（供設定頁預填）
-    // ADR-0172：企業身分旗標只從配對搬家捆包的 org 精華取得（行動端無入職流程）；一般身分＝false。
-    setSelfEnterprise(!!(bundle?.org?.enterprise || bundle?.org?.orgOwner));
+    // ADR-0172／0174：企業身分旗標＝配對捆包 org 或已記住登錄的 org（跨重啟持久）；一般身分＝false。
+    setSelfEnterprise(!!(org?.enterprise || org?.orgOwner));
     setConnState("connecting"); // ADR-0169：換身分重連，先回連線中，待後端回報 online
     // ADR-0169 審查修正：換身分清掉殘留的 typing 狀態與計時器（衛生性，避免舊值誤帶到新身分）。
     setTypingFrom(null);

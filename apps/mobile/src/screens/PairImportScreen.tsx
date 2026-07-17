@@ -38,6 +38,7 @@ function makeStyles(tk: ThemeTokens) {
       fontSize: 14,
     },
     relay: { fontSize: 11, color: tk.muted },
+    hint: { fontSize: 11, color: tk.muted, marginTop: 2 },
     sasWrap: { alignItems: "center", marginTop: 6, gap: 2 },
     sasHint: { fontSize: 12, color: tk.muted, textAlign: "center" },
     sas: { fontSize: 34, fontWeight: "700", color: tk.accent, letterSpacing: 8 },
@@ -65,8 +66,11 @@ export function PairImportScreen({
    *
    * 過去這裡是 `onSignIn(identity)`——只還原身分，聯絡人與訊息全部沒搬過去，換手機後只剩空殼。
    * 現在把整個 bundle 交給呼叫端 `applyPairBundle`。
+   *
+   * `password`（ADR-0174）非空＝記住此裝置（以 Argon2id 包裹 nsec 落地＋登錄），下次開 App 解鎖
+   * 即以同身分（含企業脈絡）啟動；空＝暫時 session（重啟需重新配對）。
    */
-  onImport: (bundle: PairBundle, identity: MobileIdentity) => void;
+  onImport: (bundle: PairBundle, identity: MobileIdentity, password?: string) => void;
   /** 切換到 nsec 匯入（A）；未提供＝不顯示入口。 */
   onUseNsec?: () => void;
   locale?: Locale;
@@ -77,6 +81,7 @@ export function PairImportScreen({
   const tk = useMemo(() => resolveTheme({ theme, accent, accent2 }), [theme, accent, accent2]);
   const styles = useMemo(() => makeStyles(tk), [tk]);
   const [code, setCode] = useState("");
+  const [password, setPassword] = useState(""); // ADR-0174：留空＝不記住（暫時 session）
   const [sas, setSas] = useState("");
   const [error, setError] = useState<MessageKey | null>(null);
   const [busy, setBusy] = useState(false);
@@ -101,7 +106,7 @@ export function PairImportScreen({
           setBusy(false);
           return;
         }
-        onImport(bundle, r.identity); // 交出整個捆包（ADR-0125），不再只給 identity
+        onImport(bundle, r.identity, password.trim() || undefined); // 捆包＋（可選）記住密碼（ADR-0125／0174）
       })
       .catch((e: unknown) => {
         // 對方拒絕（SAS 不符→可能中間人）與碼過期/格式錯要分開提示，安全訊號不可被抹平。
@@ -134,6 +139,23 @@ export function PairImportScreen({
             {T("mobilePair_relayVia")}: {preview.relayHost}
           </Text>
         ) : null}
+
+        {/* 記住此裝置（ADR-0174）：留空＝暫時 session；設密碼＝跨重啟持久（含企業身分脈絡）。 */}
+        <Text style={styles.label}>{T("remember_label")}</Text>
+        <TextInput
+          style={styles.input}
+          value={password}
+          onChangeText={setPassword}
+          placeholder={T("remember_placeholder")}
+          placeholderTextColor={tk.muted}
+          secureTextEntry
+          autoCapitalize="none"
+          autoCorrect={false}
+          editable={!busy}
+          aria-label={T("remember_label")}
+          testID="pair-remember-password"
+        />
+        <Text style={styles.hint}>{T("remember_hint")}</Text>
 
         {sas ? (
           <View style={styles.sasWrap}>

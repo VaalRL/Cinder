@@ -10,6 +10,7 @@ import {
   getRemembered,
   isOwnIdentity,
   loadIdentities,
+  profileOrg,
   putRemembered,
   rememberInProfile,
   removeIdentity,
@@ -126,6 +127,38 @@ describe("rememberInProfile / switchActive / removeIdentity（ADR-0138）", () =
     expect(s.profiles.map((p) => p.pubkey)).toEqual([a.pubkey]);
     expect(s.active).toBe(a.pubkey);
     expect(getRemembered(b.pubkey)).toBeNull(); // blob 也刪了
+  });
+});
+
+describe("企業身分跨重啟持久（ADR-0174）", () => {
+  it("profileOrg：純函式抽取——有企業欄位回精華、一般身分回 undefined", () => {
+    expect(
+      profileOrg({ pubkey: "p", name: "n", relayUrl: RELAY, enterprise: true, orgOwner: true, adminPubkey: "admin", orgJoinToken: "tok", orgEscrow: true, namespace: "p" }),
+    ).toEqual({ enterprise: true, orgOwner: true, adminPubkey: "admin", orgJoinToken: "tok", orgEscrow: true });
+    expect(profileOrg({ pubkey: "p", name: "n", relayUrl: RELAY, enterprise: false, namespace: "p" })).toBeUndefined();
+    expect(profileOrg(null)).toBeUndefined();
+  });
+
+  it("rememberInProfile 帶 org → 登錄 Profile 寫入企業旗標（重啟解鎖即回得出企業身分）", () => {
+    const a = mkIdentity("員工");
+    const s = rememberInProfile({ profiles: [], active: null }, a, "pw", "wss://company.relay", {
+      enterprise: true,
+      adminPubkey: "admin_pk",
+      orgJoinToken: "jt",
+    })!.state;
+    const p = activeProfile(s)!;
+    expect(p.enterprise).toBe(true);
+    expect(p.adminPubkey).toBe("admin_pk");
+    expect(p.orgJoinToken).toBe("jt");
+    // 往返：登錄的 Profile 抽回的 org 與存入一致 → signInWith 據此以企業身分建後端
+    expect(profileOrg(p)).toEqual({ enterprise: true, adminPubkey: "admin_pk", orgJoinToken: "jt" });
+  });
+
+  it("rememberInProfile 不帶 org → 一般身分（enterprise false、profileOrg undefined）", () => {
+    const a = mkIdentity("個人");
+    const p = activeProfile(rememberInProfile({ profiles: [], active: null }, a, "pw", RELAY)!.state)!;
+    expect(p.enterprise).toBe(false);
+    expect(profileOrg(p)).toBeUndefined();
   });
 });
 

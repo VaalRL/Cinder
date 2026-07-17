@@ -11,6 +11,7 @@ import {
   activeProfile,
   loadProfiles,
   nameTaken,
+  type PairBundleOrg,
   type Profile,
   type ProfilesState,
   removeProfile,
@@ -106,19 +107,37 @@ export function rememberInProfile(
   identity: MobileIdentity,
   password: string,
   relayUrl: string,
+  org?: PairBundleOrg,
 ): { state: ProfilesState; remembered: RememberedIdentity } | null {
   const r = rememberIdentity(identity, password);
   if (!r || !putRemembered(r)) return null;
+  // ADR-0174：企業身分精華（配對搬來）寫進登錄，讓下次解鎖即以企業身分啟動（跨重啟持久）。
   const profile: Profile = {
     pubkey: identity.pubkey,
     name: identity.name,
     relayUrl,
-    enterprise: false,
+    enterprise: !!org?.enterprise,
+    ...(org?.orgOwner ? { orgOwner: true } : {}),
+    ...(org?.adminPubkey ? { adminPubkey: org.adminPubkey } : {}),
+    ...(org?.orgJoinToken ? { orgJoinToken: org.orgJoinToken } : {}),
+    ...(org?.orgEscrow ? { orgEscrow: true } : {}),
     namespace: identity.pubkey,
   };
   const next = upsertProfile(state, profile);
   saveProfiles(next);
   return { state: next, remembered: r };
+}
+
+/** 從登錄 Profile 取回企業身分精華（ADR-0174）：供重啟解鎖後建後端用。無企業欄位回 undefined。 */
+export function profileOrg(p: Profile | undefined | null): PairBundleOrg | undefined {
+  if (!p) return undefined;
+  const org: PairBundleOrg = {};
+  if (p.enterprise) org.enterprise = true;
+  if (p.orgOwner) org.orgOwner = true;
+  if (p.adminPubkey) org.adminPubkey = p.adminPubkey;
+  if (p.orgJoinToken) org.orgJoinToken = p.orgJoinToken;
+  if (p.orgEscrow) org.orgEscrow = true;
+  return Object.keys(org).length > 0 ? org : undefined;
 }
 
 /** 移除一個身分（登出/刪除）：刪 blob＋登錄移除；回新狀態（作用中改指剩餘第一個或 null）。 */
