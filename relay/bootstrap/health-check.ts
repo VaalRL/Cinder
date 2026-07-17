@@ -10,8 +10,8 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import { evaluateAdmission, listEntries, nsecDecode, signRelayList, type RelayEntry, type RelayListDoc } from "@cinder/core";
-import { runConformance } from "./conformance.js";
+import { evaluateAdmission, generateSecretKey, listEntries, nsecDecode, signRelayList, type RelayEntry, type RelayListDoc } from "@cinder/core";
+import { autoAuth, parse, runConformance, withWs } from "./conformance.js";
 
 // 打包後執行檔位於 relay/dist/；清單常駐 relay/bootstrap/。
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -19,7 +19,6 @@ const BOOTSTRAP_DIR = join(HERE, "..", "bootstrap");
 const LIST_PATH = join(BOOTSTRAP_DIR, "relays.json");
 const EVENT_PATH = join(BOOTSTRAP_DIR, "relay-list-event.json");
 const HISTORY_PATH = join(BOOTSTRAP_DIR, "health-history.json");
-const PROBE_TIMEOUT_MS = 8000;
 const UPTIME_MIN_SAMPLES = 12; // 少於此探測次數＝uptime 資料不足（維持試用）
 const UPTIME_CAP = 720; // 滾動窗上限（≈30 天/時）；到頂折半保留比例
 
@@ -39,49 +38,31 @@ function writeHistory(h: Record<string, UptimeRec>): void {
   writeFileSync(HISTORY_PATH, `${JSON.stringify(h, null, 2)}\n`);
 }
 
-/** 發佈一個事件到 relay：送 `["EVENT", …]`，等 OK 或逾時。 */
-async function publishEvent(url: string, event: unknown): Promise<boolean> {
+/**
+ * 發佈一個事件到 relay：**先做 NIP-42 AUTH**，再送 `["EVENT", …]`，等 OK 或逾時。
+ *
+ * 🔴 requireAuth 中繼的 EVENT 也要先認證（relay-core.ts：未認證回 `["OK", id, false, "auth-required…"]`）。
+ * 過去這支直接送 EVENT → 被回 OK false → 帶內發佈永遠失敗。改用與探測同一套 `withWs`+`autoAuth`：
+ * 臨時金鑰認證即可（公共站不限制事件作者，AUTH 只證明握有某把鑰）。不要求認證的中繼照走（500ms 後直送）。
+ */
+function publishEvent(url: string, event: unknown): Promise<boolean> {
   const id = (event as { id?: string }).id;
-  return new Promise((resolve) => {
-    let done = false;
-    const finish = (ok: boolean) => {
-      if (done) return;
-      done = true;
-      try {
-        ws.close();
-      } catch {
-        /* 忽略 */
-      }
-      resolve(ok);
+  const sk = generateSecretKey();
+  return withWs(url, false, (ws, done) => {
+    const onAuth = autoAuth(ws, url, sk);
+    let sent = false;
+    const send = () => {
+      if (sent) return;
+      sent = true;
+      ws.send(JSON.stringify(["EVENT", event]));
     };
-    const timer = setTimeout(() => finish(false), PROBE_TIMEOUT_MS);
-    let ws: WebSocket;
-    try {
-      ws = new WebSocket(url);
-    } catch {
-      clearTimeout(timer);
-      resolve(false);
-      return;
-    }
-    ws.addEventListener("open", () => ws.send(JSON.stringify(["EVENT", event])));
+    ws.addEventListener("open", () => setTimeout(send, 500)); // 不要求認證的中繼：直接送
     ws.addEventListener("message", (e) => {
-      try {
-        const msg = JSON.parse(typeof e.data === "string" ? e.data : "");
-        if (Array.isArray(msg) && msg[0] === "OK" && msg[1] === id) {
-          clearTimeout(timer);
-          finish(Boolean(msg[2]));
-        }
-      } catch {
-        /* 忽略 */
-      }
-    });
-    ws.addEventListener("error", () => {
-      clearTimeout(timer);
-      finish(false);
-    });
-    ws.addEventListener("close", () => {
-      clearTimeout(timer);
-      finish(false);
+      const m = parse(e.data);
+      if (!m) return;
+      onAuth(m); // requireAuth 中繼：先回應 AUTH 挑戰
+      if (m[0] === "OK" && m[1] !== id && !sent) send(); // AUTH 成功 → 立刻發佈（不等 500ms）
+      if (m[0] === "OK" && m[1] === id) done(Boolean(m[2])); // 我們事件的發佈結果
     });
   });
 }

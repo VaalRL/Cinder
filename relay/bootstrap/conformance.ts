@@ -28,7 +28,7 @@ const nowSec = () => Math.floor(Date.now() / 1000);
  *
  * NIP-42 **不需要身分**——它只證明你掌握某把私鑰。所以探測當場產一把臨時金鑰即可。
  */
-function autoAuth(ws: WebSocket, url: string, sk: SecretKey): (m: unknown[]) => void {
+export function autoAuth(ws: WebSocket, url: string, sk: SecretKey): (m: unknown[]) => void {
   return (m) => {
     if (m[0] === "AUTH" && typeof m[1] === "string") {
       ws.send(JSON.stringify(["AUTH", buildAuthEvent(m[1], url, sk)]));
@@ -37,7 +37,7 @@ function autoAuth(ws: WebSocket, url: string, sk: SecretKey): (m: unknown[]) => 
 }
 
 /** 開 WS 跑一段互動，統一逾時/清理；逾時或錯誤回 fallback。 */
-function withWs<T>(url: string, fallback: T, run: (ws: WebSocket, done: (v: T) => void) => void): Promise<T> {
+export function withWs<T>(url: string, fallback: T, run: (ws: WebSocket, done: (v: T) => void) => void): Promise<T> {
   return new Promise((resolve) => {
     let settled = false;
     let ws: WebSocket;
@@ -66,7 +66,7 @@ function withWs<T>(url: string, fallback: T, run: (ws: WebSocket, done: (v: T) =
   });
 }
 
-function parse(data: unknown): unknown[] | null {
+export function parse(data: unknown): unknown[] | null {
   try {
     const m = JSON.parse(typeof data === "string" ? data : "");
     return Array.isArray(m) ? m : null;
