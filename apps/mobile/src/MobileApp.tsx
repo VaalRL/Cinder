@@ -328,6 +328,7 @@ export function MobileApp({
     // ADR-0169 審查修正：換身分清掉殘留的 typing 狀態與計時器（衛生性，避免舊值誤帶到新身分）。
     setTypingFrom(null);
     if (typingTimer.current) clearTimeout(typingTimer.current);
+    if (statusBcTimer.current) clearTimeout(statusBcTimer.current); // ADR-0171：別把上個身分待送的狀態文字帶過來
     setSelfPubkey(identity.pubkey);
     setSelfName(identity.name);
     setSelfNpub(identity.npub);
@@ -500,9 +501,10 @@ export function MobileApp({
     setTab("chats");
     setActiveId(null);
     setInvisible(false);
-    // ADR-0169 審查修正：登出也顯式清掉殘留的 typing 狀態與計時器（與 signInWith 對稱，雙保險）。
+    // ADR-0169/0171 審查修正：登出也顯式清掉殘留的 typing 與狀態文字廣播計時器（與 signInWith 對稱）。
     setTypingFrom(null);
     if (typingTimer.current) clearTimeout(typingTimer.current);
+    if (statusBcTimer.current) clearTimeout(statusBcTimer.current);
     // 登出＝移除這個身分並清其密文（ADR-0138）；還有其他身分就去解下一個，沒有了才回登入。
     forgetActive();
   };
@@ -660,16 +662,22 @@ export function MobileApp({
   const persistPresence = (status: Status, message: string): void => {
     if (selfPubkey) savePresence(selfPubkey, { status, statusMessage: message }); // ADR-0164：本機記住手動狀態
   };
+  // ADR-0171：狀態文字廣播節流計時器。引擎 setStatus 是**同步廣播**（catch-up 語意依賴，不改），
+  // 逐字打字若逐字 setStatus 會逐字打中繼/P2P、且把打到一半的文字廣播出去 → 在此 UI 層合併。
+  const statusBcTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const changeStatus = (v: Status): void => {
     setSelfStatus(v);
+    // 離散狀態變更＝立即廣播；併入任何待送的文字（清掉節流計時器，避免隨後又用舊狀態重播）。
+    if (statusBcTimer.current) clearTimeout(statusBcTimer.current);
     backendRef.current?.setStatus(v, selfStatusMessage);
     persistPresence(v, selfStatusMessage);
   };
-  /** 改自訂狀態文字（ADR-0142／0168）：後端隨心跳帶出、本機記住，下次上線還原。 */
+  /** 改自訂狀態文字（ADR-0142／0168／0171）：本機即時記住；廣播停手 ~600ms 才送出一次（合併逐字）。 */
   const changeStatusMessage = (msg: string): void => {
     setSelfStatusMessage(msg);
-    backendRef.current?.setStatus(selfStatus, msg);
-    persistPresence(selfStatus, msg);
+    persistPresence(selfStatus, msg); // 本機即時記住（localStorage 廉價、不節流→打到一半關 App 也不丟）
+    if (statusBcTimer.current) clearTimeout(statusBcTimer.current);
+    statusBcTimer.current = setTimeout(() => backendRef.current?.setStatus(selfStatus, msg), 600);
   };
   /** 改「正在聽」（ADR-0142／0168）：隨心跳廣播；易失、不落地。 */
   const changeNowPlaying = (text: string): void => {
@@ -685,9 +693,10 @@ export function MobileApp({
     if (typingTimer.current) clearTimeout(typingTimer.current);
     typingTimer.current = setTimeout(() => setTypingFrom(null), 6000);
   };
-  // ADR-0169 審查修正：卸載時清掉待觸發的 typing 計時器，避免對已卸載元件 setState。
+  // ADR-0169/0171 審查修正：卸載時清掉待觸發的 typing 與狀態文字廣播計時器（避免洩漏/對已卸載元件動作）。
   useEffect(() => () => {
     if (typingTimer.current) clearTimeout(typingTimer.current);
+    if (statusBcTimer.current) clearTimeout(statusBcTimer.current);
   }, []);
   /** 與中繼站連線狀態（ADR-0034）：非 online 時頂端顯示細條（連線中/離線）。 */
   const [connState, setConnState] = useState<ConnectionState>("connecting");

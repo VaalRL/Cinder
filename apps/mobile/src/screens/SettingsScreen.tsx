@@ -575,8 +575,9 @@ export function SettingsScreen({
                 </Pressable>
               ))}
             </View>
-            {/* 自訂狀態文字（ADR-0142／0168）：逐字即時廣播（與桌面一致；引擎 setStatus 無 debounce，
-                每次變更都廣播目前文字）＋本機記住。若日後要改成打完才送，須在共用引擎層加節流。 */}
+            {/* 自訂狀態文字（ADR-0142／0168／0171）：逐字更新本機（即時記住），廣播於 MobileApp
+                以 ~600ms 節流合併（引擎 setStatus 本身是同步廣播、catch-up 依賴，故在 UI 層合併，
+                不逐字打中繼/P2P、也不外送打到一半的文字）。 */}
             {onStatusMessage ? (
               <TextInput
                 style={styles.pwInput}
