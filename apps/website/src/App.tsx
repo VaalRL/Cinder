@@ -6,11 +6,12 @@ import { useCopy } from "./copy.js";
 import { Download } from "./pages/Download.js";
 import { Home } from "./pages/Home.js";
 import { Node } from "./pages/Node.js";
-import { Transparency } from "./pages/Transparency.js";
+// 透明度頁暫時下架（保留 pages/Transparency.tsx 與 tr_* 文案，還原＝復原此 import＋nav＋路由）
+// import { Transparency } from "./pages/Transparency.js";
 
 export const GITHUB_URL = "https://github.com/VaalRL/Cinder";
 
-type View = "home" | "download" | "node" | "transparency";
+type View = "home" | "download" | "node";
 
 function initialTheme(): Theme {
   if (typeof window !== "undefined" && window.matchMedia?.("(prefers-color-scheme: dark)").matches) return "dark";
@@ -49,7 +50,6 @@ export function App(): JSX.Element {
           <span className="nav__spacer" />
           {link("home", c.nav_home)}
           {link("node", c.nav_node)}
-          {link("transparency", c.nav_transparency)}
           <button type="button" className="nav__toggle" onClick={() => setLocale(locale === "zh-Hant" ? "en" : "zh-Hant")}>
             {locale === "zh-Hant" ? "EN" : "繁中"}
           </button>
@@ -66,10 +66,8 @@ export function App(): JSX.Element {
         <Home c={c} theme={theme} onNode={() => setView("node")} onDownload={() => setView("download")} />
       ) : view === "download" ? (
         <Download c={c} onNode={() => setView("node")} />
-      ) : view === "node" ? (
-        <Node c={c} />
       ) : (
-        <Transparency c={c} />
+        <Node c={c} />
       )}
 
       <footer className="footer">
