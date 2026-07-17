@@ -318,6 +318,8 @@ export function MobileApp({
       store: store ?? undefined,
       cloudSync,
       ...(pref ? { initialStatus: pref.status, initialStatusMessage: pref.statusMessage } : {}),
+      // ADR-0173：配對搬來的企業身分 → 後端唯讀採用公司名冊（同事/allowlist/政策/組織資訊）。
+      ...(bundle?.org ? { org: bundle.org } : {}),
     });
     backendRef.current = backend;
     setSelfStatus(pref?.status ?? "online");
@@ -449,6 +451,9 @@ export function MobileApp({
       onCloudSyncMode: (mode) => {
         if (readCloudSync() === "off") changeCloudSync(mode);
       },
+      // ADR-0173：後端採用公司名冊（企業身分）→ **實際會員身分確認**（比捆包旗標更穩健的設閘訊號）。
+      // 同事/allowlist/政策由引擎的 onContacts/onPolicy 自動帶入（onContacts 已接）。
+      onOrgInfo: () => setSelfEnterprise(true),
       // 通話狀態與串流（ADR-0101）：來電自動開通話畫面。
       onCallState: (peer, state, media) => {
         setCallState(state);

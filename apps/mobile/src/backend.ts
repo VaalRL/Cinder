@@ -11,6 +11,7 @@ import {
   getDeviceId,
   LocalStorage,
   MAINTAINER_PUBKEY,
+  type PairBundleOrg,
   RelayChatBackend,
   type Status,
   webSocketConnector,
@@ -31,6 +32,12 @@ export interface MobileBackendOptions {
   initialStatus?: Status | undefined;
   /** 上線時的初始自訂狀態文字（ADR-0164／0168）；未提供＝空。 */
   initialStatusMessage?: string | undefined;
+  /**
+   * 企業身分精華（ADR-0172／0173）：來自配對搬家捆包。設了 `adminPubkey` → 後端訂閱並採用
+   * 公司名冊（同事、allowlist、政策、組織資訊）＝**唯讀採用**。本批**不**帶 orgJoinToken/orgEscrow
+   * （避免行動端重觸發入職/託管寫入流程；成員已在桌面入職，讀名冊即可）。
+   */
+  org?: PairBundleOrg | undefined;
 }
 
 /**
@@ -66,6 +73,10 @@ export function createRelayChat(
       // （隱身時 App 另有攔截，不經此路徑）。缺省＝online、空文字。
       ...(opts.initialStatus ? { initialStatus: opts.initialStatus } : {}),
       ...(opts.initialStatusMessage ? { initialStatusMessage: opts.initialStatusMessage } : {}),
+      // ADR-0173：企業身分（配對搬來）唯讀採用公司名冊——訂閱管理者名冊＝同事/allowlist/政策/組織資訊。
+      // 桌面 buildBackend 的鏡像；不帶 orgJoinToken/orgEscrow（不從行動端重觸發入職/託管寫入）。
+      ...(opts.org?.adminPubkey ? { orgAdminPubkey: opts.org.adminPubkey } : {}),
+      ...(opts.org?.orgOwner ? { orgOwner: true } : {}),
       nsecOverride: identity.nsec,
       // ADR-0122 守衛：拿到的身分與期待不符（毀損捆包／錯 nsec）→ 大聲失敗，不靜默換人。
       // 桌面已接，行動端在 ADR-0125 補上。

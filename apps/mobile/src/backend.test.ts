@@ -76,3 +76,22 @@ describe("行動端上線狀態本機還原（ADR-0168）", () => {
   });
 });
 
+describe("行動端企業身分後端接線（ADR-0173）", () => {
+  // 名冊採用/allowlist 的實際行為由 engine relay-backend.test.ts 把關；此處確保行動端把配對搬來的
+  // org 精華透傳給後端建構、不因新選項而炸（orgAdminPubkey 型別對齊由 typecheck 保證）。
+  it("帶 org（企業成員）→ 後端正常建構、身分不變（唯讀採用公司名冊）", () => {
+    const id = identity();
+    const backend = createBackend(id, "wss://company.relay", {
+      org: { enterprise: true, adminPubkey: "b".repeat(64), orgJoinToken: "tok" },
+    });
+    expect(backend.self.pubkey).toBe(id.pubkey);
+    backend.stop();
+  });
+
+  it("示範模式（無 relay）帶 org 也不炸（org 在示範後端無意義、被忽略）", () => {
+    const backend = createBackend(identity(), null, { org: { orgOwner: true } });
+    expect(backend.self.name).toBeTruthy();
+    backend.stop();
+  });
+});
+
