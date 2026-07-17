@@ -32,6 +32,15 @@ export function setSlotStatus(queue: MobileSlotItem[], id: string, status: SlotS
   return queue.map((q) => (q.id === id ? { ...q, status } : q));
 }
 
+/**
+ * 標記完成（已交 P2P）並**釋放位元組**（ADR-0180 審查修正）：done 之後不再需要原始檔案內容，
+ * 清空 bytes 避免佇列在記憶體無上限累積；保留該列供 UI 顯示「已送出」。失敗項不走此路（保留
+ * bytes 供重試）。
+ */
+export function completeSlot(queue: MobileSlotItem[], id: string): MobileSlotItem[] {
+  return queue.map((q) => (q.id === id ? { ...q, status: "done", bytes: new Uint8Array(0) } : q));
+}
+
 /** 移除某項。 */
 export function removeSlot(queue: MobileSlotItem[], id: string): MobileSlotItem[] {
   return queue.filter((q) => q.id !== id);

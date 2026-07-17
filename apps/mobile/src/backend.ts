@@ -62,16 +62,24 @@ export function createRelayChat(
     opts.cloudSync && opts.cloudSync !== "off"
       ? { cloudSync: { mode: opts.cloudSync, deviceId: getDeviceId() } }
       : {};
+  // ADR-0180：企業**成員**（enterprise）鎖定公司座——**不漫遊、不遞補、不學錨點**（與桌面
+  // buildBackend 同款）：連公司自架 relay 收名冊/allowlist，不該被自動改道到公開錨點座（否則
+  // 收不到名冊、還把企業裝置心跳洩漏到公司外）。企業主（orgOwner）與個人身分照舊漫遊保命。
+  const roaming = opts.org?.enterprise
+    ? {}
+    : {
+        connectorFor: webSocketConnector,
+        // 錨點恆連保底：不再只綁使用者當下那一座（去重，避免同座重複）。
+        anchors: [...new Set([relayUrl, ...ANCHOR_RELAYS])],
+        ...(MAINTAINER_PUBKEY ? { maintainerPubkey: MAINTAINER_PUBKEY } : {}),
+      };
   return new RelayChatBackend(
     opts.store ?? new LocalStorage(identity.pubkey),
     webSocketConnector(relayUrl),
     identity.name,
     {
       relayUrl,
-      connectorFor: webSocketConnector,
-      // 錨點恆連保底：不再只綁使用者當下那一座（去重，避免同座重複）。
-      anchors: [...new Set([relayUrl, ...ANCHOR_RELAYS])],
-      ...(MAINTAINER_PUBKEY ? { maintainerPubkey: MAINTAINER_PUBKEY } : {}),
+      ...roaming,
       ...cloud,
       // ADR-0164／0168：本機記住的上次手動狀態，讓 start() 的首次心跳就照這個廣播
       // （隱身時 App 另有攔截，不經此路徑）。缺省＝online、空文字。

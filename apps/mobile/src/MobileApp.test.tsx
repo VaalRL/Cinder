@@ -49,6 +49,22 @@ describe("行動端 app 殼與畫面（ADR-0085）", () => {
     expect(html).toContain("wss://r.example"); // relay 顯示
   });
 
+  it("SettingsScreen：公司儲存槽佇列（ADR-0180）——列出項目＋失敗可重試；空則不顯示", () => {
+    const withQueue = renderToStaticMarkup(
+      <SettingsScreen
+        selfName="夜" selfNpub="npub1" selfNsec="nsec1" relayUrl="wss://r" theme="light" onTheme={() => {}}
+        locale="zh-Hant" onLocale={() => {}} accent={null} onAccent={() => {}} invisible={false} onInvisible={() => {}} onLogout={() => {}}
+        slotQueue={[{ id: "s1", name: "報表.pdf", status: "failed" }]}
+        onSlotRetry={() => {}}
+        onSlotRemove={() => {}}
+      />,
+    );
+    expect(withQueue).toContain('data-testid="slot-queue"');
+    expect(withQueue).toContain("報表.pdf");
+    expect(withQueue).toContain('data-testid="slot-remove-s1"');
+    expect(withQueue).toContain('data-testid="slot-retry"'); // 有失敗項→顯示重試
+  });
+
   it("ChatsListScreen：LINE/Signal 風格列——名稱、最後訊息、未讀徽章、標題", () => {
     const entries: ChatListEntry[] = [
       { id: "p1", name: "Amy", isGroup: false, status: "online", lastText: "在嗎", lastAt: 1000, lastOutgoing: false, unread: 2 },

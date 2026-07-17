@@ -11,6 +11,13 @@ const STATUS_KEY: Record<"online" | "away" | "busy", MessageKey> = {
   away: "status_away",
   busy: "status_busy",
 };
+/** 公司儲存槽佇列狀態的 i18n 鍵（ADR-0177／0180）。 */
+const SLOT_STATUS_KEY: Record<"pending" | "sending" | "done" | "failed", MessageKey> = {
+  pending: "slot_pending",
+  sending: "slot_sending",
+  done: "slot_done",
+  failed: "slot_failed",
+};
 import { Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native-web";
 import { avatarFromUrl, pickAvatarImage } from "../native/avatar.js";
 import { copyText } from "../native/clipboard.js";
@@ -89,6 +96,9 @@ export function SettingsScreen({
   title,
   onSetTitle,
   onOpenRoster,
+  slotQueue,
+  onSlotRetry,
+  onSlotRemove,
   notify,
   onNotify,
   notifyHidePreview,
@@ -139,6 +149,10 @@ export function SettingsScreen({
   onSetTitle?: (title: string) => void;
   /** 組織名冊管理入口（ADR-0178，企業主）：未提供則不顯示（非企業主）。 */
   onOpenRoster?: () => void;
+  /** 公司儲存槽佇列（ADR-0177／0180，員工端）：待傳/已送/失敗項；未提供/空則不顯示。 */
+  slotQueue?: { id: string; name: string; status: "pending" | "sending" | "done" | "failed" }[];
+  onSlotRetry?: () => void;
+  onSlotRemove?: (id: string) => void;
   /** 通知（ADR-0116）。未提供則不顯示（示範模式）。 */
   notify?: boolean;
   onNotify?: (v: boolean) => void;
@@ -649,6 +663,29 @@ export function SettingsScreen({
             <Pressable accessibilityRole="button" testID="open-roster" onPress={onOpenRoster} style={[styles.seg, { borderColor: tk.accent, backgroundColor: tk.field }]}>
               <Text style={[styles.segText, { color: tk.accent }]}>{t("settings_orgRoster")}</Text>
             </Pressable>
+          </View>
+        ) : null}
+
+        {/* 公司儲存槽佇列（ADR-0177／0180，員工端）：狀態＋移除；有失敗才顯示「重試」。 */}
+        {slotQueue && slotQueue.length > 0 ? (
+          <View style={styles.section} testID="slot-queue">
+            <Text style={styles.sectionTitle}>{t("settings_slot")}</Text>
+            {slotQueue.map((item) => (
+              <View key={item.id} style={styles.rowSeg}>
+                <Text style={[styles.value, { flex: 1 }]} numberOfLines={1}>{item.name}</Text>
+                <Text style={styles.label}>{t(SLOT_STATUS_KEY[item.status])}</Text>
+                {onSlotRemove ? (
+                  <Pressable accessibilityRole="button" testID={`slot-remove-${item.id}`} onPress={() => onSlotRemove(item.id)}>
+                    <Text style={[styles.segText, { color: "#e5484d" }]}>{t("slot_remove")}</Text>
+                  </Pressable>
+                ) : null}
+              </View>
+            ))}
+            {onSlotRetry && slotQueue.some((i) => i.status === "failed") ? (
+              <Pressable accessibilityRole="button" testID="slot-retry" onPress={onSlotRetry} style={[styles.seg, { borderColor: tk.accent, backgroundColor: tk.field }]}>
+                <Text style={[styles.segText, { color: tk.accent }]}>{t("slot_retry")}</Text>
+              </Pressable>
+            ) : null}
           </View>
         ) : null}
 

@@ -55,7 +55,7 @@ import {
 } from "./identities.js";
 import { createBackend } from "./backend.js";
 import { loadPresence, savePresence } from "./presence.js";
-import { enqueueSlot, type MobileSlotItem, nextPending, setSlotStatus } from "./slot-queue.js";
+import { completeSlot, enqueueSlot, type MobileSlotItem, nextPending, removeSlot as removeSlotItem, retryFailed, setSlotStatus } from "./slot-queue.js";
 import { type EscrowEntry, loadEscrow, offboardedEntries, removeEscrow, saveEscrow, upsertEscrow } from "./org-escrow.js";
 import { chatList } from "./chat-list.js";
 import { BottomTabs, type Tab } from "./screens/BottomTabs.js";
@@ -305,6 +305,7 @@ export function MobileApp({
    * 中繼站仍保留的歷史**。純查看：立即設隱身（離職員工不應顯示在線、不再廣播/入職）。
    */
   const takeoverOffboarded = (entry: EscrowEntry): void => {
+    if (!confirmAction("offboard_takeoverConfirm")) return; // ADR-0180 審查建議：接管前確認
     const r = identityFromNsec(entry.nsec, `離職·${entry.name}`);
     if (!r.ok) return;
     // ADR-0180 審查修正：forceInvisible 讓後端**建構即隱身**——首拍 beat() 就靜默，離職身分不會被
@@ -314,6 +315,7 @@ export function MobileApp({
   /** 刪除一筆託管（ADR-0163）：企業主決定不再保留該離職員工的金鑰備份。重新加密落盤。 */
   const deleteEscrow = (pubkey: string): void => {
     if (!selfPubkey || !selfNsec) return;
+    if (!confirmAction("offboard_deleteConfirm")) return; // ADR-0180 審查建議：刪除不可逆，先確認
     const sk = nsecDecode(selfNsec);
     setEscrowList((list) => {
       const next = removeEscrow(list, pubkey);
@@ -682,11 +684,14 @@ export function MobileApp({
   const sendTyping = (): void => {
     if (activeId && !isGroup(activeId)) backendRef.current?.sendTyping(activeId);
   };
+  /** 破壞性/重要操作的二次確認：無 window.confirm（如 SSR）時照做，有則需使用者確認。回 true＝可繼續。 */
+  const confirmAction = (key: MessageKey): boolean => {
+    if (typeof window === "undefined" || typeof window.confirm !== "function") return true;
+    return window.confirm(translate(locale, key));
+  };
   /** 移除聯絡人（ADR-0121，非封鎖）：清掉該對話（含封存）。正在看就退回主畫面。 */
   const removeContact = (pubkey: string): void => {
-    if (typeof window !== "undefined" && typeof window.confirm === "function" && !window.confirm(translate(locale, "contact_removeConfirm"))) {
-      return;
-    }
+    if (!confirmAction("contact_removeConfirm")) return;
     backendRef.current?.removeContact?.(pubkey);
     if (activeId === pubkey) back();
   };
@@ -881,7 +886,7 @@ export function MobileApp({
     setSlotQueue((q) => setSlotStatus(q, item.id, "sending"));
     try {
       b.depositFile(admin, { name: item.name, mime: item.mime, bytes: item.bytes }, item.origin);
-      setSlotQueue((q) => setSlotStatus(q, item.id, "done")); // 已交 P2P（與桌面同語意，不追完成）
+      setSlotQueue((q) => completeSlot(q, item.id)); // 已交 P2P：標 done 並釋放位元組（ADR-0180）
     } catch {
       setSlotQueue((q) => setSlotStatus(q, item.id, "failed"));
     } finally {
@@ -942,6 +947,9 @@ export function MobileApp({
       );
     });
   };
+  /** 佇列管理（ADR-0180 審查修正）：重試全部失敗項；移除單項（含已完成／失敗，釋放記憶體）。 */
+  const retrySlots = (): void => setSlotQueue((q) => retryFailed(q));
+  const removeSlot = (id: string): void => setSlotQueue((q) => removeSlotItem(q, id));
 
   // 通話（ADR-0101）：發起／接聽／拒接／掛斷。
   const startCall = (media: CallMedia): void => {
@@ -1354,6 +1362,14 @@ export function MobileApp({
                 ...(selfEnterprise && backendRef.current?.setSelfTitle ? { title: orgTitle, onSetTitle: changeOrgTitle } : {}),
                 // 組織名冊管理（ADR-0178）：企業主＋後端支援才顯示入口。
                 ...(selfOwner && backendRef.current?.publishRoster ? { onOpenRoster: () => setScreen("roster") } : {}),
+                // 公司儲存槽佇列（ADR-0180）：有排隊項才顯示管理（狀態/移除/重試）。
+                ...(slotQueue.length > 0
+                  ? {
+                      slotQueue: slotQueue.map((s) => ({ id: s.id, name: s.name, status: s.status })),
+                      onSlotRetry: retrySlots,
+                      onSlotRemove: removeSlot,
+                    }
+                  : {}),
                 onPairExport: () => setScreen("pairExport"),
                 notify,
                 onNotify: (v: boolean) => void setNotify(v),

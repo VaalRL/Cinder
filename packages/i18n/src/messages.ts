@@ -120,6 +120,8 @@ export interface Messages {
   settings_offboardHint: string;
   offboard_takeover: string;
   offboard_delete: string;
+  offboard_takeoverConfirm: string;
+  offboard_deleteConfirm: string;
   roster_welcomeLabel: string;
   roster_workHoursLabel: string;
   roster_ttlLabel: string;
@@ -742,6 +744,8 @@ const zhHant: Messages = {
   settings_offboardHint: "已從名冊移除（離職）且當初以公司帳號託管金鑰的成員。接管＝以其金鑰在本機登入查看中繼站仍保留的訊息；也可直接刪除託管。",
   offboard_takeover: "接管登入",
   offboard_delete: "刪除託管",
+  offboard_takeoverConfirm: "以這位離職員工的金鑰在本機登入、查看其歷史？純本機查看，不會廣播上線（自動隱身）。",
+  offboard_deleteConfirm: "刪除這位離職員工的託管金鑰？刪除後將無法再接管其帳號或查看歷史，且無法復原。",
   roster_welcomeLabel: "歡迎詞／基本規範（可選：新成員加入時一次性顯示，並可隨時在設定 → 組織資訊查看）",
   roster_workHoursLabel: "表定上下班時間（可選：下班時間成員端自動靜音公司通知；留空＝不設）",
   roster_ttlLabel: "離線訊息保留天數（可選，1–365；留空＝預設 7 天。需自架 relay 以 MAX_TTL_DAYS 放寬上限，站方上限恆為權威）",
@@ -1335,6 +1339,8 @@ const en: Messages = {
   settings_offboardHint: "Members removed from the roster (offboarded) whose key was escrowed as a company account. Take over = sign in with their key locally to view what the relay still holds; or delete the escrow.",
   offboard_takeover: "Take over",
   offboard_delete: "Delete escrow",
+  offboard_takeoverConfirm: "Sign in locally with this offboarded employee's key to view their history? Local viewing only — you won't broadcast as online (auto-invisible).",
+  offboard_deleteConfirm: "Delete this offboarded employee's escrowed key? You will no longer be able to take over their account or view their history, and this cannot be undone.",
   roster_welcomeLabel: "Welcome message / ground rules (optional: shown once to new members, always available under Settings → Organization)",
   roster_workHoursLabel: "Scheduled work hours (optional: company notifications auto-mute off-hours on members' devices; leave blank to unset)",
   roster_ttlLabel: "Offline message retention in days (optional, 1–365; blank = default 7. Requires a self-hosted relay with MAX_TTL_DAYS raised — the relay's cap always wins)",

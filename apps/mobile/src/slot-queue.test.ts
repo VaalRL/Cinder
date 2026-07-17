@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { activeCount, enqueueSlot, type MobileSlotItem, nextPending, removeSlot, retryFailed, setSlotStatus } from "./slot-queue.js";
+import { activeCount, completeSlot, enqueueSlot, type MobileSlotItem, nextPending, removeSlot, retryFailed, setSlotStatus } from "./slot-queue.js";
 
 const bytes = new Uint8Array([1, 2, 3]);
 const mk = (name: string, queuedAt: number) => ({ name, size: 3, mime: "text/plain", origin: "Bob", bytes, queuedAt });
@@ -33,5 +33,14 @@ describe("行動端公司儲存槽佇列（ADR-0177）", () => {
     q = removeSlot(q, idA);
     expect(q.map((x) => x.name)).toEqual(["b"]);
     expect(setSlotStatus(q, "nope", "done")).toEqual(q); // 未知 id 原樣
+  });
+
+  it("completeSlot（ADR-0180）：標 done 並**釋放位元組**（記憶體不累積）；失敗項保留 bytes 供重試", () => {
+    const q = enqueueSlot([], mk("a.txt", 1));
+    const done = completeSlot(q, q[0]!.id);
+    expect(done[0]!.status).toBe("done");
+    expect(done[0]!.bytes.length).toBe(0); // 位元組已釋放
+    // 失敗走 setSlotStatus（不清 bytes）→ retry 才有內容可重送
+    expect(setSlotStatus(q, q[0]!.id, "failed")[0]!.bytes.length).toBe(3);
   });
 });
