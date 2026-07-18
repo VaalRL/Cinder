@@ -120,8 +120,9 @@ export function SignIn({
   const [showRelay, setShowRelay] = useState(false);
   // 使用者已動過 relay 欄（展開或編輯）→ 自動選座的慢 probe 不再覆寫（審查 L2）。
   const relayTouched = useRef(false);
-  // 自動選座進行中：顯示「挑選中…」而非誤導的「示範模式」（審查 L3）。
-  const [probing, setProbing] = useState(false);
+  // 自動選座進行中：顯示「挑選中…」而非誤導的狀態（審查 L3）。初值也 seed——
+  // 有錨點且無預設 relay 時起始即 true，避免首個 render 閃過空狀態文字。
+  const [probing, setProbing] = useState(() => !relay && ANCHOR_RELAYS.length > 0);
   const relayHost = hostOf(relay);
   // 配對匯入（新機）：貼上載荷 → 顯示 SAS 供與舊機比對 → 舊機確認後自動完成。
   const [pairOpen, setPairOpen] = useState(false);

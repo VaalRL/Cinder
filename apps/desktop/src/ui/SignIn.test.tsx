@@ -66,10 +66,11 @@ describe("SignIn 元件", () => {
     expect(out).not.toContain('value="wss://last.example"');
   });
 
-  it("無預設 relay 時：狀態列顯示示範模式", () => {
+  it("無預設 relay 時：自動選座（狀態列顯示挑選中，不再顯示示範模式）", () => {
     setup(null);
     const out = render();
-    expect(out).toContain("示範模式");
+    expect(out).toContain("正在挑選中繼站"); // 有錨點→自動選座，seed probing
+    expect(out).not.toContain("示範模式"); // demo 提示已移除（ADR-0194）
   });
 });
 
