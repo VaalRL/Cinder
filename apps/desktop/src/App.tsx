@@ -20,7 +20,8 @@ import {
   peekBackupRelay,
   type PubkeyHex,
 } from "@cinderous/core";
-import { isTauri } from "@tauri-apps/api/core";
+import { invoke, isTauri } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { useEffect, useRef, useState } from "react";
 import { BrowserChatBackend } from "@cinderous/engine";
 import { normalizeRelayUrl, RelayChatBackend, shouldMuteOrgNotification, webSocketConnector } from "@cinderous/engine";
@@ -139,6 +140,16 @@ import { RELAY_URL_KEY, SignIn } from "./ui/SignIn.js";
 import { RESCUE_RESET_OK, UnlockScreen } from "./ui/UnlockScreen.js";
 import { SummaryModal } from "./ui/SummaryModal.js";
 import "./ui/msn.css";
+
+// 一次性遷移（ADR-0191 更名）：舊 localStorage 的 relay 子網域 whoami885 已失效 → cinderous1。
+try {
+  const legacyRelay = typeof localStorage !== "undefined" ? localStorage.getItem(RELAY_URL_KEY) : null;
+  if (legacyRelay && legacyRelay.includes("whoami885")) {
+    localStorage.setItem(RELAY_URL_KEY, legacyRelay.replace("whoami885", "cinderous1"));
+  }
+} catch {
+  /* 無 localStorage（SSR/測試）→ 略過 */
+}
 
 const TYPING_VISIBLE_MS = 6_000;
 /** 閒置自動上鎖門檻（H4，ADR-0067）：啟用本地密碼的身分無操作逾時即上鎖。 */
@@ -365,7 +376,28 @@ async function loadNsecFromVault(p: Profile): Promise<string | undefined> {
 
 export function App(): JSX.Element {
   const { t } = useI18n(); // 通知隱藏預覽的本地化文案（ADR-0076）；其餘 UI 文字仍由子元件各自取用。
-  const { alert, prompt } = useDialog(); // 統一自訂對話框（ADR-0139）。
+  const { alert, confirm, prompt } = useDialog(); // 統一自訂對話框（ADR-0139）。
+  // 關閉視窗（Tauri）：Rust 攔下 close→emit「app://close-requested」，這裡以 app 風格確認框
+  // 讓使用者選「縮到系統匣續連」或「直接結束」（ADR-0198，取代原生 rfd）。
+  useEffect(() => {
+    if (!isTauri()) return;
+    let unlisten: (() => void) | undefined;
+    void listen("app://close-requested", () => {
+      void (async () => {
+        const quit = await confirm({
+          title: t("close_title"),
+          message: t("close_message"),
+          confirmLabel: t("close_quit"),
+          cancelLabel: t("close_tray"),
+        });
+        await invoke(quit ? "quit_app" : "hide_to_tray");
+      })();
+    }).then((u) => {
+      unlisten = u;
+    });
+    return () => unlisten?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const { layout } = useLayout(); // 桌面佈局（ADR-0079）：classic 浮動視窗 ↔ modern 三欄。
   const [backend, setBackend] = useState<ChatBackend | null>(null);
   const [profilesState, setProfilesState] = useState<ProfilesState>(() => loadProfiles());

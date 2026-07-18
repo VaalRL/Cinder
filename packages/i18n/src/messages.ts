@@ -484,6 +484,10 @@ export interface Messages {
   /** 隱藏身分解鎖（ADR-0045/0067）。 */
   hiddenId_prompt: string;
   hiddenId_fail: string;
+  close_title: string;
+  close_message: string;
+  close_quit: string;
+  close_tray: string;
   backup_copy: string;
   backup_wrong: string;
   settings_cloud: string;
@@ -1088,6 +1092,10 @@ const zhHant: Messages = {
   dialog_ok: "好",
   hiddenId_prompt: "輸入隱藏身分的本地密碼",
   hiddenId_fail: "密碼不符任何隱藏身分",
+  close_title: "關閉 Cinderous",
+  close_message: "程式會縮到系統匣繼續在背景執行（仍會收到訊息）。要直接結束程式嗎？",
+  close_quit: "直接結束",
+  close_tray: "縮到系統匣",
   backup_copy: "複製備份碼",
   backup_wrong: "備份密碼錯誤或備份碼格式不符",
   settings_cloud: "雲端備份（加密）",
@@ -1684,6 +1692,10 @@ const en: Messages = {
   dialog_ok: "OK",
   hiddenId_prompt: "Enter the hidden identity's local password",
   hiddenId_fail: "Password doesn't match any hidden identity",
+  close_title: "Close Cinderous",
+  close_message: "The app will keep running in the tray (still receiving messages). Quit the app entirely?",
+  close_quit: "Quit",
+  close_tray: "Minimize to tray",
   backup_copy: "Copy backup code",
   backup_wrong: "Wrong backup password or malformed backup code",
   settings_cloud: "Cloud backup (encrypted)",

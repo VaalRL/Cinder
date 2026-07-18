@@ -13,7 +13,7 @@ use cinder_desktop::encstore;
 use tauri::{
     menu::{Menu, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    Manager, WindowEvent,
+    Emitter, Manager, WindowEvent,
 };
 
 /// 顯示並聚焦主視窗（系統匣點擊/選單用）。
@@ -897,6 +897,20 @@ fn pick_existing_file(app: tauri::AppHandle, name: String) -> Option<String> {
     picked
 }
 
+/// 結束程式（前端關閉確認選「結束」，ADR-0198）。
+#[tauri::command]
+fn quit_app(app: tauri::AppHandle) {
+    app.exit(0);
+}
+
+/// 縮到系統匣（前端關閉確認選「留在系統匣」，ADR-0198）。
+#[tauri::command]
+fn hide_to_tray(app: tauri::AppHandle) {
+    if let Some(w) = app.get_webview_window("main") {
+        let _ = w.hide();
+    }
+}
+
 fn main() {
     // 版本更新後首次啟動先清 WebView2 資產快取（在 webview 建立前），避免載到舊前端（ADR-0197）。
     clear_webview_cache_on_update();
@@ -911,23 +925,10 @@ fn main() {
         // 仍收得到訊息；真正結束走系統匣選單「結束」。
         .on_window_event(|window, event| {
             if let WindowEvent::CloseRequested { api, .. } = event {
-                // 關閉＝縮到系統匣（背景續連、仍收訊息），並提示程式未真的結束、可選擇直接結束（ADR-0197）。
+                // 關閉＝攔下，通知前端顯示 app 風格的確認框（縮到系統匣／直接結束，ADR-0198）；
+                // 保持視窗可見以便顯示 in-app 對話框，後續由前端 invoke hide_to_tray / quit_app。
                 api.prevent_close();
-                let _ = window.hide();
-                let w = window.clone();
-                // 另起執行緒問，避免阻塞事件迴圈。
-                std::thread::spawn(move || {
-                    let ans = rfd::MessageDialog::new()
-                        .set_title("Cinderous")
-                        .set_description(
-                            "程式尚未關閉——已縮到系統匣，仍在背景執行（會繼續收訊息）。\n要直接結束程式嗎？",
-                        )
-                        .set_buttons(rfd::MessageButtons::YesNo)
-                        .show();
-                    if ans == rfd::MessageDialogResult::Yes {
-                        w.app_handle().exit(0);
-                    }
-                });
+                let _ = window.emit("app://close-requested", ());
             }
         })
         .setup(|app| {
@@ -997,7 +998,9 @@ fn main() {
             pick_existing_file,
             pick_folder,
             write_slot_file,
-            append_slot_index
+            append_slot_index,
+            quit_app,
+            hide_to_tray
         ])
         .run(tauri::generate_context!())
         .expect("執行 Tauri 應用程式時發生錯誤");
