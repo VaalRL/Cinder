@@ -136,7 +136,7 @@ import { createPairingOffer, runPairSource, runPairTarget, webRtcPairTransport }
 import { applyPairBundle } from "@cinderous/engine";
 import { PairDeviceModal, type PairPhase } from "./ui/PairDeviceModal.js";
 import { SettingsPanel } from "./ui/SettingsPanel.js";
-import { useRegisterSettingsOpener } from "./titlebar.js";
+import { useRegisterIdentityControls, useRegisterSettingsOpener } from "./titlebar.js";
 import { dialog, useDialog } from "./ui/Dialog.js";
 import { ExportModal, type ExportConvoItem } from "./ui/ExportModal.js";
 import { RELAY_URL_KEY, SignIn } from "./ui/SignIn.js";
@@ -467,6 +467,8 @@ export function App(): JSX.Element {
     return () => registerSettingsOpener(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- 註冊器來自 context、掛載一次即可
   }, []);
+  // ADR-0206：三欄＋Tauri 把身分元件（切換/＋/🔒/🗂）上移標題列的註冊器（實際 bundle 於下方 effect 提供）。
+  const registerIdentityControls = useRegisterIdentityControls();
   // 右欄計算機 → 主對話框的單向插入指令（ADR-0097）：nonce 變動即觸發，不接管草稿狀態。
   const [pendingInsert, setPendingInsert] = useState<{ convo: string; text: string; nonce: number } | null>(null);
   // 原生拖放（ADR-0104）：拖曳中被命中的對話（highlight 用）。
@@ -1595,6 +1597,32 @@ export function App(): JSX.Element {
     storageRef.current?.saveIdentity({ nsec: "", name });
   };
 
+  // ADR-0206：三欄＋Tauri 時把身分元件（切換/＋/🔒/🗂）上移到標題列——註冊渲染資料給標題列；
+  // 其餘情境（經典模式、瀏覽器、未登入/無身分）傳 null，由 App 自畫 idbar。須在早期 return 前。
+  useEffect(() => {
+    const idInTitlebar = isTauri() && layout === "modern";
+    if (!idInTitlebar || !backend || profilesState.profiles.length === 0) {
+      registerIdentityControls(null);
+      return;
+    }
+    registerIdentityControls({
+      active: profilesState.active ?? "",
+      options: visibleProfiles(profilesState).map((p) => ({ pubkey: p.pubkey, label: `${profileGlyph(p)} ${p.name}` })),
+      switchLabel: t("idbar_switch"),
+      addLabel: t("idbar_addIdentity"),
+      onSwitch: switchProfile,
+      onAdd: () => setAddIdOpen(true),
+      unlock: shouldOfferUnlockHidden(profilesState.profiles)
+        ? { label: t("idbar_unlockHidden"), onClick: () => void unlockHidden() }
+        : null,
+      roster:
+        backend.publishRoster && activeProfile(profilesState)?.orgOwner
+          ? { label: t("idbar_roster"), onClick: () => setRosterOpen(true) }
+          : null,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 註冊器來自 context；依 layout/profiles/backend 重註冊
+  }, [layout, profilesState, backend]);
+
   // H4（ADR-0067）：作用中身分已上鎖→解鎖畫面（不落 SignIn，避免誤建新身分）。
   if (lockedProfile && !backend) return <UnlockScreen name={lockedProfile.name} onUnlock={unlock} onRescue={rescue} />;
   if (!backend || !self) {
@@ -1955,7 +1983,8 @@ export function App(): JSX.Element {
 
   return (
     <div className={layout === "modern" ? "deck" : "desktop"} data-layout={layout}>
-      {profilesState.profiles.length > 0 || layout === "modern" ? (
+      {/* ADR-0206：三欄＋Tauri 時身分元件已上移標題列 → 不畫 idbar；其餘情境照舊。 */}
+      {!(isTauri() && layout === "modern") && (profilesState.profiles.length > 0 || layout === "modern") ? (
         <div className="idbar" data-testid="identity-bar">
           {profilesState.profiles.length > 0 ? (
             <>

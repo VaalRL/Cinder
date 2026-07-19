@@ -238,6 +238,13 @@ body { margin: 0; background: var(--bg-b); color: var(--ink); }
 }
 .titlebar__btn:hover { background: var(--hover); color: var(--ink); }
 .titlebar__btn--close:hover { background: #e81123; color: #fff; }
+/* 身分控制上移標題列（ADR-0206）：切換器＝緊湊下拉；＋/🔒/🗂 沿用 titlebar__btn。 */
+.titlebar__idselect {
+  align-self: center; max-width: 180px; min-width: 84px; height: 22px; margin: 0 2px 0 6px;
+  border: 1px solid var(--border); border-radius: 6px;
+  background: var(--field); color: var(--ink); font-size: 12px; padding: 0 6px; cursor: pointer;
+}
+.titlebar__btn--addid, .titlebar__btn--unlockhidden, .titlebar__btn--roster { width: 30px; font-size: 13px; color: var(--ink); }
 
 /* 標題列按鈕風格（ADR-0167）：flat＝上方預設，以下三種可於設定切換。 */
 /* rounded：圓角膠囊懸停底、按鈕間留白。 */

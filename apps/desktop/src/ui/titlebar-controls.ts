@@ -3,7 +3,7 @@
 // 設定存 localStorage（純本地 UI 偏好，不上雲、不隨快照）；解析永遠回有效值——
 // 設定損壞時視窗仍要有可用的關閉鈕，這裡不能丟例外。v1（side/order）自動遷移。
 
-export type ControlId = "settings" | "min" | "max" | "close";
+export type ControlId = "settings" | "min" | "max" | "close" | "identity" | "addid" | "unlockhidden" | "roster";
 
 /**
  * 標題列按鈕風格（ADR-0167）：外框按鈕的視覺呈現。
@@ -27,11 +27,34 @@ export interface TitlebarControls {
   style: TitlebarStyle;
 }
 
-export const CONTROL_IDS: readonly ControlId[] = ["settings", "min", "max", "close"];
+/** 視窗控制（一律可用）。 */
+export const WINDOW_CONTROL_IDS: readonly ControlId[] = ["settings", "min", "max", "close"];
+/** 身分控制（ADR-0206）：僅三欄＋Tauri、且各自條件符合時渲染（idbar 元件上移標題列）。 */
+export const IDENTITY_CONTROL_IDS: readonly ControlId[] = ["identity", "addid", "unlockhidden", "roster"];
+export const CONTROL_IDS: readonly ControlId[] = [...WINDOW_CONTROL_IDS, ...IDENTITY_CONTROL_IDS];
 
-/** 預設（ADR-0152 修正）：⚙ 貼在最小化左側，與視窗控制同一條右帶（Windows 慣例）。 */
+/**
+ * 身分控制的渲染資料（ADR-0206）：App 經 TitlebarContext 注入，標題列據以渲染
+ * `identity`（切換器）／`addid`（＋）／`unlockhidden`（🔒）／`roster`（🗂）。
+ * `null` 欄位＝該控制項此情境不顯示（即使在配置的帶上也略過）。
+ */
+export interface IdentityControlsBundle {
+  /** 作用中身分圖示（👤/🏢/🗂/🗄）；併入切換器顯示。 */
+  active: string;
+  options: { pubkey: string; label: string }[];
+  switchLabel: string;
+  addLabel: string;
+  onSwitch: (pubkey: string) => void;
+  onAdd: () => void;
+  /** 解鎖隱藏身分：null＝不顯示（無已啟用密碼的身分）。 */
+  unlock: { label: string; onClick: () => void } | null;
+  /** 名冊管理：null＝不顯示（非企業主）。 */
+  roster: { label: string; onClick: () => void } | null;
+}
+
+/** 預設（ADR-0152/0206）：身分群在左帶、⚙＋視窗控制在右帶（Windows 慣例）。 */
 export const DEFAULT_TITLEBAR_CONTROLS: TitlebarControls = {
-  left: [],
+  left: ["identity", "addid", "unlockhidden", "roster"],
   right: ["settings", "min", "max", "close"],
   autoHide: false,
   style: DEFAULT_TITLEBAR_STYLE,
@@ -88,16 +111,21 @@ export function parseTitlebarControls(raw: string | null | undefined): TitlebarC
         (v.side === "left" ? left : right).unshift("settings");
       }
     }
-    for (const id of CONTROL_IDS) {
+    // 視窗控制缺漏補回（ADR-0152）：⚙ 補右帶最前（貼視窗控制左側）、其餘視窗控制補右帶尾。
+    for (const id of WINDOW_CONTROL_IDS) {
       if (seen.has(id)) continue;
-      // 缺漏補回（ADR-0152）：⚙ 補右帶最前（貼視窗控制左側）、其餘視窗控制補右帶尾。
       if (id === "settings") right.unshift("settings");
       else right.push(id);
     }
-    // ADR-0152：0151 的舊預設（⚙ 獨佔左帶、右帶恰為 ─ □ ✕）視為未自訂 → 轉新預設；
+    // ADR-0152：0151 的舊預設（⚙ 獨佔左帶、右帶恰為 ─ □ ✕、且無身分控制）視為未自訂 → 轉新預設；
     // autoHide 是獨立偏好，照舊保留。順序不同＝使用者拖過，不動。
     if (left.length === 1 && left[0] === "settings" && right.join() === "min,max,close") {
       return { ...DEFAULT_TITLEBAR_CONTROLS, autoHide: v.autoHide === true, style };
+    }
+    // 身分控制缺漏補回（ADR-0206）：補到左帶尾（預設身分群在左）；舊設定升級即自動帶入。
+    for (const id of IDENTITY_CONTROL_IDS) {
+      if (seen.has(id)) continue;
+      left.push(id);
     }
     return { left, right, autoHide: v.autoHide === true, style };
   } catch {

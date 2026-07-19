@@ -355,12 +355,26 @@ function TitlebarSettings(): JSX.Element {
   const { controls, setControls } = useTitlebar();
   const [dragId, setDragId] = useState<ControlId | null>(null);
   const [hover, setHover] = useState<{ side: "left" | "right"; before: ControlId | null } | null>(null);
-  const glyph: Record<ControlId, string> = { settings: "⚙", min: "─", max: "□", close: "✕" };
+  const glyph: Record<ControlId, string> = {
+    settings: "⚙",
+    min: "─",
+    max: "□",
+    close: "✕",
+    // 身分控制（ADR-0206）：僅三欄＋Tauri 於標題列渲染（identity 實際為切換器，此處以 👤 代表位置）。
+    identity: "👤",
+    addid: "＋",
+    unlockhidden: "🔒",
+    roster: "🗂",
+  };
   const label: Record<ControlId, string> = {
     settings: t("settings_open"),
     min: t("titlebar_minimize"),
     max: t("titlebar_maximize"),
     close: t("titlebar_close"),
+    identity: t("idbar_switch"),
+    addid: t("idbar_addIdentity"),
+    unlockhidden: t("idbar_unlockHidden"),
+    roster: t("idbar_roster"),
   };
   /** 由座標找放置目標（pointer capture 下 pointerover 不會發到別的元素，只能用命中測試）。 */
   const targetAt = (x: number, y: number): { side: "left" | "right"; before: ControlId | null } | null => {

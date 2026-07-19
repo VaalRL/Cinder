@@ -9,6 +9,7 @@ import { tauriTitleBarActions } from "./native/window-controls.js";
 import { TitleBar, type TitleBarActions } from "./ui/TitleBar.js";
 import { scopedGet, scopedSet } from "./identity-scoped.js";
 import {
+  type IdentityControlsBundle,
   parseTitlebarControls,
   serializeTitlebarControls,
   TITLEBAR_CONTROLS_SUFFIX,
@@ -21,6 +22,9 @@ interface TitlebarContextValue {
   /** 標題列 ⚙ 的動作（App 註冊；null＝尚未註冊，不畫 ⚙）。 */
   openSettings: (() => void) | null;
   registerSettingsOpener: (fn: (() => void) | null) => void;
+  /** 身分控制的渲染資料（ADR-0206）：App 於三欄＋Tauri 註冊；null＝標題列不畫身分控制。 */
+  identityControls: IdentityControlsBundle | null;
+  registerIdentityControls: (bundle: IdentityControlsBundle | null) => void;
 }
 
 const TitlebarContext = createContext<TitlebarContextValue | null>(null);
@@ -33,6 +37,7 @@ function initialControls(): TitlebarControls {
 export function TitlebarProvider({ children }: { children: ReactNode }): JSX.Element {
   const [controls, setControlsState] = useState<TitlebarControls>(initialControls);
   const [openSettings, setOpenSettings] = useState<(() => void) | null>(null);
+  const [identityControls, setIdentityControls] = useState<IdentityControlsBundle | null>(null);
   const setControls = (next: TitlebarControls): void => {
     scopedSet(TITLEBAR_CONTROLS_SUFFIX, serializeTitlebarControls(next));
     setControlsState(next);
@@ -43,8 +48,10 @@ export function TitlebarProvider({ children }: { children: ReactNode }): JSX.Ele
       setControls,
       openSettings,
       registerSettingsOpener: (fn) => setOpenSettings(() => fn),
+      identityControls,
+      registerIdentityControls: setIdentityControls,
     }),
-    [controls, openSettings],
+    [controls, openSettings, identityControls],
   );
   return <TitlebarContext.Provider value={value}>{children}</TitlebarContext.Provider>;
 }
@@ -65,6 +72,15 @@ export function useRegisterSettingsOpener(): (fn: (() => void) | null) => void {
 }
 
 /**
+ * App 註冊身分控制的渲染資料（ADR-0206）：三欄＋Tauri 時提供，讓標題列畫身分切換/＋/🔒/🗂；
+ * 其餘情境傳 null（標題列不畫、App 自畫 idbar）。不在 Provider 內回 no-op（單獨測 App 不炸）。
+ */
+export function useRegisterIdentityControls(): (bundle: IdentityControlsBundle | null) => void {
+  const ctx = useContext(TitlebarContext);
+  return ctx?.registerIdentityControls ?? (() => {});
+}
+
+/**
  * 自繪外框本體（獨立出來供 SSR 測試）。autoHide（ADR-0153）＝**整條標題列**滑出畫面
  * （fixed 覆蓋層、translateY(-100%)），滑鼠碰到視窗頂端 6px 熱區或標題列本身才滑入；
  * 內容區同時拿回整個視窗高度（--viewport-h 回 100vh）。
@@ -73,6 +89,7 @@ export function ChromeFrame(props: {
   controls: TitlebarControls;
   actions: TitleBarActions;
   onOpenSettings?: () => void;
+  identityControls?: IdentityControlsBundle | null;
   children: ReactNode;
 }): JSX.Element {
   const { controls } = props;
@@ -83,6 +100,7 @@ export function ChromeFrame(props: {
         controls={controls}
         actions={props.actions}
         {...(props.onOpenSettings ? { onOpenSettings: props.onOpenSettings } : {})}
+        {...(props.identityControls ? { identityControls: props.identityControls } : {})}
       />
       <div className="window-chrome__body">{props.children}</div>
     </div>
@@ -91,10 +109,15 @@ export function ChromeFrame(props: {
 
 /** Tauri 下包一層自繪外框（標題列＋內容區）；瀏覽器版原樣透傳。 */
 export function WindowChrome({ children }: { children: ReactNode }): JSX.Element {
-  const { controls, openSettings } = useTitlebar();
+  const { controls, openSettings, identityControls } = useTitlebar();
   if (!isTauri()) return <>{children}</>;
   return (
-    <ChromeFrame controls={controls} actions={tauriTitleBarActions} {...(openSettings ? { onOpenSettings: openSettings } : {})}>
+    <ChromeFrame
+      controls={controls}
+      actions={tauriTitleBarActions}
+      {...(openSettings ? { onOpenSettings: openSettings } : {})}
+      identityControls={identityControls}
+    >
       {children}
     </ChromeFrame>
   );

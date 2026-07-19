@@ -4,47 +4,60 @@ import {
   parseTitlebarControls,
   placeControl,
   serializeTitlebarControls,
+  type ControlId,
   type TitlebarControls,
 } from "./titlebar-controls.js";
 
-describe("titlebar-controls 標題列按鈕設定 v2（ADR-0150/0151）", () => {
-  it("未設／壞 JSON／非物件 → 預設（⚙ 在最小化左側、同右帶、不隱藏；ADR-0152）", () => {
-    expect(DEFAULT_TITLEBAR_CONTROLS).toEqual({ left: [], right: ["settings", "min", "max", "close"], autoHide: false, style: "flat" });
+// 身分控制（ADR-0206）預設補在左帶尾；解析永遠帶入它們，故多數斷言以此尾巴收尾。
+const ID: ControlId[] = ["identity", "addid", "unlockhidden", "roster"];
+
+describe("titlebar-controls 標題列按鈕設定 v2（ADR-0150/0151/0206）", () => {
+  it("未設／壞 JSON／非物件 → 預設（身分群在左、⚙＋視窗控制在右、不隱藏；ADR-0152/0206）", () => {
+    expect(DEFAULT_TITLEBAR_CONTROLS).toEqual({ left: ID, right: ["settings", "min", "max", "close"], autoHide: false, style: "flat" });
     expect(parseTitlebarControls(null)).toEqual(DEFAULT_TITLEBAR_CONTROLS);
     expect(parseTitlebarControls("")).toEqual(DEFAULT_TITLEBAR_CONTROLS);
     expect(parseTitlebarControls("{oops")).toEqual(DEFAULT_TITLEBAR_CONTROLS);
     expect(parseTitlebarControls("42")).toEqual(DEFAULT_TITLEBAR_CONTROLS);
   });
 
-  it("v1 格式（ADR-0150 side/order）自動遷移：order 落在原側、⚙ 補在該帶最前（貼最小化左側）", () => {
+  it("v1 格式（ADR-0150 side/order）自動遷移：order 落在原側、⚙ 補該帶最前、身分控制補左帶尾", () => {
     expect(parseTitlebarControls(JSON.stringify({ side: "right", order: ["close", "min", "max"] }))).toEqual({
-      left: [],
+      left: ID,
       right: ["settings", "close", "min", "max"],
       autoHide: false,
       style: "flat",
     });
     expect(parseTitlebarControls(JSON.stringify({ side: "left", order: ["min", "max", "close"] }))).toEqual({
-      left: ["settings", "min", "max", "close"],
+      left: ["settings", "min", "max", "close", ...ID],
       right: [],
       autoHide: false,
       style: "flat",
     });
   });
 
-  it("v2 正規化：未知 id 剔除、跨帶去重（左優先）、缺漏補回（⚙ 補右帶最前、其餘補右帶尾）、autoHide 只認 true", () => {
+  it("v2 正規化：未知 id 剔除、跨帶去重（左優先）、視窗缺漏補右帶、身分缺漏補左帶尾、autoHide 只認 true", () => {
     const c = parseTitlebarControls(
       JSON.stringify({ left: ["close", "nope", "settings"], right: ["close", "min"], autoHide: true }),
     );
-    // close 在左帶先出現→右帶的重複剔除；max 缺漏→補右帶尾
-    expect(c).toEqual({ left: ["close", "settings"], right: ["min", "max"], autoHide: true, style: "flat" });
-    // ⚙ 缺漏 → 補右帶最前
+    // close 在左帶先出現→右帶的重複剔除；max 缺漏→補右帶尾；身分控制補左帶尾
+    expect(c).toEqual({ left: ["close", "settings", ...ID], right: ["min", "max"], autoHide: true, style: "flat" });
+    // ⚙ 缺漏 → 補右帶最前；身分控制補左帶尾
     expect(parseTitlebarControls(JSON.stringify({ left: ["min"], right: ["max", "close"] }))).toEqual({
-      left: ["min"],
+      left: ["min", ...ID],
       right: ["settings", "max", "close"],
       autoHide: false,
       style: "flat",
     });
     expect(parseTitlebarControls(JSON.stringify({ left: [], right: [], autoHide: "yes" })).autoHide).toBe(false);
+  });
+
+  it("身分控制可自訂位置：已放置者原樣保留、只補缺漏", () => {
+    // identity 拖到右帶、roster 拖到左帶最前；addid/unlockhidden 缺漏補左帶尾
+    const c = parseTitlebarControls(
+      JSON.stringify({ left: ["roster", "settings"], right: ["identity", "min", "max", "close"] }),
+    );
+    expect(c.left).toEqual(["roster", "settings", "addid", "unlockhidden"]);
+    expect(c.right).toEqual(["identity", "min", "max", "close"]);
   });
 
   it("按鈕風格（ADR-0167）：合法值原樣、未知/缺 → flat", () => {
@@ -53,17 +66,22 @@ describe("titlebar-controls 標題列按鈕設定 v2（ADR-0150/0151）", () => 
     expect(parseTitlebarControls(JSON.stringify({ left: [], right: ["close"] })).style).toBe("flat");
   });
 
-  it("serialize → parse 往返不變", () => {
-    const c: TitlebarControls = { left: ["close", "settings"], right: ["max", "min"], autoHide: true, style: "mac" };
+  it("serialize → parse 往返不變（含身分控制，八顆皆已放置）", () => {
+    const c: TitlebarControls = {
+      left: ["close", "settings", "roster"],
+      right: ["max", "min", "identity", "addid", "unlockhidden"],
+      autoHide: true,
+      style: "mac",
+    };
     expect(parseTitlebarControls(serializeTitlebarControls(c))).toEqual(c);
   });
 
-  it("0151 舊預設（⚙ 獨佔左帶）視為未自訂 → 轉新預設；autoHide 保留（ADR-0152）", () => {
+  it("0151 舊預設（⚙ 獨佔左帶、無身分控制）視為未自訂 → 轉新預設；autoHide 保留（ADR-0152）", () => {
     const old = JSON.stringify({ left: ["settings"], right: ["min", "max", "close"], autoHide: true });
-    expect(parseTitlebarControls(old)).toEqual({ left: [], right: ["settings", "min", "max", "close"], autoHide: true, style: "flat" });
-    // 使用者自訂過的左帶配置（順序不同）不受影響
+    expect(parseTitlebarControls(old)).toEqual({ left: ID, right: ["settings", "min", "max", "close"], autoHide: true, style: "flat" });
+    // 使用者自訂過的左帶配置（順序不同）不受影響（⚙ 仍在左帶最前，其後才補身分控制）
     const custom = JSON.stringify({ left: ["settings"], right: ["close", "min", "max"], autoHide: false });
-    expect(parseTitlebarControls(custom).left).toEqual(["settings"]);
+    expect(parseTitlebarControls(custom).left).toEqual(["settings", ...ID]);
   });
 
   it("placeControl：拖到某顆之前（同帶/跨帶）、拖到帶尾（beforeId=null）、自拖 no-op、純函式", () => {
@@ -81,6 +99,8 @@ describe("titlebar-controls 標題列按鈕設定 v2（ADR-0150/0151）", () => 
     // 自拖 no-op；未知 beforeId → 附加帶尾
     expect(placeControl(base, "min", "right", "min")).toEqual(base);
     expect(placeControl(base, "min", "left", "close").left).toEqual(["settings", "min"]);
+    // 身分控制也適用（純列表操作）：identity 拖到左帶 settings 之前
+    expect(placeControl(base, "identity", "left", "settings").left).toEqual(["identity", "settings"]);
     // 純函式：原物件不動
     expect(base.right).toEqual(["min", "max", "close"]);
   });
