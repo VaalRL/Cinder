@@ -125,6 +125,7 @@ import { DeckSidebar } from "./ui/DeckSidebar.js";
 import { DeckRight } from "./ui/DeckRight.js";
 import { DeckTabs } from "./ui/DeckTabs.js";
 import { ConversationWindow } from "./ui/ConversationWindow.js";
+import { useFloatingWindows } from "./ui/useFloatingWindow.js";
 import {
   DEFAULT_OLLAMA,
   ollamaAvailable,
@@ -412,6 +413,19 @@ export function App(): JSX.Element {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const { layout } = useLayout(); // 桌面佈局（ADR-0079）：classic 浮動視窗 ↔ modern 三欄。
+  const floatWins = useFloatingWindows(); // ADR-0216：經典右側浮動對話窗（拖曳/縮放/置頂/每窗記憶）。
+  // ADR-0216：窄螢幕退回單欄檢視切換（主視窗 ↔ 對話滿版），不啟用浮動。
+  const [isNarrow, setIsNarrow] = useState<boolean>(
+    () => typeof window !== "undefined" && !!window.matchMedia?.("(max-width: 720px)").matches,
+  );
+  useEffect(() => {
+    const mq = window.matchMedia?.("(max-width: 720px)");
+    if (!mq) return;
+    const on = (): void => setIsNarrow(mq.matches);
+    on();
+    mq.addEventListener?.("change", on);
+    return () => mq.removeEventListener?.("change", on);
+  }, []);
   const [backend, setBackend] = useState<ChatBackend | null>(null);
   const [profilesState, setProfilesState] = useState<ProfilesState>(() => loadProfiles());
   // 明文身分索引（ADR-0203）：身分清單變動時同步給 Rust，供反安裝「一併清空」時 app 未跑仍能
@@ -2005,7 +2019,11 @@ export function App(): JSX.Element {
     : {};
 
   return (
-    <div className={layout === "modern" ? "deck" : "desktop"} data-layout={layout}>
+    <div
+      className={layout === "modern" ? "deck" : "desktop"}
+      data-layout={layout}
+      {...(layout !== "modern" && isNarrow && activeConvo ? { "data-showconvo": "true" } : {})}
+    >
       {/* ADR-0206：三欄＋Tauri 時身分元件已上移標題列 → 不畫 idbar；其餘情境照舊。 */}
       {!(isTauri() && layout === "modern") && (profilesState.profiles.length > 0 || layout === "modern") ? (
         <div className="idbar" data-testid="identity-bar">
@@ -2047,9 +2065,9 @@ export function App(): JSX.Element {
               ) : null}
             </>
           ) : null}
-          {/* 三欄版：設定入口移到上方 nav bar 右側（ADR-0142）。Tauri 下 ⚙ 已上移到
-              自繪外框標題列（ADR-0151），這顆就不重複畫。 */}
-          {layout === "modern" && !isTauri() ? (
+          {/* 設定入口收斂於 idbar（ADR-0142/0216）——三欄與經典皆然，取代經典聯絡人視窗標題列的 ⚙。
+              Tauri 下 ⚙ 已在自繪外框標題列（ADR-0151），idbar 就不重複畫。 */}
+          {!isTauri() ? (
             <button
               className="idbar__add idbar__settings"
               aria-label={t("settings_open")}
@@ -2420,6 +2438,12 @@ export function App(): JSX.Element {
         />
       ) : null}
       <div className="deckwrap deckwrap--center">
+      {/* ADR-0216：窄螢幕檢視切換時的返回主視窗鈕（回列表）。 */}
+      {layout !== "modern" && isNarrow && activeConvo ? (
+        <button className="narrowback" data-testid="narrow-back" onClick={() => setActiveConvo(null)}>
+          ‹ {t("nav_back")}
+        </button>
+      ) : null}
       {layout === "modern" && open.length > 0 ? (
         <DeckTabs
           open={open}
@@ -2432,7 +2456,9 @@ export function App(): JSX.Element {
         />
       ) : null}
       {layout === "modern" && open.length === 0 ? <div className="deckcenter__empty">{t("deck_pickChat")}</div> : null}
-      {open.map((pk) => {
+      {open.map((pk, i) => {
+        // ADR-0216：經典寬螢幕才浮動；三欄（embedded）與窄螢幕（單欄切換）不套用。
+        const floating = layout !== "modern" && !isNarrow ? floatWins.get(pk, i) : undefined;
         const group = groups.find((g) => g.id === pk);
         if (group) {
           const groupContact: Contact = {
@@ -2448,6 +2474,7 @@ export function App(): JSX.Element {
             <div key={pk} className={`convotab${pk === activeConvo ? " on" : ""}`}>
             <ConversationWindow
               embedded={layout === "modern"}
+              {...(floating ? { floating } : {})}
               self={self}
               contact={groupContact}
               messages={convos[pk] ?? []}
@@ -2531,6 +2558,7 @@ export function App(): JSX.Element {
           <div key={pk} className={`convotab${pk === activeConvo ? " on" : ""}`}>
           <ConversationWindow
             embedded={layout === "modern"}
+            {...(floating ? { floating } : {})}
             self={self}
             contact={contact}
             p2pConnected={p2pConnected.has(pk)}

@@ -71,19 +71,26 @@ body { margin: 0; background: var(--bg-b); color: var(--ink); }
 /* 設定鈕靠右（三欄版 nav bar，ADR-0142）。 */
 .idbar__settings { margin-left: auto; }
 
+/* 經典佈局（ADR-0216）：左固定欄（idbar＋完整 MSN 主視窗）＋右側浮動對話畫布。
+   modern 模式改用 .deck（下方）三欄 Grid，互不影響。 */
 .desktop {
+  height: var(--viewport-h);
   min-height: var(--viewport-h);
   background: radial-gradient(120% 100% at 50% 0%, var(--bg-a) 0%, var(--bg-b) 60%, var(--bg-c) 100%);
-  padding: 24px;
-  display: flex;
-  gap: 18px;
-  flex-wrap: wrap;
-  align-items: flex-start;
+  display: grid;
+  grid-template-columns: minmax(240px, 320px) minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-areas:
+    "idbar canvas"
+    "left  canvas";
 }
-
-/* 三欄整合佈局（ADR-0079 Q1）。經典模式下 .deckwrap 透明化（display:contents）→
-   現有浮動視窗行為完全不變；modern 模式下 .deck 以 Grid 排成 左/中/右 三欄。 */
-.desktop .deckwrap { display: contents; }
+.desktop > .idbar { grid-area: idbar; }
+.desktop .deckwrap--left {
+  grid-area: left; overflow-y: auto; min-height: 0; padding: 10px; border-right: 1px solid var(--border);
+}
+.desktop .deckwrap--left > .win { width: 100%; box-sizing: border-box; }
+/* 右側浮動畫布：對話窗（.convo-dock）以絕對定位落在此（position:relative 為定位基準）。 */
+.desktop .deckwrap--center { grid-area: canvas; position: relative; overflow: hidden; min-height: 0; }
 .deck {
   height: var(--viewport-h);
   background: radial-gradient(120% 100% at 50% 0%, var(--bg-a) 0%, var(--bg-b) 60%, var(--bg-c) 100%);
@@ -854,6 +861,30 @@ button:disabled { opacity: .5; cursor: default; filter: none; }
 .convo-dock { display: flex; gap: 8px; align-items: flex-start; }
 .thread-panel { width: 320px; }
 .thread-panel .win__title { background: var(--titlebar); }
+/* 浮動對話窗（ADR-0216）：整個 .convo-dock 絕對定位（位置/尺寸/z 由 useFloatingWindow inline style）。 */
+.convo-dock--float { align-items: stretch; box-shadow: 0 6px 24px rgba(0, 0, 0, 0.28); border-radius: 6px; }
+.convo-dock--float > .convo { flex: 1; width: auto; height: 100%; min-width: 0; }
+.convo-dock--float > .thread-panel { height: 100%; flex: none; }
+.win__title--drag { cursor: grab; user-select: none; }
+.win__title--drag:active { cursor: grabbing; }
+/* 返回主視窗鈕（ADR-0216，窄螢幕檢視切換）。 */
+.narrowback {
+  display: inline-flex; align-items: center; gap: 4px; margin: 8px; padding: 4px 10px;
+  border: 1px solid var(--border); background: var(--field); color: var(--ink); border-radius: 6px; cursor: pointer; font-size: 12px;
+}
+/* 窄螢幕（ADR-0216）：經典退回單欄檢視切換（主視窗 ↔ 對話滿版），不啟用浮動。 */
+@media (max-width: 720px) {
+  .desktop { grid-template-columns: 1fr; grid-template-areas: "idbar" "left"; }
+  .desktop .deckwrap--left { border-right: none; }
+  .desktop .deckwrap--center { display: none; }
+  .desktop[data-showconvo="true"] { grid-template-areas: "idbar" "canvas"; }
+  .desktop[data-showconvo="true"] .deckwrap--left { display: none; }
+  .desktop[data-showconvo="true"] .deckwrap--center { display: block; grid-area: canvas; position: static; overflow: auto; }
+  .desktop[data-showconvo="true"] .convotab { display: none; }
+  .desktop[data-showconvo="true"] .convotab.on { display: block; }
+  .desktop[data-showconvo="true"] .convo-dock,
+  .desktop[data-showconvo="true"] .convo-dock > .convo { width: 100%; height: 100%; }
+}
 .thread__btn { border: 1px solid var(--border); background: var(--field); color: var(--muted); border-radius: 10px; height: 16px; line-height: 12px; font-size: 11px; cursor: pointer; padding: 0 4px; margin-left: 4px; }
 .line:hover .thread__btn { color: var(--accent); }
 .thread__count { display: inline-block; margin-top: 2px; border: 1px solid var(--border); background: var(--surface2); color: var(--accent); border-radius: 10px; font-size: 11px; padding: 1px 8px; cursor: pointer; }

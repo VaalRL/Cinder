@@ -671,6 +671,7 @@ export interface Messages {
   sort_byName: string;
   contactGroup_ungrouped: string;
   contactGroup_all: string;
+  nav_back: string;
 }
 
 const zhHant: Messages = {
@@ -1294,6 +1295,7 @@ const zhHant: Messages = {
   sort_byName: "依名稱",
   contactGroup_ungrouped: "未分組",
   contactGroup_all: "全部",
+  nav_back: "返回",
 };
 
 const en: Messages = {
@@ -1917,6 +1919,7 @@ const en: Messages = {
   sort_byName: "By name",
   contactGroup_ungrouped: "Ungrouped",
   contactGroup_all: "All",
+  nav_back: "Back",
 };
 
 export const catalog: Record<Locale, Messages> = { "zh-Hant": zhHant, en };

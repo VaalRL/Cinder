@@ -10,6 +10,7 @@ import {
 } from "@cinderous/core";
 import { type MouseEvent as ReactMouseEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useI18n } from "../i18n.js";
+import type { FloatingWindow } from "./useFloatingWindow.js";
 import type { CallMedia, MentionCandidate } from "@cinderous/core";
 import { mainMessages, replyCounts, threadMessages } from "@cinderous/engine";
 import type { MessageKey } from "@cinderous/i18n";
@@ -258,6 +259,8 @@ export interface ConversationProps {
    * 僅 1:1 提供（群組為多對端、無單一直連概念）；`undefined`＝不顯示晶片。
    */
   p2pConnected?: boolean;
+  /** 浮動視窗（ADR-0216）：經典佈局右側自由拖曳/縮放/置頂；提供時套用絕對定位與拖放把手。 */
+  floating?: FloatingWindow;
   /** 發起語音/視訊通話（未提供則不顯示通話按鈕）。 */
   onStartCall?: (media: CallMedia) => void;
   /** 群組模式：以發送者公鑰解析顯示暱稱（提供即為群組視窗）。 */
@@ -455,13 +458,14 @@ export function ConversationWindow(props: ConversationProps): JSX.Element {
   // O1 對話框縮放：掛載時套用全域尺寸偏好（ADR-0077）。內嵌模式（Q3）由中欄決定尺寸、不套用。
   useEffect(() => {
     const el = rootRef.current;
-    if (!el || props.embedded) return;
+    // 浮動模式（ADR-0216）：尺寸由 useFloatingWindow 的 style 驅動（每窗獨立），不套全域偏好。
+    if (!el || props.embedded || props.floating) return;
     const saved = getConvoSize();
     if (saved) {
       el.style.width = `${saved.w}px`;
       el.style.height = `${saved.h}px`;
     }
-  }, [props.embedded]);
+  }, [props.embedded, props.floating]);
   // 右下角把手拖曳縮放：夾在 min/max，放開時持久化為全域偏好。
   const startResize = (e: ReactMouseEvent): void => {
     e.preventDefault();
@@ -758,7 +762,12 @@ export function ConversationWindow(props: ConversationProps): JSX.Element {
   };
 
   return (
-    <div className={`convo-dock${props.embedded ? " convo-dock--embed" : ""}`}>
+    <div
+      className={`convo-dock${props.embedded ? " convo-dock--embed" : ""}${props.floating ? " convo-dock--float" : ""}`}
+      {...(props.floating
+        ? { "data-floatwin": true, style: props.floating.style, onMouseDownCapture: props.floating.onRootMouseDown }
+        : {})}
+    >
     {/* data-convo（ADR-0104）：原生拖放只給座標，靠它命中測試「掉在哪個對話上」。 */}
     <div
       className={`win convo${props.embedded ? " convo--embed" : ""}`}
@@ -766,7 +775,10 @@ export function ConversationWindow(props: ConversationProps): JSX.Element {
       data-contact={contact.name}
       data-convo={contact.pubkey}
     >
-      <div className="win__title">
+      <div
+        className={`win__title${props.floating ? " win__title--drag" : ""}`}
+        {...(props.floating ? { onMouseDown: props.floating.onTitleMouseDown } : {})}
+      >
         {/* ADR-0148：有暱稱時點名字在「暱稱↔對方廣播名」切換；旁邊小鉛筆設定/清除暱稱。 */}
         <span
           className={hasAlias ? "convo__name convo__name--toggle" : "convo__name"}
@@ -1599,7 +1611,12 @@ export function ConversationWindow(props: ConversationProps): JSX.Element {
           </div>
         </div>
       )}
-      <div className="convo__resize" onMouseDown={startResize} data-testid="convo-resize" title={t("convo_resize")} />
+      <div
+        className="convo__resize"
+        onMouseDown={props.floating ? props.floating.onResizeMouseDown : startResize}
+        data-testid="convo-resize"
+        title={t("convo_resize")}
+      />
     </div>
     {threadRoot !== null ? (
       <div className="win convo thread-panel" data-testid="thread-panel">

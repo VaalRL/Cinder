@@ -295,17 +295,7 @@ export function ContactListWindow(props: ContactListProps): JSX.Element {
       <div className="win__title">
         <span>{t("appName")}</span>
         <span className="spacer" />
-        {props.onOpenSettings ? (
-          <button
-            type="button"
-            className="themebtn"
-            aria-label={t("settings_open")}
-            title={t("settings_open")}
-            onClick={props.onOpenSettings}
-          >
-            ⚙️
-          </button>
-        ) : null}
+        {/* 設定 ⚙ 已收斂到 idbar（ADR-0216）；此處不再放。 */}
         <TitleControls />
       </div>
 

@@ -223,6 +223,45 @@ describe("P2P 直連品質晶片（ADR-0213）", () => {
   });
 });
 
+describe("浮動視窗（ADR-0216）", () => {
+  const floating = {
+    style: { position: "absolute" as const, left: 10, top: 20, width: 400, height: 500, zIndex: 3 },
+    onRootMouseDown: () => {},
+    onTitleMouseDown: () => {},
+    onResizeMouseDown: () => {},
+  };
+  it("提供 floating → convo-dock 絕對定位、data-floatwin、標題列可拖曳", () => {
+    const html = renderToStaticMarkup(
+      <I18nProvider locale="zh-Hant">
+        <ThemeProvider>
+          <ConversationWindow
+            self={self}
+            contact={contact}
+            messages={[]}
+            typing={false}
+            nudgeSignal={0}
+            floating={floating}
+            onSend={() => {}}
+            onTyping={() => {}}
+            onNudge={() => {}}
+            onClose={() => {}}
+          />
+        </ThemeProvider>
+      </I18nProvider>,
+    );
+    expect(html).toContain("convo-dock--float");
+    expect(html).toContain("data-floatwin");
+    expect(html).toContain("win__title--drag");
+    expect(html).toContain("position:absolute");
+  });
+
+  it("未提供 floating → 無浮動 class（一般流式）", () => {
+    const html = render([]);
+    expect(html).not.toContain("convo-dock--float");
+    expect(html).not.toContain("data-floatwin");
+  });
+});
+
 describe("ConversationWindow 送出狀態圖示（ADR-0058／0095 眼睛語言）", () => {
   const out = (status: MessageStatus): ChatMessage => ({ id: "x", outgoing: true, text: "hi", at: 1, status });
 
