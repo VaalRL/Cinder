@@ -3,6 +3,7 @@ import { contentHash } from "./event.js";
 import {
   ASSET_MANIFEST_MAX_COUNT,
   ASSET_MANIFEST_PREFIX,
+  acquireAssets,
   appendAssetManifest,
   assetFromManifestEntry,
   assetManifestBytes,
@@ -13,6 +14,7 @@ import {
   resolveInlineEmoji,
   splitAssetManifest,
   type AssetManifest,
+  type CustomAsset,
 } from "./custom-assets.js";
 
 const smiley =
@@ -130,5 +132,57 @@ describe("由清單造 CustomAsset 與位元組計量", () => {
   it("assetManifestBytes 反映序列化長度", () => {
     const manifest: AssetManifest = { party: { label: "派對", svg: smiley } };
     expect(assetManifestBytes(manifest)).toBe(new TextEncoder().encode(formatAssetManifest(manifest)).length);
+  });
+});
+
+describe("收到自動收藏＋LRU 淘汰（acquireAssets）", () => {
+  const asset = (id: string, extra: Partial<CustomAsset> = {}): CustomAsset => ({
+    id,
+    label: id,
+    svg: smiley,
+    kind: "emoji",
+    ...extra,
+  });
+
+  it("新資產置於前端（最新在前）", () => {
+    const lib = [asset("a"), asset("b")];
+    const out = acquireAssets(lib, [asset("c")], { max: 10 });
+    expect(out.map((a) => a.id)).toEqual(["c", "a", "b"]);
+  });
+
+  it("同 id 移到最前並刷新、不重複", () => {
+    const lib = [asset("a"), asset("b", { label: "舊" })];
+    const out = acquireAssets(lib, [asset("b", { label: "新" })], { max: 10 });
+    expect(out.map((a) => a.id)).toEqual(["b", "a"]);
+    expect(out[0]?.label).toBe("新");
+  });
+
+  it("超過 max 從尾端淘汰未受保護者", () => {
+    const lib = [asset("a"), asset("b"), asset("c")];
+    const out = acquireAssets(lib, [asset("d")], { max: 3 });
+    expect(out.map((a) => a.id)).toEqual(["d", "a", "b"]); // c（最舊）被淘汰
+  });
+
+  it("受保護者（最愛/自建）永不淘汰，即使超過 max", () => {
+    const lib = [asset("a"), asset("b"), asset("fav", { kind: "sticker" })];
+    const out = acquireAssets(lib, [asset("d")], {
+      max: 2,
+      protect: (a) => a.id === "fav",
+    });
+    expect(out.map((a) => a.id).sort()).toEqual(["d", "fav"].sort());
+    expect(out.map((a) => a.id)).toContain("fav");
+  });
+
+  it("全受保護時可超過 max（不淘汰）", () => {
+    const lib = [asset("a"), asset("b")];
+    const out = acquireAssets(lib, [asset("c")], { max: 1, protect: () => true });
+    expect(out).toHaveLength(3);
+  });
+
+  it("純函式：不變更輸入陣列", () => {
+    const lib = [asset("a")];
+    const snapshot = [...lib];
+    acquireAssets(lib, [asset("b")], { max: 10 });
+    expect(lib).toEqual(snapshot);
   });
 });

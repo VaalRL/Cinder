@@ -174,3 +174,41 @@ export function assetFromManifestEntry(
 export function assetManifestBytes(manifest: AssetManifest): number {
   return new TextEncoder().encode(formatAssetManifest(manifest)).length;
 }
+
+/**
+ * 收到自動收藏＋LRU 淘汰（ADR-0220）。把 `incoming` 併入 `library`：最近收到者置於前端
+ * （前＝最新），同 `id`（內容雜湊）者移到最前並刷新（保留 incoming 版本的標籤/短碼），
+ * 不重複。超過 `max` 時，從尾端淘汰「未受保護」者；`protect`（通常＝最愛或自建）永不淘汰，
+ * 即使因此超過 `max`。純函式，不變更輸入。單顆點擊收藏＝傳長度 1 的 `incoming`。
+ */
+export function acquireAssets(
+  library: CustomAsset[],
+  incoming: CustomAsset[],
+  opts: { max: number; protect?: (a: CustomAsset) => boolean },
+): CustomAsset[] {
+  const protect = opts.protect ?? ((): boolean => false);
+  // incoming 去重（保留首見）；置前＝最新。
+  const inSeen = new Set<string>();
+  const fresh: CustomAsset[] = [];
+  for (const a of incoming) {
+    if (inSeen.has(a.id)) continue;
+    inSeen.add(a.id);
+    fresh.push(a);
+  }
+  const kept = library.filter((a) => !inSeen.has(a.id));
+  let result = [...fresh, ...kept];
+  // 尾端淘汰未受保護者，直到 ≤max 或只剩受保護者。
+  while (result.length > opts.max) {
+    let idx = -1;
+    for (let i = result.length - 1; i >= 0; i--) {
+      const a = result[i];
+      if (a && !protect(a)) {
+        idx = i;
+        break;
+      }
+    }
+    if (idx === -1) break; // 全受保護：不淘汰（可超過 max）
+    result = result.filter((_, i) => i !== idx);
+  }
+  return result;
+}
