@@ -12,7 +12,7 @@ import { Fragment, type MouseEvent as ReactMouseEvent, useEffect, useMemo, useRe
 import { useI18n } from "../i18n.js";
 import type { FloatingWindow } from "./useFloatingWindow.js";
 import type { CallMedia, MentionCandidate } from "@cinderous/core";
-import { mainMessages, replyCounts, threadMessages } from "@cinderous/engine";
+import { getKv, mainMessages, replyCounts, threadMessages } from "@cinderous/engine";
 import type { MessageKey } from "@cinderous/i18n";
 import type { ChatMessage, Contact, MessageStatus, Self } from "@cinderous/engine";
 import { contactLabel } from "@cinderous/engine";
@@ -330,6 +330,12 @@ export interface ConversationProps {
   onRemoveMember?: (pubkey: string) => void;
   /** 企業政策停用貼圖時隱藏貼圖鈕（ADR-0048）。 */
   stickersDisabled?: boolean;
+  /** 自訂資產庫的加密儲存後端（ADR-0220）；未提供則退回本機 localStorage。 */
+  assetStore?: {
+    load: () => CustomSticker[];
+    save: (list: CustomSticker[]) => void;
+    namespace: string;
+  };
   /** 公告頻道唯讀（ADR-0049）：非管理者隱藏輸入區。 */
   readOnly?: boolean;
   /** 內嵌模式（ADR-0079 Q3）：三欄中欄用——填滿容器、無浮動標題列/縮放把手。 */
@@ -436,7 +442,31 @@ export function ConversationWindow(props: ConversationProps): JSX.Element {
   const [stickerTab, setStickerTab] = useState<string>(STICKER_PACK_ORDER[0] ?? "");
   const [recent, setRecent] = useState<StickerRef[]>([]);
   const [favorites, setFavorites] = useState<StickerRef[]>([]);
-  const [library, setLibrary] = useState<CustomSticker[]>(() => loadLibrary());
+  // 資產庫儲存後端（ADR-0220 步驟 6）：有 assetStore（加密 AppStorage）走它，否則退回 localStorage。
+  const loadLib = (): CustomSticker[] => (props.assetStore ? props.assetStore.load() : loadLibrary());
+  const persistLib = (list: CustomSticker[]): void => {
+    if (props.assetStore) props.assetStore.save(list);
+    else saveLibrary(list);
+  };
+  const [library, setLibrary] = useState<CustomSticker[]>(() => loadLib());
+  // 一次性遷移（ADR-0220 步驟 6）：舊全域明文庫 → 加密 AppStorage（每身分一次，flag 防重跑）。
+  const migratedRef = useRef(false);
+  useEffect(() => {
+    const as = props.assetStore;
+    if (!as || migratedRef.current) return;
+    migratedRef.current = true;
+    const flag = `nb.${as.namespace}.assetsMigrated`;
+    if (getKv().getItem(flag) === "1") return;
+    getKv().setItem(flag, "1");
+    if (as.load().length === 0) {
+      const old = loadLibrary(); // 舊全域 localStorage（明文）
+      if (old.length > 0) {
+        as.save(old);
+        setLibrary(old);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const stickerFileRef = useRef<HTMLInputElement>(null);
   const emojiFileRef = useRef<HTMLInputElement>(null);
   /** 貼圖編輯器（ADR-0033）：null=關閉；base 為底圖（空白畫布時省略）。 */
@@ -629,13 +659,13 @@ export function ConversationWindow(props: ConversationProps): JSX.Element {
       return false;
     }
     setLibrary(r.list);
-    saveLibrary(r.list);
+    persistLib(r.list);
     return true;
   };
   const deleteCustom = (id: string): void => {
     const next = removeSticker(library, id);
     setLibrary(next);
-    saveLibrary(next);
+    persistLib(next);
   };
   // 收到自動收藏（ADR-0220）：掃描收到訊息尾端的資產清單，信任來源（此對話對象）自動入庫（LRU）。
   // 企業停用時不收藏；最愛不被淘汰。自建保護待 origin 旗標（後續）。已處理 id 以 ref 去重防重跑。
@@ -660,7 +690,7 @@ export function ConversationWindow(props: ConversationProps): JSX.Element {
     }
     if (changed) {
       setLibrary(cur);
-      saveLibrary(cur);
+      persistLib(cur);
     }
     // 僅依 messages/停用旗標觸發；library/favorites 取當下值。
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -775,7 +805,7 @@ export function ConversationWindow(props: ConversationProps): JSX.Element {
       return;
     }
     setLibrary(r.list);
-    saveLibrary(r.list);
+    persistLib(r.list);
   };
 
   const dropFiles = (files: FileList | null) => {

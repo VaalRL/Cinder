@@ -142,7 +142,7 @@
 
 **客戶端 — 多身分與資料隔離**
 - `packages/engine/src/storage/profiles.ts`：全域設定檔登錄（`nb.profiles`＋作用中 pubkey）；首次載入把既有單一身分遷移為 namespace 為空的 legacy 設定檔（向後相容）。（ADR-0074 起隨引擎抽出至 `packages/engine`。）
-- `packages/engine/src/storage/local.ts`：`LocalStorage(namespace)` 以 `nb.<pubkey>.<key>` 隔離各身分資料（聯絡人/訊息/群組/貼圖庫…），空 namespace＝舊鍵；web/mobile 以 nsec 導出金鑰加密（ADR-0112）。
+- `packages/engine/src/storage/local.ts`：`LocalStorage(namespace)` 以 `nb.<pubkey>.<key>` 隔離各身分資料（聯絡人/訊息/群組/自訂資產庫 emoji＋貼圖…），空 namespace＝舊鍵；web 以 nsec 導出金鑰加密、Tauri 走 Rust AES-256-GCM（ADR-0112/0054）。自訂資產庫（emoji＋貼圖，ADR-0220）存於 `customAssets`＝每身分加密落地；自訂 emoji 走既有加密訊息通道，內容尾端附 `nb-assets:v1:{shortcode:{label,svg}}` 行內清單。
 - `apps/desktop/src/App.tsx`：`buildBackend(profile)` 依身分建立後端——**工作身分（enterprise）鎖定單座**（不給 `connectorFor`/`anchors`/`onHomeSwitched` → 不漫遊、不遞補，ADR-0044/0045）；個人身分走開放模式（relay pool/錨點/漫遊）。切換身分以 reload 乾淨重建 per-身分 狀態。
 
 **資料流（工作身分送一則群訊）**

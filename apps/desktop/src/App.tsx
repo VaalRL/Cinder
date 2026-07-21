@@ -18,6 +18,7 @@ import {
   parseBackupCode,
   parseOrgInvite,
   peekBackupRelay,
+  type CustomAsset,
   type PubkeyHex,
 } from "@cinderous/core";
 import { invoke, isTauri } from "@tauri-apps/api/core";
@@ -769,6 +770,16 @@ export function App(): JSX.Element {
   const storageRef = useRef<AppStorage | null>(null);
   const selfRef = useRef<Self | null>(self);
   selfRef.current = self;
+  // 自訂資產庫存於加密 AppStorage（ADR-0220 步驟 6）；無儲存（示範/未登入）時 ConversationWindow
+  // 自動退回 localStorage。每次 render 計算以讀到當前 storageRef。
+  const assetStore =
+    self && storageRef.current
+      ? {
+          load: (): CustomAsset[] => storageRef.current!.loadCustomAssets(),
+          save: (l: CustomAsset[]): void => storageRef.current!.saveCustomAssets(l),
+          namespace: self.pubkey,
+        }
+      : undefined;
   const idleRef = useRef<IdleState>(initIdle(Date.now()));
 
   // 自動登入：以「作用中身分設定檔」建立後端（ADR-0045；相容既有單一身分）。
@@ -2574,6 +2585,7 @@ export function App(): JSX.Element {
               muted={isMuted(groupPrefs, pk)}
               onToggleMute={() => updatePrefs(withMuted(groupPrefs, pk, !isMuted(groupPrefs, pk)))}
               self={self}
+              {...(assetStore ? { assetStore } : {})}
               contact={groupContact}
               messages={convos[pk] ?? []}
               typing={false}
@@ -2658,6 +2670,7 @@ export function App(): JSX.Element {
             embedded={layout === "modern"}
             {...(floating ? { floating } : {})}
             self={self}
+            {...(assetStore ? { assetStore } : {})}
             contact={contact}
             p2pConnected={p2pConnected.has(pk)}
             muted={isMuted(groupPrefs, pk)}

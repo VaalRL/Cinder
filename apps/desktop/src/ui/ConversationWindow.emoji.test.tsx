@@ -6,6 +6,7 @@
 import { act } from "react";
 import { describe, expect, it } from "vitest";
 import { appendAssetManifest, contentHash } from "@cinderous/core";
+import { MemoryStorage } from "@cinderous/engine";
 import type { ChatMessage, Contact, Self } from "@cinderous/engine";
 import { I18nProvider } from "../i18n.js";
 import { ThemeProvider } from "../theme.js";
@@ -135,6 +136,58 @@ const typeInComposer = async (m: { container: HTMLElement }, val: string): Promi
     el?.dispatchEvent(new Event("input", { bubbles: true }));
   });
 };
+
+type CustomAssetLike = { id: string; label: string; svg: string; kind: string; shortcode?: string };
+
+const renderWith = (messages: ChatMessage[], assetStore: unknown): JSX.Element => (
+  <I18nProvider>
+    <ThemeProvider>
+      <ConversationWindow
+        self={self}
+        contact={bob}
+        messages={messages}
+        typing={false}
+        nudgeSignal={0}
+        onSend={() => {}}
+        onTyping={() => {}}
+        onNudge={() => {}}
+        onClose={() => {}}
+        assetStore={assetStore as never}
+      />
+    </ThemeProvider>
+  </I18nProvider>
+);
+
+describe("加密 AppStorage 後端＋遷移（ADR-0220，步驟 6）", () => {
+  const storeOf = (s: MemoryStorage, namespace: string) => ({
+    load: () => s.loadCustomAssets(),
+    save: (l: CustomAssetLike[]) => s.saveCustomAssets(l as never),
+    namespace,
+  });
+
+  it("有 assetStore 時：收到自動收藏寫進 AppStorage，而非 localStorage", () => {
+    localStorage.clear();
+    const store = new MemoryStorage();
+    const text = appendAssetManifest(":party:", { party: { label: "派對", svg: smiley } });
+    const m = mount(renderWith([{ id: "s1", outgoing: false, text, at: 1 }], storeOf(store, "ns-a")));
+    expect(store.loadCustomAssets().map((a) => a.shortcode)).toContain("party");
+    expect(localStorage.getItem("nb.stickers.custom")).toBeNull(); // 未落 localStorage
+    m.unmount();
+  });
+
+  it("遷移：舊全域 localStorage 庫 → 加密 AppStorage（每身分一次）", () => {
+    localStorage.clear();
+    localStorage.setItem(
+      "nb.stickers.custom",
+      JSON.stringify([{ id: contentHash(smiley), label: "舊圖", svg: smiley, kind: "sticker" }]),
+    );
+    const store = new MemoryStorage();
+    const m = mount(renderWith([], storeOf(store, "mig1")));
+    expect(store.loadCustomAssets().map((a) => a.id)).toContain(contentHash(smiley));
+    expect(localStorage.getItem("nb.mig1.assetsMigrated")).toBe("1");
+    m.unmount();
+  });
+});
 
 describe(": 自訂 emoji 短碼自動補全（ADR-0220，步驟 4）", () => {
   it("打 :par → 出現候選列、點選插入 :party:", async () => {
