@@ -38,4 +38,9 @@ ADR-0223 的 blob 傳輸有上限（`ASSET_CHUNK_CHARS 48000` × `ASSET_CHUNK_MA
   - 舊資料若已存超大 blob：送端會擋（不送）＝維持占位（比靜默丟棄好，本機仍可見）。
   - 像素上限**僅 GIF**；PNG/WEBP/JPEG 匯入時已正規化，收端行內亦 ≤48KB。
   - blob 位元組上限只在**產生端/送端**；收端本就受 `ASSET_CHUNK_MAX_TOTAL` 隱含限制（≤64 塊）。
-- **測試**：core 純函式（`gifDimensions`／`rasterWithinPixelBounds`／`BLOB_MAX_BYTES`）＋engine（送端擋超大、收端像素丟棄）＋desktop（`addRaster` 拒收）。
+- **測試**：core 純函式（`gifDimensions`／`rasterWithinPixelBounds`／`BLOB_MAX_BYTES` 值＋`splitAssetChunks` 證明「超過 `BLOB_MAX_BYTES` 即超塊數上限、收端會拒」）＋engine 收端像素丟棄。**送端** `BLOB_MAX_BYTES` 守衛的閾值由上述 core `splitAssetChunks` 塊數測試釘住——刻意不寫 3MB in-memory 端對端測試（會拖慢 CI）。
+
+## 審查修正（2026-07-21）
+
+- `rasterWithinPixelBounds` 原本對「非 GIF」與「宣告 GIF 但檔頭截斷讀不到尺寸」都回 `true`（把「不適用」與「量不到」混為一談）。改為：**宣告 GIF 但 `gifDimensions` 讀不到尺寸 → 回 `false`（擋下殘缺 GIF）**；非 GIF 才放行。＋回歸測試。
+- 已知殘留（header-only 嗅探的固有侷限，非本次 diff 引入）：只讀 GIF Logical Screen Descriptor，不逐格驗證各 frame Image Descriptor 尺寸；寬鬆解碼器仍可能對「LSD 小、單格大」的非規範 GIF 配置超預期畫布。列為後續。

@@ -126,8 +126,9 @@ export function gifDimensions(dataUri: string): { w: number; h: number } | null 
  * 正規化到 64/256、收端行內亦 ≤48KB）；非 GIF 一律 `true`。寬高需 >0 且 ≤ `maxEdge`。
  */
 export function rasterWithinPixelBounds(dataUri: string, maxEdge: number = RASTER_MAX_EDGE): boolean {
+  if (detectRasterType(dataUri) !== "gif") return true; // 非 GIF：已正規化，不適用
   const d = gifDimensions(dataUri);
-  if (!d) return true; // 非 GIF：不適用
+  if (!d) return false; // 宣告 GIF 但讀不到尺寸（截斷/殘缺）＝擋下（審查修正：勿把「量不到」當「放行」）
   return d.w > 0 && d.h > 0 && d.w <= maxEdge && d.h <= maxEdge;
 }
 
@@ -479,6 +480,20 @@ function latestTombstones(...lists: AssetTombstone[][]): Map<string, number> {
 }
 
 /**
+ * 同 `id` 兩版擇一（LWW）：`at` 較大者勝；**平手用內容中立序**（label→kind→format）——
+ * 交換律要求（ADR-0224 審查修正）：ADR-0224 前的舊資料 `at` 皆缺（視為 0）＝保證平手，
+ * 若以「陣列先後」tie-break 會使 merge(A,B)≠merge(B,A)。
+ */
+function pickAsset(a: CustomAsset, b: CustomAsset): CustomAsset {
+  const da = a.at ?? 0;
+  const db = b.at ?? 0;
+  if (da !== db) return da > db ? a : b;
+  const ka = `${a.label} ${a.kind} ${a.format ?? ""}`;
+  const kb = `${b.label} ${b.kind} ${b.format ?? ""}`;
+  return ka <= kb ? a : b;
+}
+
+/**
  * 跨裝置庫合併（ADR-0224）：LWW＋墓碑，交換律（多台任意順序合併結果一致）。
  *
  * - 對每個 `id`：取資產的最大 `at` 版本；比對該 id 墓碑的最大 `at`——資產 `at` **嚴格大於**
@@ -508,7 +523,7 @@ export function mergeAssetLibrary(
       mergedById.set(a.id, a);
       continue;
     }
-    mergedById.set(a.id, (a.at ?? 0) > (existing.at ?? 0) ? a : existing);
+    mergedById.set(a.id, pickAsset(a, existing));
   }
   // 本地 shortcode/mine 保留＋取 at 最大值。
   for (const id of order) {
@@ -538,10 +553,8 @@ export function mergeAssetLibrary(
     survivors.push(a);
   }
 
-  // 4) 排序（at 新到舊，同 at 維持首見序）＋ max LRU 淘汰。
-  const rank = new Map(order.map((id, i) => [id, i]));
-  const ix = (id: string): number => rank.get(id) ?? 0;
-  survivors.sort((x, y) => (y.at ?? 0) - (x.at ?? 0) || ix(x.id) - ix(y.id));
+  // 4) 排序（at 新到舊；平手用 id 字典序＝內容中立，保證 max 淘汰的存活集合亦滿足交換律）＋ max LRU 淘汰。
+  survivors.sort((x, y) => (y.at ?? 0) - (x.at ?? 0) || (x.id < y.id ? -1 : x.id > y.id ? 1 : 0));
   let assets = survivors;
   while (assets.length > opts.max) {
     let idx = -1;
@@ -563,4 +576,26 @@ export function mergeAssetLibrary(
     .slice(0, tombstoneMax);
 
   return { assets, tombstones };
+}
+
+/**
+ * 單筆資產形狀是否合法（ADR-0224 審查修正）：快照/外部來源逐筆過濾用，擋畸形項
+ * （如 `null`／缺 `svg`／`kind` 非法）經合併寫入本機加密庫、污染下游渲染。
+ */
+export function isWellFormedAsset(x: unknown): x is CustomAsset {
+  if (!x || typeof x !== "object") return false;
+  const a = x as Record<string, unknown>;
+  return (
+    typeof a.id === "string" &&
+    typeof a.label === "string" &&
+    typeof a.svg === "string" &&
+    (a.kind === "emoji" || a.kind === "sticker" || a.kind === "both")
+  );
+}
+
+/** 單筆墓碑形狀是否合法（ADR-0224 審查修正）：`id` 字串＋`at` 數字。 */
+export function isWellFormedTombstone(x: unknown): x is AssetTombstone {
+  if (!x || typeof x !== "object") return false;
+  const t = x as Record<string, unknown>;
+  return typeof t.id === "string" && typeof t.at === "number";
 }

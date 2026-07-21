@@ -83,3 +83,11 @@ ADR-0220～0223 讓自訂 emoji（含大動畫 GIF）在單裝置＋1:1／群組
 - **M2（engine，commit 9025159）**：`sendAssetBlob` 放行 `sender===self`＝向自己 backfill；`resyncAssets()`（庫變更重發快照，搭 ADR-0071 節流）。
 - **M3（desktop，commit 0340251）**：`addSticker/setShortcode` 帶 `at`、`addTombstone`；`deleteCustom` 先記墓碑再存庫；匯入／收藏統一帶 `at`；自庫 `ref` 缺 blob→`requestAsset(self)`；`persistLib`→`onLibraryChanged`→`resyncAssets`。
 - 測試：core 383／engine 291／desktop 480 綠；三層 typecheck 綠。**桌面互動（跨裝置實機）待驗收**——自動化只涵蓋純函式與 in-memory 網路 round-trip。
+
+## 審查修正（2026-07-21，三代理對抗式審查後）
+
+- **[high] `mergeAssetLibrary` 平手非交換律**：ADR-0224 前的舊資料 `at` 皆缺（視為 0）＝保證平手，原以「陣列先後」tie-break 使 `merge(A,B)≠merge(B,A)`（連 `max` 淘汰的存活集合都隨順序而異，違反本 ADR 自稱的交換律）。改用**內容中立 tie-break**：`pickAsset` 平手時比 `label→kind→format` 字典序；存活排序平手時比 `id` 字典序（非首見序）。＋交換律回歸測試。
+- **[high] 自庫 self-backfill 與訊息 backfill 共用單一 `requestedRef`**：先執行的訊息 effect 霸占該 hash → 自庫 effect 永不對 `selfPubkey` 發請求，即使自己另一台在線也不被詢問。改用 **`對象:hash` 複合鍵**，兩路徑各自去重、互不阻擋。
+- **[medium] `parseSnapshotContent` 只驗「是陣列」不驗元素形狀**：畸形 `customAssets`（`null`／缺 `svg`／`kind` 非法）會經合併寫入本機加密庫、污染下游渲染。新增 core `isWellFormedAsset`／`isWellFormedTombstone`，`mergeSnapshotContent` 合併前逐筆過濾。
+- **[medium] `resyncAssets` 在 full 模式每次全量序列化訊息**：desktop 端對 `onLibraryChanged` 加 1.5s **去抖**（合併連續庫操作），避免連續操作各觸發一次 O(訊息數) 序列化。
+- 全數修正後：core 64（custom-assets 檔）／engine backend 118／desktop 480 綠，三層 typecheck 綠。

@@ -800,6 +800,13 @@ export function App(): JSX.Element {
         }
       : undefined;
   const idleRef = useRef<IdleState>(initIdle(Date.now()));
+  // 庫變更後重發快照「去抖」（審查修正）：合併連續庫操作為一次，避免 full 模式每次
+  // maybePublishSnapshot 都重新載入＋序列化全部訊息（O(訊息數)）。實際發佈仍受 ADR-0071 節流。
+  const resyncTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const scheduleResync = useRef((): void => {
+    if (resyncTimer.current) clearTimeout(resyncTimer.current);
+    resyncTimer.current = setTimeout(() => backendRef.current?.resyncAssets?.(), 1500);
+  }).current;
 
   // 自動登入：以「作用中身分設定檔」建立後端（ADR-0045；相容既有單一身分）。
   // B5（ADR-0053）：Tauri 下私鑰改由 OS 金鑰庫提供，須先 async 載入才建後端；瀏覽器不變。
@@ -2611,7 +2618,7 @@ export function App(): JSX.Element {
               onRequestAsset={(to, hash) => activeBackend.requestAsset?.(to, hash)}
               {...(self ? { selfPubkey: self.pubkey } : {})}
               {...(tombstoneStore ? { tombstoneStore } : {})}
-              onLibraryChanged={() => activeBackend.resyncAssets?.()}
+              onLibraryChanged={scheduleResync}
               blobsNonce={blobsNonce}
               contact={groupContact}
               messages={convos[pk] ?? []}
@@ -2702,7 +2709,7 @@ export function App(): JSX.Element {
               onRequestAsset={(to, hash) => activeBackend.requestAsset?.(to, hash)}
               {...(self ? { selfPubkey: self.pubkey } : {})}
               {...(tombstoneStore ? { tombstoneStore } : {})}
-              onLibraryChanged={() => activeBackend.resyncAssets?.()}
+              onLibraryChanged={scheduleResync}
               blobsNonce={blobsNonce}
             contact={contact}
             p2pConnected={p2pConnected.has(pk)}

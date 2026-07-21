@@ -5,7 +5,13 @@
 // 封鎖聯集（安全優先，封鎖者同時移出聯絡人）、訊息以 id 去重補回——
 // 多台裝置的快照以任意順序合併，結果一致。
 
-import { mergeAssetLibrary, type AssetTombstone, type CustomAsset } from "@cinderous/core";
+import {
+  isWellFormedAsset,
+  isWellFormedTombstone,
+  mergeAssetLibrary,
+  type AssetTombstone,
+  type CustomAsset,
+} from "@cinderous/core";
 import type { AppStorage, StoredContact, StoredGroup, StoredMessage } from "./types.js";
 
 /** 雲端同步模式（ADR-0071 三檔）。 */
@@ -179,9 +185,9 @@ export function mergeSnapshotContent(
     const localTombs = storage.loadAssetTombstones();
     const merged = mergeAssetLibrary(
       localAssets,
-      content.customAssets ?? [],
+      (content.customAssets ?? []).filter(isWellFormedAsset), // 過濾畸形項（審查修正）：勿讓壞資料污染本機庫
       localTombs,
-      content.assetTombstones ?? [],
+      (content.assetTombstones ?? []).filter(isWellFormedTombstone),
       { max: SNAPSHOT_LIBRARY_MAX, protect: (a) => a.mine === true },
     );
     const akey = (a: CustomAsset): string => `${a.id}:${a.at ?? 0}:${a.shortcode ?? ""}:${a.mine ? 1 : 0}`;

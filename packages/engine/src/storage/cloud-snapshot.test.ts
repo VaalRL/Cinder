@@ -8,7 +8,7 @@ import {
 } from "./cloud-snapshot.js";
 import { MemoryStorage } from "./memory.js";
 import type { StoredMessage } from "./types.js";
-import type { CustomAsset } from "@cinderous/core";
+import type { AssetTombstone, CustomAsset } from "@cinderous/core";
 
 const msg = (id: string, contact: string, at: number, text = id): StoredMessage => ({
   id,
@@ -194,6 +194,23 @@ describe("跨裝置資產同步（ADR-0224）", () => {
     expect(changed).toBe(false);
     expect(dst.loadCustomAssets().find((a) => a.id === "a1")?.mine).toBe(true);
     expect(dst.loadCustomAssets().find((a) => a.id === "a1")?.shortcode).toBe("mine1");
+  });
+
+  it("畸形 customAssets/tombstones 被過濾、不污染本機庫（審查修正）", () => {
+    const dst = new MemoryStorage();
+    const content = {
+      v: 1 as const,
+      at: 1,
+      mode: "basic" as const,
+      contacts: [],
+      groups: [],
+      blocked: [],
+      customAssets: [null, { foo: 1 }, 123, asset("good", { at: 5 })] as unknown as CustomAsset[],
+      assetTombstones: [{ id: "t", at: 9 }, null, { bad: true }] as unknown as AssetTombstone[],
+    };
+    mergeSnapshotContent(dst, content);
+    expect(dst.loadCustomAssets().map((a) => a.id)).toEqual(["good"]);
+    expect(dst.loadAssetTombstones().map((t) => t.id)).toEqual(["t"]);
   });
 
   it("build→parse→merge round-trip 保留庫與墓碑", () => {

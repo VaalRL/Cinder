@@ -798,7 +798,8 @@ export function ConversationWindow(props: ConversationProps): JSX.Element {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [props.blobsNonce]);
 
-  // 缺 blob 的參照（ADR-0223）：向該訊息寄件者索取；每 hash 一次（後端另有節流）。
+  // 缺 blob 的參照：向對象索取；以「對象:hash」複合鍵去重（審查修正：勿與自庫 self-backfill 共用
+  // 單一 hash 鍵，否則先執行者霸占該 hash、另一路徑永不觸發）。後端另有節流。
   const requestedRef = useRef<Set<string>>(new Set());
   useEffect(() => {
     const req = props.onRequestAsset;
@@ -806,26 +807,29 @@ export function ConversationWindow(props: ConversationProps): JSX.Element {
     for (const m of messages) {
       if (m.outgoing) continue; // 自己送的 blob 本就在自己快取
       for (const e of Object.values(splitAssetManifest(m.text).manifest)) {
-        if (e.ref && !getBlob(e.ref) && !requestedRef.current.has(e.ref)) {
-          requestedRef.current.add(e.ref);
-          req(m.sender ?? contact.pubkey, e.ref);
-        }
+        if (!e.ref || getBlob(e.ref)) continue;
+        const to = m.sender ?? contact.pubkey; // ADR-0223：向該訊息寄件者索取
+        const k = `${to}:${e.ref}`;
+        if (requestedRef.current.has(k)) continue;
+        requestedRef.current.add(k);
+        req(to, e.ref);
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages, blobs]);
 
   // 自己庫裡的參照資產缺 blob（ADR-0224）：多半是別台匯入、經雲端快照同步來的 ref。
-  // 向自己其他裝置索取 blob（backfill from self）；每 hash 一次（共用 requestedRef，後端另有節流）。
+  // 向自己其他裝置索取 blob（backfill from self）；獨立於訊息路徑的「self:hash」鍵，不被其霸占。
   useEffect(() => {
     const req = props.onRequestAsset;
     const me = props.selfPubkey;
     if (!req || !me) return;
     for (const a of library) {
-      if (a.ref && !getBlob(a.ref) && !requestedRef.current.has(a.ref)) {
-        requestedRef.current.add(a.ref);
-        req(me, a.ref);
-      }
+      if (!a.ref || getBlob(a.ref)) continue;
+      const k = `${me}:${a.ref}`;
+      if (requestedRef.current.has(k)) continue;
+      requestedRef.current.add(k);
+      req(me, a.ref);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [library, blobs]);

@@ -11,6 +11,8 @@ import {
   detectRasterType,
   gifDimensions,
   isValidRasterDataUri,
+  isWellFormedAsset,
+  isWellFormedTombstone,
   rasterMagicOk,
   RASTER_MAX_EDGE,
   rasterWithinPixelBounds,
@@ -372,6 +374,29 @@ describe("ADR-0226 尺寸把關（blob 位元組＋GIF 像素）", () => {
     const ok = ASSET_MANIFEST_PREFIX + JSON.stringify({ ok: { label: "小", svg: G(GIF_1x1), format: "raster" } });
     expect(Object.keys(parseAssetManifest(ok))).toEqual(["ok"]);
   });
+
+  it("宣告 GIF 但檔頭截斷（讀不到尺寸）→ rasterWithinPixelBounds 擋下（審查修正）", () => {
+    const truncated = G("R0lGOA=="); // magic 有（GIF8）但不足 10 bytes、讀不到 LSD 寬高
+    expect(gifDimensions(truncated)).toBeNull();
+    expect(rasterWithinPixelBounds(truncated)).toBe(false);
+  });
+});
+
+describe("快照/外部來源形狀驗證（ADR-0224 審查修正）", () => {
+  it("isWellFormedAsset：合法通過、畸形擋下", () => {
+    expect(isWellFormedAsset({ id: "x", label: "l", svg: "s", kind: "emoji" })).toBe(true);
+    expect(isWellFormedAsset(null)).toBe(false);
+    expect(isWellFormedAsset(123)).toBe(false);
+    expect(isWellFormedAsset({ id: "x" })).toBe(false); // 缺 label/svg/kind
+    expect(isWellFormedAsset({ id: "x", label: "l", svg: "s", kind: "bogus" })).toBe(false);
+  });
+
+  it("isWellFormedTombstone：合法通過、畸形擋下", () => {
+    expect(isWellFormedTombstone({ id: "x", at: 1 })).toBe(true);
+    expect(isWellFormedTombstone({ id: "x" })).toBe(false);
+    expect(isWellFormedTombstone(null)).toBe(false);
+    expect(isWellFormedTombstone({ id: 1, at: "x" })).toBe(false);
+  });
 });
 
 describe("ADR-0223 Model B（內容定址 blob）", () => {
@@ -521,5 +546,21 @@ describe("mergeAssetLibrary（跨裝置庫合併，ADR-0224）", () => {
     ];
     const r = mergeAssetLibrary([], [], tomb, [], { max: 50, tombstoneMax: 2 });
     expect(tids(r)).toEqual(["mid", "new"]);
+  });
+
+  it("交換律：at 全平手（舊資料 at 缺）＋max 淘汰，存活集合不因順序而異（審查修正）", () => {
+    const A = [mk("a"), mk("b"), mk("c")]; // 皆無 at → 視為 0 → 全平手
+    const B = [mk("d"), mk("e"), mk("f")];
+    const r1 = mergeAssetLibrary(A, B, [], [], { max: 4 });
+    const r2 = mergeAssetLibrary(B, A, [], [], { max: 4 });
+    expect(ids(r1)).toEqual(ids(r2)); // 修正前這裡會不同
+    expect(r1.assets).toHaveLength(4);
+  });
+
+  it("交換律：同 id 平手時內容基底以字典序決定，對稱", () => {
+    const r1 = mergeAssetLibrary([mk("x", { label: "aaa" })], [mk("x", { label: "bbb" })], [], [], { max: 50 });
+    const r2 = mergeAssetLibrary([mk("x", { label: "bbb" })], [mk("x", { label: "aaa" })], [], [], { max: 50 });
+    expect(r1.assets[0]?.label).toBe(r2.assets[0]?.label);
+    expect(r1.assets[0]?.label).toBe("aaa"); // 字典序較小者勝（內容中立）
   });
 });
