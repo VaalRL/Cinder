@@ -44,6 +44,14 @@ describe("自製貼圖 SVG 驗證（拒收制，ADR-0032）", () => {
     expect(ok('<svg><iframe src="x"/></svg>').ok).toBe(false);
   });
 
+  it("CSS @import 與引號分隔的事件處理器被拒（ADR-0221 L4）", () => {
+    expect(ok('<svg><style>@import "https://evil/x.css";</style><circle r="1"/></svg>')).toEqual({
+      ok: false,
+      reason: "css-import",
+    });
+    expect(ok('<svg><rect fill="red"onload="x()"/></svg>').ok).toBe(false); // 引號緊接的事件處理器
+  });
+
   it("外部參照被拒（http / 協定相對 / url()）", () => {
     expect(ok('<svg><image href="https://evil.example/x.png"/></svg>').ok).toBe(false);
     expect(ok('<svg><image href="//evil.example/x.png"/></svg>').ok).toBe(false);

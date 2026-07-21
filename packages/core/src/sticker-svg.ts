@@ -39,10 +39,14 @@ export type SvgVerdict = { ok: true } | { ok: false; reason: string };
 /** 危險樣式（不分大小寫）：任一命中即整張拒收。 */
 const FORBIDDEN: ReadonlyArray<readonly [RegExp, string]> = [
   [/<script/i, "script"],
-  [/\son[a-z]+\s*=/i, "event-handler"],
+  // 事件處理器：分隔符容忍空白／`>`／引號（ADR-0221 L4）。刻意不含 `/`——base64 data URI 含 `/`
+  // 但不含空白/`>`/引號，故此字元類不會誤傷 raster 貼圖；`<x/onload=` 屬非法 XML、非真實向量。
+  [/[\s>"']on[a-z]+\s*=/i, "event-handler"],
   [/javascript:/i, "javascript-url"],
   [/<foreignobject/i, "foreignObject"],
   [/<iframe|<embed|<object/i, "embedded-document"],
+  // CSS @import（任何形式，含字串式，非只 url()）——避免外部樣式外連（ADR-0221 L4）
+  [/@import/i, "css-import"],
   // 外部參照：http(s):// 或協定相對 //（含 href / xlink:href / url(...) / src=）
   [/(href|src)\s*=\s*["']?\s*(https?:)?\/\//i, "external-ref"],
   [/url\(\s*["']?\s*(https?:)?\/\//i, "external-url"],

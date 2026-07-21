@@ -209,3 +209,51 @@ describe("行內 : 自動補全的作用中短碼（activeEmojiQuery）", () => 
     expect(activeEmojiQuery(":done: 再打 :ne")).toEqual({ query: "ne", start: 10 });
   });
 });
+
+describe("ADR-0221 審查修正", () => {
+  const a = (id: string, extra: Partial<CustomAsset> = {}): CustomAsset => ({
+    id,
+    label: id,
+    svg: smiley,
+    kind: "emoji",
+    ...extra,
+  });
+
+  it("H2：同 id 碰撞時，本地已自訂 shortcode 則保留本地版本", () => {
+    const local = a("h", { shortcode: "celebrate", label: "本地" });
+    const incoming = a("h", { shortcode: "party", label: "對端" });
+    const out = acquireAssets([local], [incoming], { max: 10 });
+    expect(out[0]?.shortcode).toBe("celebrate");
+    expect(out[0]?.label).toBe("本地");
+  });
+
+  it("H2：本地無 shortcode 則採 incoming（維持刷新語意）", () => {
+    const out = acquireAssets([a("h", { label: "舊" })], [a("h", { label: "新" })], { max: 10 });
+    expect(out[0]?.label).toBe("新");
+  });
+
+  it("M1：mine（自建）可經 protect 保護不被淘汰", () => {
+    const lib = [a("x"), a("y"), a("m", { mine: true })];
+    const out = acquireAssets(lib, [a("d")], { max: 2, protect: (it) => it.mine === true });
+    expect(out.map((it) => it.id)).toContain("m");
+  });
+
+  it("H3：resolveInlineEmoji 超過 maxEmoji 者留為字面文字", () => {
+    const resolve = (): { label: string; svg: string } => ({ label: "x", svg: smiley });
+    const segs = resolveInlineEmoji(":x: :x: :x: :x: :x:", resolve, 2);
+    expect(segs.filter((s) => s.type === "emoji")).toHaveLength(2);
+    expect(
+      segs
+        .filter((s) => s.type === "text")
+        .map((s) => (s.type === "text" ? s.value : ""))
+        .join(""),
+    ).toContain(":x:");
+  });
+
+  it("L1：parseAssetManifest 收端擋總位元組上限", () => {
+    const big = `<svg xmlns="http://www.w3.org/2000/svg">${"a".repeat(20 * 1024)}</svg>`;
+    const raw =
+      ASSET_MANIFEST_PREFIX + JSON.stringify({ a: { label: "a", svg: big }, b: { label: "b", svg: big }, c: { label: "c", svg: big } });
+    expect(Object.keys(parseAssetManifest(raw)).length).toBeLessThan(3);
+  });
+});

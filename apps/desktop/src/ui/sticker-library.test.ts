@@ -131,3 +131,17 @@ describe("標籤容量限制（ADR-0042）", () => {
     expect(p?.svg).toBe(SVG_A);
   });
 });
+
+describe("ADR-0221 審查修正", () => {
+  it("M2：短碼建立時正規化小寫、查詢大小寫不敏感", () => {
+    const r = addSticker([], "派對", SVG_A, { shortcode: "Party" });
+    if (!r.ok) throw new Error("unexpected");
+    expect(r.sticker.shortcode).toBe("party"); // 存為小寫
+    expect(findByShortcode(r.list, "PARTY")?.id).toBe(r.sticker.id); // 查詢不分大小寫
+  });
+
+  it("M1：addSticker 標記 mine（自建受 LRU 保護）", () => {
+    const r = addSticker([], "圓", SVG_A);
+    expect(r.ok && r.sticker.mine).toBe(true);
+  });
+});

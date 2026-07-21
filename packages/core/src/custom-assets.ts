@@ -3,7 +3,8 @@
 // 自訂 emoji 走既有加密訊息通道——與自製貼圖（ADR-0032 `nb-sticker:v2:`）同源，
 // 差別只在「用法」：貼圖是整則大圖，emoji 是行內小圖，打 `:shortcode:` 插入。
 // 去中心化沒有中央目錄，故訊息文字尾端附一段「本則引用資產清單」`nb-assets:v1:`，
-// 收端解析後行內渲染並可自動收藏；解析序＝本則清單 → 本機庫 → 保留原字（優雅退化）。
+// 收端解析後行內渲染並可自動收藏；渲染解析序＝本則清單 → 保留原字（優雅退化）。
+// 刻意不以本機庫回退渲染他人訊息——短碼非全域唯一，用本地同名短碼會渲染出與寄件者不同的圖（ADR-0221 L2）。
 // 全純函式，可於 node 環境完整測試。
 
 import { contentHash } from "./event.js";
@@ -18,6 +19,12 @@ export const ASSET_MANIFEST_MAX_BYTES = 48 * 1024;
 /** 單則訊息內嵌資產數量上限（防一則塞爆扇出）。 */
 export const ASSET_MANIFEST_MAX_COUNT = 24;
 
+/**
+ * 單則訊息**渲染**的行內 emoji 數量上限（ADR-0221 H3）。清單有界，但可見文字可重複引用同一
+ * 短碼無界；超過此數的 `:shortcode:` 一律留為字面文字，避免對端以重複引用觸發客戶端 DoS。
+ */
+export const INLINE_EMOJI_MAX = 50;
+
 /** 自訂資產種類（ADR-0220）。 */
 export type CustomAssetKind = "sticker" | "emoji" | "both";
 
@@ -31,6 +38,8 @@ export interface CustomAsset {
   svg: string;
   kind: CustomAssetKind;
   shortcode?: string;
+  /** 自建/自匯入（非收自他人）；LRU 淘汰時受保護（ADR-0221 M1）。 */
+  mine?: boolean;
 }
 
 /** 行內清單負載（隨訊息）：shortcode → { 標籤, SVG }。 */
@@ -70,6 +79,7 @@ export function parseAssetManifest(s: string): AssetManifest {
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
   const out: AssetManifest = {};
   let count = 0;
+  let bytes = 0; // 收端亦擋總位元組（不信任對端，ADR-0221 L1）——與送出端上限一致。
   for (const [key, val] of Object.entries(parsed as Record<string, unknown>)) {
     if (count >= ASSET_MANIFEST_MAX_COUNT) break;
     if (!isValidShortcode(key)) continue;
@@ -78,6 +88,8 @@ export function parseAssetManifest(s: string): AssetManifest {
     const svg = (val as { svg?: unknown }).svg;
     if (typeof label !== "string" || typeof svg !== "string") continue;
     if (!validateStickerSvg(svg).ok) continue;
+    bytes += svg.length + label.length;
+    if (bytes > ASSET_MANIFEST_MAX_BYTES) break;
     out[key] = { label: clampStickerLabel(label), svg };
     count++;
   }
@@ -132,6 +144,7 @@ export type InlineSegment =
 export function resolveInlineEmoji(
   text: string,
   resolve: (shortcode: string) => { label: string; svg: string } | undefined,
+  maxEmoji: number = INLINE_EMOJI_MAX,
 ): InlineSegment[] {
   const segs: InlineSegment[] = [];
   const pushText = (value: string): void => {
@@ -142,15 +155,18 @@ export function resolveInlineEmoji(
   };
   SHORTCODE_TOKEN.lastIndex = 0;
   let last = 0;
+  let emojiCount = 0;
   let m: RegExpExecArray | null;
   while ((m = SHORTCODE_TOKEN.exec(text)) !== null) {
     const code = m[1];
     if (code === undefined) continue;
+    if (emojiCount >= maxEmoji) continue; // 達渲染上限：其餘留為字面文字（ADR-0221 H3）
     const asset = resolve(code);
     if (!asset) continue; // 未解析：併入後續文字（不移動 last）
     pushText(text.slice(last, m.index));
     segs.push({ type: "emoji", shortcode: code, label: asset.label, svg: asset.svg });
     last = m.index + m[0].length;
+    emojiCount++;
   }
   pushText(text.slice(last));
   return segs;
@@ -205,7 +221,9 @@ export function acquireAssets(
   for (const a of incoming) {
     if (inSeen.has(a.id)) continue;
     inSeen.add(a.id);
-    fresh.push(a);
+    // 本地已有同內容且已自訂 shortcode → 保留本地版本（不被對端覆蓋，ADR-0221 H2）。
+    const local = library.find((x) => x.id === a.id);
+    fresh.push(local && local.shortcode ? local : a);
   }
   const kept = library.filter((a) => !inSeen.has(a.id));
   let result = [...fresh, ...kept];

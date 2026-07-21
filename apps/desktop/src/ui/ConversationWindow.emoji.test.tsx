@@ -198,7 +198,7 @@ describe("加密 AppStorage 後端＋遷移（ADR-0220，步驟 6）", () => {
     m.unmount();
   });
 
-  it("遷移：舊全域 localStorage 庫 → 加密 AppStorage（每身分一次）", () => {
+  it("遷移：舊全域 localStorage 庫 → 加密 AppStorage，且刪除舊明文（H1）", () => {
     localStorage.clear();
     localStorage.setItem(
       "nb.stickers.custom",
@@ -208,6 +208,22 @@ describe("加密 AppStorage 後端＋遷移（ADR-0220，步驟 6）", () => {
     const m = mount(renderWith([], storeOf(store, "mig1")));
     expect(store.loadCustomAssets().map((a) => a.id)).toContain(contentHash(smiley));
     expect(localStorage.getItem("nb.mig1.assetsMigrated")).toBe("1");
+    expect(localStorage.getItem("nb.stickers.custom")).toBeNull(); // H1：舊明文已刪
+    m.unmount();
+  });
+
+  it("C1：遷移＋同時有收到的清單訊息 → 遷移的舊庫不被覆蓋", () => {
+    localStorage.clear();
+    localStorage.setItem(
+      "nb.stickers.custom",
+      JSON.stringify([{ id: "OLDID", label: "舊", svg: smiley, kind: "sticker" }]),
+    );
+    const store = new MemoryStorage();
+    const text = appendAssetManifest(":party:", { party: { label: "派對", svg: heart } });
+    const m = mount(renderWith([{ id: "c1", outgoing: false, text, at: 1 }], storeOf(store, "c1ns")));
+    const ids = store.loadCustomAssets().map((a) => a.id);
+    expect(ids).toContain("OLDID"); // 遷移的舊庫仍在（未被自動收藏覆蓋）
+    expect(ids).toContain(contentHash(heart)); // 收到的也收藏了
     m.unmount();
   });
 });

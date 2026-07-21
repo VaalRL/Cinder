@@ -32,6 +32,7 @@ import {
   assetFromManifestEntry,
   assetManifestBytes,
   ASSET_MANIFEST_MAX_BYTES,
+  ASSET_MANIFEST_MAX_COUNT,
   collectReferencedShortcodes,
   resolveInlineEmoji,
   splitAssetManifest,
@@ -42,6 +43,7 @@ import {
 import {
   addSticker,
   autoAcquireEnabled,
+  clearLegacyLibrary,
   CUSTOM_PACK,
   findByShortcode,
   findSticker,
@@ -457,13 +459,18 @@ export function ConversationWindow(props: ConversationProps): JSX.Element {
     migratedRef.current = true;
     const flag = `nb.${as.namespace}.assetsMigrated`;
     if (getKv().getItem(flag) === "1") return;
-    getKv().setItem(flag, "1");
-    if (as.load().length === 0) {
-      const old = loadLibrary(); // 舊全域 localStorage（明文）
-      if (old.length > 0) {
-        as.save(old);
-        setLibrary(old);
+    try {
+      if (as.load().length === 0) {
+        const old = loadLibrary(); // 舊全域 localStorage（明文）
+        if (old.length > 0) {
+          as.save(old);
+          setLibrary(old);
+        }
       }
+      clearLegacyLibrary(); // 刪除舊全域明文殘留（隱私紅線，ADR-0221 H1）
+      getKv().setItem(flag, "1"); // 確認成功後才記旗標（失敗則下次重試）
+    } catch {
+      /* 儲存失敗：不記旗標，下次開窗重試 */
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -654,7 +661,7 @@ export function ConversationWindow(props: ConversationProps): JSX.Element {
 
   // 貼圖庫寫入（匯入 / fork / 點擊收藏共用）；失敗以 alert 呈現拒收原因。
   const acquireSticker = (label: string, svg: string): boolean => {
-    const r = addSticker(library, label, svg);
+    const r = addSticker(loadLib(), label, svg); // 讀最新再寫（ADR-0221 C1/C2）
     if (!r.ok) {
       void alert(t("sticker_importFail", { reason: r.reason }));
       return false;
@@ -664,7 +671,7 @@ export function ConversationWindow(props: ConversationProps): JSX.Element {
     return true;
   };
   const deleteCustom = (id: string): void => {
-    const next = removeSticker(library, id);
+    const next = removeSticker(loadLib(), id); // 讀最新再寫（ADR-0221 C1/C2）
     setLibrary(next);
     persistLib(next);
   };
@@ -674,7 +681,7 @@ export function ConversationWindow(props: ConversationProps): JSX.Element {
   useEffect(() => {
     if (props.stickersDisabled || !autoAcquireEnabled()) return;
     const favIds = new Set(favorites.filter((f) => f.pack === CUSTOM_PACK).map((f) => f.id));
-    let cur = library;
+    let cur = loadLib(); // 讀最新再寫，避免與遷移/他窗競態（ADR-0221 C1/C2）
     let changed = false;
     for (const m of messages) {
       if (m.outgoing || acquiredRef.current.has(m.id)) continue;
@@ -683,7 +690,11 @@ export function ConversationWindow(props: ConversationProps): JSX.Element {
         assetFromManifestEntry(code, e),
       );
       if (incoming.length === 0) continue;
-      const next = acquireAssets(cur, incoming, { max: LIBRARY_MAX, protect: (a) => favIds.has(a.id) });
+      // 保護：最愛 或 自建/自匯入（mine）——不被別人的來圖擠掉（ADR-0221 M1）。
+      const next = acquireAssets(cur, incoming, {
+        max: LIBRARY_MAX,
+        protect: (a) => favIds.has(a.id) || a.mine === true,
+      });
       if (next !== cur) {
         cur = next;
         changed = true;
@@ -800,7 +811,7 @@ export function ConversationWindow(props: ConversationProps): JSX.Element {
     const stem = f.name.replace(/\.[^.]+$/, "");
     const input = await prompt({ message: t("emoji_shortcodePrompt"), defaultValue: toShortcode(stem) });
     if (input === null) return;
-    const r = addSticker(library, stem, svg, { shortcode: input });
+    const r = addSticker(loadLib(), stem, svg, { shortcode: input }); // 讀最新再寫（ADR-0221）
     if (!r.ok) {
       void alert(t("sticker_importFail", { reason: r.reason }));
       return;
@@ -812,7 +823,7 @@ export function ConversationWindow(props: ConversationProps): JSX.Element {
   // 批次匯入 Slack 式 emoji 包（ADR-0220）：多檔／整個資料夾，檔名（去副檔名）＝短碼、自動降尺寸。
   // 非圖片、非法短碼、短碼已被佔用、超過庫上限者略過；最後彙報加入/略過數。
   const importEmojiPack = async (fileList: FileList): Promise<void> => {
-    let list = library;
+    let list = loadLib(); // 讀最新再寫（ADR-0221）
     let added = 0;
     let skipped = 0;
     for (const f of Array.from(fileList)) {
@@ -934,7 +945,9 @@ export function ConversationWindow(props: ConversationProps): JSX.Element {
   // 企業停用（disableStickers）時不附清單＝不送自訂 emoji（原樣送純文字）。
   const attachManifest = (body: string): string | null => {
     if (props.stickersDisabled) return body;
-    const manifest = buildAssetManifest(body, library);
+    const manifest = buildAssetManifest(body, loadLib());
+    // 送出端同時擋位元組與筆數上限（與收端一致；超出即拒送提示，ADR-0221 L3）。
+    if (Object.keys(manifest).length > ASSET_MANIFEST_MAX_COUNT) return null;
     if (assetManifestBytes(manifest) > ASSET_MANIFEST_MAX_BYTES) return null;
     return appendAssetManifest(body, manifest);
   };

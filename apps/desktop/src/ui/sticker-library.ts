@@ -44,7 +44,7 @@ export function addSticker(
   const verdict: SvgVerdict = validateStickerSvg(svg);
   if (!verdict.ok) return { ok: false, reason: verdict.reason };
   const id = contentHash(svg);
-  const shortcode = opts.shortcode?.trim();
+  const shortcode = opts.shortcode?.trim().toLowerCase(); // 正規化小寫（ADR-0221 M2）
   if (shortcode) {
     if (!isValidShortcode(shortcode)) return { ok: false, reason: "bad-shortcode" };
     const taken = list.find((s) => s.shortcode === shortcode && s.id !== id);
@@ -59,6 +59,7 @@ export function addSticker(
     label: clampStickerLabel(label) || "貼圖",
     svg,
     kind,
+    mine: true, // 自建/自匯入，LRU 受保護（ADR-0221 M1）
     ...(shortcode ? { shortcode } : {}),
   };
   return { ok: true, list: [sticker, ...list], sticker };
@@ -75,19 +76,19 @@ export function findSticker(list: CustomAsset[], id: string): CustomAsset | unde
 
 /** 依短碼查資產（供行內 :shortcode: 解析與送出組清單）。 */
 export function findByShortcode(list: CustomAsset[], shortcode: string): CustomAsset | undefined {
-  const code = shortcode.trim();
+  const code = shortcode.trim().toLowerCase(); // 大小寫不敏感（庫內已小寫，ADR-0221 M2）
   if (!code) return undefined;
   return list.find((s) => s.shortcode === code);
 }
 
 /** 指派／更換既有資產的短碼（純函式）：驗證合法＋唯一；成功回新 list（kind→both）。 */
 export function setShortcode(list: CustomAsset[], id: string, shortcode: string): AddResult {
-  const code = shortcode.trim();
+  const code = shortcode.trim().toLowerCase(); // 正規化小寫（ADR-0221 M2）
   if (!isValidShortcode(code)) return { ok: false, reason: "bad-shortcode" };
   if (list.some((s) => s.shortcode === code && s.id !== id)) return { ok: false, reason: "shortcode-taken" };
   const target = list.find((s) => s.id === id);
   if (!target) return { ok: false, reason: "not-found" };
-  const updated: CustomAsset = { ...target, shortcode: code, kind: "both" };
+  const updated: CustomAsset = { ...target, shortcode: code, kind: "both", mine: true };
   return { ok: true, list: list.map((s) => (s.id === id ? updated : s)), sticker: updated };
 }
 
@@ -101,8 +102,20 @@ function normalize(s: unknown): CustomAsset | null {
   const kind: CustomAssetKind =
     o.kind === "emoji" || o.kind === "both" || o.kind === "sticker" ? o.kind : "sticker";
   const shortcode =
-    typeof o.shortcode === "string" && isValidShortcode(o.shortcode) ? o.shortcode : undefined;
-  return { id: o.id, label: o.label, svg: o.svg, kind, ...(shortcode ? { shortcode } : {}) };
+    typeof o.shortcode === "string" && isValidShortcode(o.shortcode) ? o.shortcode.toLowerCase() : undefined;
+  return {
+    id: o.id,
+    label: o.label,
+    svg: o.svg,
+    kind,
+    ...(o.mine === true ? { mine: true } : {}), // 保留自建標記（ADR-0221 M1）
+    ...(shortcode ? { shortcode } : {}),
+  };
+}
+
+/** 刪除舊全域明文庫鍵（ADR-0221 H1）：遷移進加密 AppStorage 後清掉明文殘留。 */
+export function clearLegacyLibrary(): void {
+  getKv().removeItem(LIB_KEY);
 }
 
 export function loadLibrary(): CustomAsset[] {
