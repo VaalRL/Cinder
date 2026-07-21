@@ -3,6 +3,8 @@
 export interface ReleaseNote {
   version: string;
   date: string;
+  /** `false`＝未發布（hold 草稿）；供更新偵測排除（ADR-0228）。缺省視為已發布。 */
+  released?: boolean;
   /** 繁體中文條目。 */
   zh: string[];
   /** 英文條目。 */
