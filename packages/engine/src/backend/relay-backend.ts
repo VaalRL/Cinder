@@ -2237,6 +2237,14 @@ export class RelayChatBackend implements ChatBackend {
     this.publishReliable(buildSnapshotEvent(JSON.stringify(content), this.sk, this.cloudSync.deviceId));
   }
 
+  /**
+   * 自訂資產庫／墓碑變更後呼叫（ADR-0224）：內容有變且未達節流上限即重發快照，讓自己其他裝置同步庫與刪除。
+   * 搭 ADR-0071 既有快照班車與節流（內容有變＋每日至多一次）——最終一致，不即時、不繞省流設計。
+   */
+  resyncAssets(): void {
+    this.maybePublishSnapshot();
+  }
+
   /** 關閉雲端快照＝立即清除 relay 上此裝置的快照（purge；「已關閉」必須立即為真）。 */
   purgeCloudSnapshot(deviceId: string): void {
     this.publishReliable(buildSnapshotPurge(this.sk, deviceId));
@@ -2650,9 +2658,9 @@ export class RelayChatBackend implements ChatBackend {
     this.publishReliable(wrapAssetRequest(hash, this.sk, to));
   }
 
-  /** 回應 blob 請求：查本機快取命中即分塊回傳（只回已知聯絡人）。 */
+  /** 回應 blob 請求：查本機快取命中即分塊回傳（回已知聯絡人，或自己另一台裝置＝跨裝置 backfill，ADR-0224）。 */
   private sendAssetBlob(sender: PubkeyHex, rumor: Rumor): void {
-    if (!this.contacts.some((c) => c.pubkey === sender)) return;
+    if (sender !== this.self.pubkey && !this.contacts.some((c) => c.pubkey === sender)) return;
     const req = parseAssetRequest(rumor);
     if (!req) return;
     const blob = this.storage.loadAssetBlobs().find((b) => b.hash === req.hash);

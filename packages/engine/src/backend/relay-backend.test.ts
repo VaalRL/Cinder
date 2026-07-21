@@ -108,6 +108,32 @@ describe("RelayChatBackend（真實後端 + 持久化）", () => {
     b.stop();
   });
 
+  it("跨裝置 blob 自我 backfill（ADR-0224）：同身分另一台有 blob → requestAsset(self) 補齊", () => {
+    const net = createInMemoryRelayNetwork();
+    const sk = generateSecretKey();
+    const nsec = nsecEncode(sk);
+    const storeD1 = new MemoryStorage();
+    storeD1.saveIdentity({ nsec, name: "我" });
+    const storeD2 = new MemoryStorage();
+    storeD2.saveIdentity({ nsec, name: "我" });
+    const d1 = new RelayChatBackend(storeD1, (h) => net.connect("d1", h), "我");
+    const d2 = new RelayChatBackend(storeD2, (h) => net.connect("d2", h), "我");
+    const data = "data:image/gif;base64," + "A".repeat(ASSET_CHUNK_CHARS + 400); // 跨 2 塊
+    const hash = contentHash(data);
+    storeD1.saveAssetBlobs([{ hash, data }]); // 裝置 1 有 blob；裝置 2 沒有
+    const cached: string[] = [];
+    d1.start(noop);
+    d2.start({ ...noop, onAssetCached: (h) => cached.push(h) });
+    expect(d1.self.pubkey).toBe(d2.self.pubkey); // 同一身分＝兩台裝置
+
+    d2.requestAsset(d2.self.pubkey, hash); // 向「自己」（＝其他裝置）索取
+    expect(cached).toContain(hash); // 裝置 2 收齊＋整合性通過＋通知
+    expect(storeD2.loadAssetBlobs()).toEqual([{ hash, data }]); // 入快取
+
+    d1.stop();
+    d2.stop();
+  });
+
   it("setSelfName（ADR-0144）：更新 self.name、落地本機、把新名廣播給聯絡人（ADR-0061）", () => {
     const net = createInMemoryRelayNetwork();
     const storeA = new MemoryStorage();
