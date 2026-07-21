@@ -5,6 +5,8 @@ import {
   ASSET_MANIFEST_PREFIX,
   acquireAssets,
   activeEmojiQuery,
+  detectRasterType,
+  isValidRasterDataUri,
   appendAssetManifest,
   assetFromManifestEntry,
   assetManifestBytes,
@@ -255,5 +257,36 @@ describe("ADR-0221 審查修正", () => {
     const raw =
       ASSET_MANIFEST_PREFIX + JSON.stringify({ a: { label: "a", svg: big }, b: { label: "b", svg: big }, c: { label: "c", svg: big } });
     expect(Object.keys(parseAssetManifest(raw)).length).toBeLessThan(3);
+  });
+});
+
+describe("ADR-0222 raster 資產（動畫 GIF）", () => {
+  const gif = "data:image/gif;base64,R0lGODlhAQABAAAAACwAAAAAAQABAAA=";
+
+  it("detectRasterType / isValidRasterDataUri：只認允許的圖片型別", () => {
+    expect(detectRasterType(gif)).toBe("gif");
+    expect(detectRasterType("data:image/png;base64,AAAA")).toBe("png");
+    expect(detectRasterType("data:text/html;base64,AAAA")).toBeNull(); // 非圖 MIME
+    expect(isValidRasterDataUri(gif)).toBe(true);
+    expect(isValidRasterDataUri("data:image/svg+xml,<svg/>")).toBe(false); // 非 base64 raster
+    expect(isValidRasterDataUri("<svg></svg>")).toBe(false);
+  });
+
+  it("parseAssetManifest：raster 走型別＋尺寸驗證（不套 SVG 拒收制）", () => {
+    const raw = ASSET_MANIFEST_PREFIX + JSON.stringify({ dance: { label: "跳舞", svg: gif, format: "raster" } });
+    expect(parseAssetManifest(raw)).toEqual({ dance: { label: "跳舞", svg: gif, format: "raster" } });
+  });
+
+  it("parseAssetManifest：宣稱 raster 但非合法 data URI 者丟棄", () => {
+    const raw = ASSET_MANIFEST_PREFIX + JSON.stringify({ bad: { label: "壞", svg: "<svg></svg>", format: "raster" } });
+    expect(parseAssetManifest(raw)).toEqual({});
+  });
+
+  it("assetFromManifestEntry / resolveInlineEmoji 帶入 format=raster", () => {
+    const a = assetFromManifestEntry("dance", { label: "跳舞", svg: gif, format: "raster" });
+    expect(a.format).toBe("raster");
+    const segs = resolveInlineEmoji("嗨 :dance:", (c) => (c === "dance" ? { label: "跳舞", svg: gif, format: "raster" } : undefined));
+    const emoji = segs.find((s) => s.type === "emoji");
+    expect(emoji && emoji.type === "emoji" && emoji.format).toBe("raster");
   });
 });

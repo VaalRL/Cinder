@@ -25,6 +25,23 @@ export const ASSET_MANIFEST_MAX_COUNT = 24;
  */
 export const INLINE_EMOJI_MAX = 50;
 
+/** 單顆 raster 資產（data URI 字串）位元組上限（ADR-0222）：行內時須落在清單預算內。 */
+export const RASTER_MAX_BYTES = 48 * 1024;
+
+/** 合法 raster data URI：宣告為允許圖片型別（gif/png/webp/jpeg）＋合法 base64（ADR-0222）。 */
+const RASTER_DATA_URI = /^data:image\/(gif|png|webp|jpeg);base64,[A-Za-z0-9+/]+={0,2}$/;
+
+/** 嗅探 raster data URI 的圖片型別；非合法（含非圖 MIME）回 null。 */
+export function detectRasterType(dataUri: string): "gif" | "png" | "webp" | "jpeg" | null {
+  const m = /^data:image\/(gif|png|webp|jpeg);base64,/.exec(dataUri);
+  return m ? (m[1] as "gif" | "png" | "webp" | "jpeg") : null;
+}
+
+/** raster data URI 是否結構合法（宣告圖片型別＋合法 base64）。raster 無腳本面，以型別＋尺寸把關。 */
+export function isValidRasterDataUri(dataUri: string): boolean {
+  return RASTER_DATA_URI.test(dataUri);
+}
+
 /** 自訂資產種類（ADR-0220）。 */
 export type CustomAssetKind = "sticker" | "emoji" | "both";
 
@@ -35,15 +52,18 @@ export type CustomAssetKind = "sticker" | "emoji" | "both";
 export interface CustomAsset {
   id: string;
   label: string;
+  /** 渲染內容：`format="svg"`（預設）時為 SVG 原始碼；`format="raster"` 時為 `data:image/*` data URI。 */
   svg: string;
   kind: CustomAssetKind;
   shortcode?: string;
   /** 自建/自匯入（非收自他人）；LRU 淘汰時受保護（ADR-0221 M1）。 */
   mine?: boolean;
+  /** 資產格式（ADR-0222）：`svg`（預設，向後相容）或 `raster`（動畫 GIF/WebP 等，直接 `<img>` 渲染）。 */
+  format?: "svg" | "raster";
 }
 
 /** 行內清單負載（隨訊息）：shortcode → { 標籤, SVG }。 */
-export type AssetManifest = Record<string, { label: string; svg: string }>;
+export type AssetManifest = Record<string, { label: string; svg: string; format?: "raster" }>;
 
 /**
  * 短碼合法字元（Slack 風格）：字母數字開頭，後續可含 `_ + -`，總長 ≤32。
@@ -86,11 +106,13 @@ export function parseAssetManifest(s: string): AssetManifest {
     if (!val || typeof val !== "object") continue;
     const label = (val as { label?: unknown }).label;
     const svg = (val as { svg?: unknown }).svg;
+    const raster = (val as { format?: unknown }).format === "raster";
     if (typeof label !== "string" || typeof svg !== "string") continue;
-    if (!validateStickerSvg(svg).ok) continue;
+    // raster：型別＋尺寸把關（無腳本面，不套 validateStickerSvg）；svg：拒收制驗證（ADR-0222）。
+    if (raster ? !(isValidRasterDataUri(svg) && svg.length <= RASTER_MAX_BYTES) : !validateStickerSvg(svg).ok) continue;
     bytes += svg.length + label.length;
     if (bytes > ASSET_MANIFEST_MAX_BYTES) break;
-    out[key] = { label: clampStickerLabel(label), svg };
+    out[key] = raster ? { label: clampStickerLabel(label), svg, format: "raster" } : { label: clampStickerLabel(label), svg };
     count++;
   }
   return out;
@@ -135,7 +157,7 @@ export function collectReferencedShortcodes(text: string): string[] {
 /** 行內解析後的片段：純文字或一顆 emoji。 */
 export type InlineSegment =
   | { type: "text"; value: string }
-  | { type: "emoji"; shortcode: string; label: string; svg: string };
+  | { type: "emoji"; shortcode: string; label: string; svg: string; format?: "raster" };
 
 /**
  * 把含 `:shortcode:` 的文字切成片段序列。`resolve` 由呼叫端提供（通常＝本則清單優先、
@@ -143,7 +165,7 @@ export type InlineSegment =
  */
 export function resolveInlineEmoji(
   text: string,
-  resolve: (shortcode: string) => { label: string; svg: string } | undefined,
+  resolve: (shortcode: string) => { label: string; svg: string; format?: "raster" } | undefined,
   maxEmoji: number = INLINE_EMOJI_MAX,
 ): InlineSegment[] {
   const segs: InlineSegment[] = [];
@@ -164,7 +186,13 @@ export function resolveInlineEmoji(
     const asset = resolve(code);
     if (!asset) continue; // 未解析：併入後續文字（不移動 last）
     pushText(text.slice(last, m.index));
-    segs.push({ type: "emoji", shortcode: code, label: asset.label, svg: asset.svg });
+    segs.push({
+      type: "emoji",
+      shortcode: code,
+      label: asset.label,
+      svg: asset.svg,
+      ...(asset.format === "raster" ? { format: "raster" as const } : {}),
+    });
     last = m.index + m[0].length;
     emojiCount++;
   }
@@ -175,7 +203,7 @@ export function resolveInlineEmoji(
 /** 由清單一筆造出 emoji 用途的 `CustomAsset`（id＝內容雜湊，供去重）。 */
 export function assetFromManifestEntry(
   shortcode: string,
-  entry: { label: string; svg: string },
+  entry: { label: string; svg: string; format?: "raster" },
 ): CustomAsset {
   return {
     id: contentHash(entry.svg),
@@ -183,6 +211,7 @@ export function assetFromManifestEntry(
     svg: entry.svg,
     kind: "emoji",
     shortcode,
+    ...(entry.format === "raster" ? { format: "raster" as const } : {}),
   };
 }
 
