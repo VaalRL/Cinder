@@ -19,6 +19,7 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - run: pnpm version:check # ADR-0227：全平台版號須與 SSOT（root package.json）一致，漂移即 fail
       - run: pnpm -r typecheck
       - run: pnpm -r test
       - run: pnpm --filter @cinderous/desktop build
