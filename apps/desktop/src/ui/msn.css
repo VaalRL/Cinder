@@ -642,6 +642,11 @@ button:disabled { opacity: .5; cursor: default; filter: none; }
 .risklink--caution .risklink__badge { color: #c47f17; }
 .risklink--danger { color: #b3261e; }
 .risklink--danger .risklink__badge { color: #b3261e; }
+
+/* 威脅情報遮罩（ADR-0231 P3）：命中已知惡意清單的連結遮住＋標示來源；一般模式可展開。 */
+.threatmask { display: inline-flex; align-items: center; gap: 4px; padding: 1px 6px; border-radius: 6px; border: 1px dashed #b3261e; background: rgba(179, 38, 30, 0.08); color: #b3261e; font-size: 12px; }
+.threatmask__badge { font-size: 11px; }
+.threatmask__reveal { border: none; background: none; padding: 0; color: inherit; font-size: inherit; text-decoration: underline; cursor: pointer; }
 .settings__relays { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
 .settings__relayrow { font-size: 12px; }
 .settings__relayrow code { word-break: break-all; }

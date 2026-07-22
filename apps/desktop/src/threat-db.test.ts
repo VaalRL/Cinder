@@ -1,12 +1,21 @@
-// 威脅情報 snapshot 拉取與快取（ADR-0231 P2）：opt-in 開關、快取 round-trip、失敗靜默。
+// 威脅情報 snapshot 拉取與快取（ADR-0231 P2）＋設定與自訂清單（P3）。
+import { matchThreat, type ThreatDb } from "@cinderous/core";
 import { setKvBackend, type KvStore } from "@cinderous/engine";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
+  composeThreatDb,
   lastThreatFetch,
   loadCachedThreatDb,
+  loadCustomDomains,
+  normalizeCustomDomains,
   refreshThreatDb,
+  saveCustomDomains,
   setThreatIntelEnabled,
+  setThreatSendWarnEnabled,
+  setThreatStrictEnabled,
   threatIntelEnabled,
+  threatSendWarnEnabled,
+  threatStrictEnabled,
 } from "./threat-db.js";
 
 const SNAPSHOT = {
@@ -65,5 +74,47 @@ describe("refreshThreatDb／loadCachedThreatDb", () => {
     expect(loadCachedThreatDb()).toBeNull();
     memKv.setItem("nb.threatIntel.snapshot", "not-json");
     expect(loadCachedThreatDb()).toBeNull();
+  });
+});
+
+describe("P3 設定：送出警示／嚴格模式（預設值與往返）", () => {
+  it("送出警示預設開；嚴格預設關", () => {
+    expect(threatSendWarnEnabled()).toBe(true);
+    expect(threatStrictEnabled()).toBe(false);
+    setThreatSendWarnEnabled(false);
+    setThreatStrictEnabled(true);
+    expect(threatSendWarnEnabled()).toBe(false);
+    expect(threatStrictEnabled()).toBe(true);
+  });
+});
+
+describe("自訂封鎖清單與合成（ADR-0231 P3）", () => {
+  it("normalizeCustomDomains：小寫、去 www.、丟非法、去重", () => {
+    expect(normalizeCustomDomains("WWW.Evil.com\n\nbad.example\nevil.com\nnot a domain\nsingleword")).toEqual([
+      "evil.com",
+      "bad.example",
+    ]);
+  });
+
+  it("save/load round-trip；壞資料回 []", () => {
+    saveCustomDomains(["evil.com"]);
+    expect(loadCustomDomains()).toEqual(["evil.com"]);
+    memKv.setItem("nb.threatIntel.custom", "not-json");
+    expect(loadCustomDomains()).toEqual([]);
+  });
+
+  it("composeThreatDb：自訂排最前、命中 id=custom；兩者皆空回 null", () => {
+    expect(composeThreatDb(null, [])).toBeNull();
+    const base: ThreatDb = {
+      sources: [{ id: "urlhaus", name: "URLhaus" }],
+      domains: new Map([["urlhaus", new Set(["bad.example"])]]),
+    };
+    expect(composeThreatDb(base, [])).toBe(base);
+    const merged = composeThreatDb(base, ["evil.com"])!;
+    expect(merged.sources.map((s) => s.id)).toEqual(["custom", "urlhaus"]);
+    expect(matchThreat(merged, "a.evil.com").map((s) => s.id)).toEqual(["custom"]);
+    expect(matchThreat(merged, "bad.example").map((s) => s.id)).toEqual(["urlhaus"]);
+    const customOnly = composeThreatDb(null, ["evil.com"])!;
+    expect(matchThreat(customOnly, "evil.com").map((s) => s.id)).toEqual(["custom"]);
   });
 });

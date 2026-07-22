@@ -108,6 +108,19 @@ export interface SettingsPanelProps {
   /** 收到別人的自訂 emoji／貼圖時自動收藏（ADR-0220）；未提供則不顯示。 */
   autoAcquireAssets?: boolean;
   onToggleAutoAcquire?: () => void;
+  /** 威脅情報防護（ADR-0231 P3）：設定四項（啟用/送出警示/嚴格/自訂清單）；未提供則不顯示。 */
+  threat?: {
+    enabled: boolean;
+    sendWarn: boolean;
+    strict: boolean;
+    /** 自訂封鎖網域（已正規化）。 */
+    custom: string[];
+    onToggleEnabled: () => void;
+    onToggleSendWarn: () => void;
+    onToggleStrict: () => void;
+    /** 以多行原始文字套用自訂清單（App 端正規化後保存）。 */
+    onCustomChange: (raw: string) => void;
+  };
   /** 可更新版本（ADR-0228 P3）；null／未提供＝無新版，關於區不顯示徽章。 */
   updateAvailable?: string | null;
   /** 自動檢查更新 opt-in（ADR-0228 P3）；與 onToggleUpdateCheck 一起提供才顯示開關。 */
@@ -825,6 +838,52 @@ function SecuritySettings({ value }: { value: NonNullable<SettingsPanelProps["se
 
 /** 設定面板：主題色、中繼站、身分備份（私鑰）、桌面通知。 */
 /** 設定分頁（ADR-0142）：把長設定頁切成分頁，減少捲動。 */
+/** 威脅情報防護區（ADR-0231 P3）：啟用/送出警示/嚴格三開關＋自訂封鎖清單編輯。 */
+function ThreatSettings({ value }: { value: NonNullable<SettingsPanelProps["threat"]> }): JSX.Element {
+  const { t } = useI18n();
+  const [draft, setDraft] = useState(() => value.custom.join("\n"));
+  return (
+    <section className="settings__sec" data-testid="threat-settings">
+      <h4>{t("settings_threatTitle")}</h4>
+      <label className="settings__toggle">
+        <input type="checkbox" data-testid="threat-enable" checked={value.enabled} onChange={value.onToggleEnabled} />
+        <span>{t("settings_threatEnable")}</span>
+      </label>
+      <p className="settings__hint">{t("settings_threatEnableHint")}</p>
+      {value.enabled ? (
+        <>
+          <label className="settings__toggle">
+            <input
+              type="checkbox"
+              data-testid="threat-send-warn"
+              checked={value.sendWarn}
+              onChange={value.onToggleSendWarn}
+            />
+            <span>{t("settings_threatSendWarn")}</span>
+          </label>
+          <label className="settings__toggle">
+            <input type="checkbox" data-testid="threat-strict" checked={value.strict} onChange={value.onToggleStrict} />
+            <span>{t("settings_threatStrict")}</span>
+          </label>
+          <label className="settings__field">
+            <span>{t("settings_threatCustom")}</span>
+            <textarea
+              data-testid="threat-custom"
+              rows={4}
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              spellCheck={false}
+            />
+          </label>
+          <button type="button" data-testid="threat-custom-apply" onClick={() => value.onCustomChange(draft)}>
+            {t("settings_threatCustomApply")}
+          </button>
+        </>
+      ) : null}
+    </section>
+  );
+}
+
 /** 關於／版本區（ADR-0227 P4）：版號（build-time 注入）＋依語系顯示本版更新記錄。 */
 /** ＋更新偵測（ADR-0228 P3）：可更新徽章＋前往下載＋自動檢查 opt-in 開關。 */
 function AboutSettings(props: {
@@ -1213,6 +1272,8 @@ export function SettingsPanel(props: SettingsPanelProps): JSX.Element {
               ) : null}
             </section>
           ) : null}
+
+          {tab === "privacy" && props.threat ? <ThreatSettings value={props.threat} /> : null}
 
           {tab === "privacy" ? (
           <section className="settings__sec">

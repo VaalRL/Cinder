@@ -1,6 +1,8 @@
-import { Fragment, type ReactNode } from "react";
+import { Fragment, useState, type ReactNode } from "react";
+import type { ThreatSource } from "@cinderous/core";
 import { useI18n } from "../i18n.js";
 import { useDialog } from "./Dialog.js";
+import { useThreat } from "./threat-context.js";
 import { assessUrl, type UrlRisk, type UrlRiskReason } from "./url-hygiene.js";
 
 interface Rule {
@@ -56,6 +58,75 @@ function RiskyLink({ href, risk, children }: { href: string; risk: UrlRisk; chil
   );
 }
 
+/** 命中來源顯示名：自訂清單以 i18n 顯示、其餘用來源名（ADR-0231）。 */
+function sourceNames(sources: ThreatSource[], t: (k: "threat_sourceCustom") => string): string {
+  return sources.map((s) => (s.id === "custom" ? t("threat_sourceCustom") : s.name)).join(", ");
+}
+
+/**
+ * 威脅情報遮罩（ADR-0231 P3）：命中已知惡意清單的連結**預設遮住**（不顯示網址與文字），
+ * 標示命中來源；一般模式可展開（轉為 RiskyLink，仍需確認才開啟）；嚴格模式不可展開。
+ */
+function MaskedLink({
+  href,
+  risk,
+  strict,
+  children,
+}: {
+  href: string;
+  risk: UrlRisk;
+  strict: boolean;
+  children: ReactNode;
+}): JSX.Element {
+  const { t } = useI18n();
+  const [revealed, setRevealed] = useState(false);
+  if (revealed) {
+    return (
+      <RiskyLink href={href} risk={risk}>
+        {children}
+      </RiskyLink>
+    );
+  }
+  const names = sourceNames(risk.sources ?? [], t);
+  return (
+    <span className="threatmask" data-testid="threat-mask" title={t("threatMask_bySource", { sources: names })}>
+      <span className="threatmask__badge" aria-hidden="true">⛔</span>
+      {t("threatMask_label")}（{t("threatMask_bySource", { sources: names })}）
+      {strict ? null : (
+        <button type="button" className="threatmask__reveal" data-testid="threat-reveal" onClick={() => setRevealed(true)}>
+          {t("threatMask_reveal")}
+        </button>
+      )}
+    </span>
+  );
+}
+
+/** 訊息連結（ADR-0038/0231）：依風險評估分流——ok 直連、啟發式風險 RiskyLink、威脅命中遮罩。 */
+function MessageLink({ href, inner, keyBase }: { href: string; inner: string; keyBase: string }): JSX.Element {
+  const { matcher, strict } = useThreat();
+  const risk = assessUrl(href, inner, matcher ?? undefined);
+  const children = parseInline(inner, keyBase);
+  if (risk.sources && risk.sources.length > 0) {
+    return (
+      <MaskedLink href={href} risk={risk} strict={strict}>
+        {children}
+      </MaskedLink>
+    );
+  }
+  if (risk.level === "ok") {
+    return (
+      <a href={href} target="_blank" rel="noopener noreferrer">
+        {children}
+      </a>
+    );
+  }
+  return (
+    <RiskyLink href={href} risk={risk}>
+      {children}
+    </RiskyLink>
+  );
+}
+
 /** 將單行文字解析為帶有行內格式的 React 節點（信任邊界安全：不注入 HTML）。 */
 function parseInline(text: string, keyBase: string): ReactNode[] {
   const nodes: ReactNode[] = [];
@@ -85,19 +156,8 @@ function parseInline(text: string, keyBase: string): ReactNode[] {
         break;
       case "link": {
         const href = best.match[2]!;
-        // 高風險評估（ADR-0038）：連結顯示文字用於偵測「文字偽裝」。
-        const risk = assessUrl(href, inner);
-        nodes.push(
-          risk.level === "ok" ? (
-            <a key={key} href={href} target="_blank" rel="noopener noreferrer">
-              {parseInline(inner, key)}
-            </a>
-          ) : (
-            <RiskyLink key={key} href={href} risk={risk}>
-              {parseInline(inner, key)}
-            </RiskyLink>
-          ),
-        );
+        // 風險評估（ADR-0038）＋威脅遮罩（ADR-0231）在元件內進行（需讀 threat context）。
+        nodes.push(<MessageLink key={key} href={href} inner={inner} keyBase={key} />);
         break;
       }
       case "bold":

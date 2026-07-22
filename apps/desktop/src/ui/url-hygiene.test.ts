@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { assessUrl, cleanOnPasteEnabled, cleanText, cleanUrl, setCleanOnPasteEnabled } from "./url-hygiene.js";
+import { assessUrl, cleanOnPasteEnabled, cleanText, cleanUrl, setCleanOnPasteEnabled, threatHits } from "./url-hygiene.js";
 
 describe("追蹤參數清除 cleanUrl（ADR-0038）", () => {
   it("清除 utm_* 前綴與已知追蹤參數，保留功能參數", () => {
@@ -167,5 +167,21 @@ describe("assessUrl known-malicious（ADR-0231）", () => {
   });
   it("未提供 matcher → 不比對（向後相容）", () => {
     expect(assessUrl("https://evil.com").reasons).not.toContain("known-malicious");
+  });
+});
+
+describe("threatHits（ADR-0231 P3 送出端掃描）", () => {
+  const match = (host: string): { id: string; name: string }[] =>
+    host === "evil.com" || host.endsWith(".evil.com") ? [{ id: "urlhaus", name: "URLhaus" }] : [];
+  it("裸網址與 Markdown 連結都掃到；同來源去重", () => {
+    const hits = threatHits("看 https://evil.com/a 和 [x](https://sub.evil.com/b)。", match);
+    expect(hits.map((s) => s.id)).toEqual(["urlhaus"]);
+  });
+  it("未命中／無網址 → []", () => {
+    expect(threatHits("https://safe.com 純文字", match)).toEqual([]);
+    expect(threatHits("沒有連結", match)).toEqual([]);
+  });
+  it("尾端標點不影響解析；www. 前綴正規化", () => {
+    expect(threatHits("去 https://www.evil.com/x。", match).map((s) => s.id)).toEqual(["urlhaus"]);
   });
 });

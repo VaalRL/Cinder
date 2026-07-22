@@ -164,6 +164,25 @@ export function cleanText(text: string): { text: string; cleaned: number } {
   return { text: out, cleaned };
 }
 
+/**
+ * 掃描文字中所有網址、回命中的威脅來源聯集（ADR-0231 P3 送出端警示用）；
+ * 未命中回 []。同來源多次命中只回一次。純函式、零網路。
+ */
+export function threatHits(text: string, match: (host: string) => ThreatSource[]): ThreatSource[] {
+  const seen = new Map<string, ThreatSource>();
+  for (const m of text.match(URL_RE) ?? []) {
+    const core = m.replace(TRAIL_PUNCT, "");
+    let host: string;
+    try {
+      host = new URL(core).hostname.toLowerCase();
+    } catch {
+      continue;
+    }
+    for (const src of match(stripWww(host))) seen.set(src.id, src);
+  }
+  return [...seen.values()];
+}
+
 // ── 高風險評估 ──
 
 export type UrlRiskReason =

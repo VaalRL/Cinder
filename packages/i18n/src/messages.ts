@@ -633,6 +633,20 @@ export interface Messages {
   urlrisk_shortener: string;
   urlrisk_knownMalicious: string;
   urlrisk_unparsable: string;
+  /** 威脅情報遮罩與送出端警示（ADR-0231 P3）。 */
+  threat_sourceCustom: string;
+  threatMask_label: string;
+  threatMask_bySource: string;
+  threatMask_reveal: string;
+  threatSend_confirm: string;
+  threatSend_blocked: string;
+  settings_threatTitle: string;
+  settings_threatEnable: string;
+  settings_threatEnableHint: string;
+  settings_threatSendWarn: string;
+  settings_threatStrict: string;
+  settings_threatCustom: string;
+  settings_threatCustomApply: string;
   settings_privacy: string;
   settings_cleanOnPaste: string;
   settings_autoAcquireAssets: string;
@@ -1292,6 +1306,19 @@ const zhHant: Messages = {
   urlrisk_shortener: "短網址，無法預覽真正目的地",
   urlrisk_knownMalicious: "已知惡意網站（威脅情報命中）",
   urlrisk_unparsable: "網址格式異常",
+  threat_sourceCustom: "我的封鎖清單",
+  threatMask_label: "已封鎖的惡意連結",
+  threatMask_bySource: "來源：{sources}",
+  threatMask_reveal: "顯示",
+  threatSend_confirm: "訊息包含已知惡意連結（{sources}）。仍要送出嗎？",
+  threatSend_blocked: "嚴格模式已阻止送出：訊息包含已知惡意連結（{sources}）。",
+  settings_threatTitle: "威脅情報防護",
+  settings_threatEnable: "封鎖已知惡意連結",
+  settings_threatEnableHint: "以開源清單（URLhaus、StevenBlack）於本機比對——網址絕不外送、可自訂、可關閉。",
+  settings_threatSendWarn: "送出含惡意連結時警示",
+  settings_threatStrict: "嚴格模式（遮罩不可展開、阻止送出）",
+  settings_threatCustom: "自訂封鎖網域（每行一個）",
+  settings_threatCustomApply: "套用",
   settings_privacy: "隱私",
   settings_cleanOnPaste: "貼上時自動清除網址追蹤參數（含 redirect 拆殼）",
   settings_autoAcquireAssets: "收到別人的自訂 emoji／貼圖時自動收藏進我的庫",
@@ -1947,6 +1974,19 @@ const en: Messages = {
   urlrisk_shortener: "URL shortener — destination hidden",
   urlrisk_knownMalicious: "Known malicious site (threat-intel match)",
   urlrisk_unparsable: "Malformed URL",
+  threat_sourceCustom: "My blocklist",
+  threatMask_label: "Blocked malicious link",
+  threatMask_bySource: "source: {sources}",
+  threatMask_reveal: "Reveal",
+  threatSend_confirm: "This message contains a known-malicious link ({sources}). Send anyway?",
+  threatSend_blocked: "Strict mode blocked sending: this message contains a known-malicious link ({sources}).",
+  settings_threatTitle: "Threat protection",
+  settings_threatEnable: "Block known-malicious links",
+  settings_threatEnableHint: "Matched locally against open-source lists (URLhaus, StevenBlack) — URLs never leave this device; customizable; can be turned off.",
+  settings_threatSendWarn: "Warn when sending a flagged link",
+  settings_threatStrict: "Strict mode (no reveal, block sending)",
+  settings_threatCustom: "Custom blocked domains (one per line)",
+  settings_threatCustomApply: "Apply",
   settings_privacy: "Privacy",
   settings_cleanOnPaste: "Strip tracking parameters from pasted links (incl. redirect unwrapping)",
   settings_autoAcquireAssets: "Auto-save others' custom emoji / stickers to my library",

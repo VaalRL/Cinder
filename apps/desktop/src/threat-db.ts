@@ -12,6 +12,9 @@ export const THREAT_ENDPOINT = "https://vaalrl.github.io/Cinderous/threat-intel.
 const ENABLED_KEY = "nb.threatIntel.enabled";
 const CACHE_KEY = "nb.threatIntel.snapshot";
 const LAST_KEY = "nb.threatIntel.lastFetch";
+const SEND_WARN_KEY = "nb.threatIntel.sendWarn";
+const STRICT_KEY = "nb.threatIntel.strict";
+const CUSTOM_KEY = "nb.threatIntel.custom";
 
 /** 威脅情報遮罩是否啟用（預設開、可關；P3 設定四項之一）。 */
 export function threatIntelEnabled(): boolean {
@@ -20,6 +23,66 @@ export function threatIntelEnabled(): boolean {
 
 export function setThreatIntelEnabled(on: boolean): void {
   getKv().setItem(ENABLED_KEY, on ? "1" : "0");
+}
+
+/** 送出端警示是否啟用（預設開、可關；P3 設定四項之二）。 */
+export function threatSendWarnEnabled(): boolean {
+  return getKv().getItem(SEND_WARN_KEY) !== "0";
+}
+
+export function setThreatSendWarnEnabled(on: boolean): void {
+  getKv().setItem(SEND_WARN_KEY, on ? "1" : "0");
+}
+
+/** 嚴格模式（預設關；遮罩不可展開＋送出阻止；P3 設定四項之三）。 */
+export function threatStrictEnabled(): boolean {
+  return getKv().getItem(STRICT_KEY) === "1";
+}
+
+export function setThreatStrictEnabled(on: boolean): void {
+  getKv().setItem(STRICT_KEY, on ? "1" : "0");
+}
+
+/** 自訂封鎖網域輸入正規化（每行一個）：小寫、去 www.、丟非法、去重。 */
+export function normalizeCustomDomains(raw: string): string[] {
+  const out = new Set<string>();
+  for (const line of raw.split(/\r?\n/)) {
+    const d = line.trim().toLowerCase().replace(/^www\./, "");
+    if (d !== "" && /^[a-z0-9_-]+(\.[a-z0-9_-]+)+$/.test(d)) out.add(d);
+  }
+  return [...out];
+}
+
+/** 自訂封鎖網域（P3 設定四項之四）：本機保存、優先於內建來源顯示。 */
+export function loadCustomDomains(): string[] {
+  const raw = getKv().getItem(CUSTOM_KEY);
+  if (!raw) return [];
+  try {
+    const p: unknown = JSON.parse(raw);
+    return Array.isArray(p) ? p.filter((d): d is string => typeof d === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+export function saveCustomDomains(domains: string[]): void {
+  getKv().setItem(CUSTOM_KEY, JSON.stringify(domains));
+}
+
+/**
+ * 合成比對用 DB：自訂清單（來源 id `custom`，UI 以 i18n 顯示名）排最前＋官網 snapshot 快取。
+ * 兩者皆空回 null（呼叫端＝不比對）。
+ */
+export function composeThreatDb(base: ThreatDb | null, custom: string[]): ThreatDb | null {
+  if (custom.length === 0) return base;
+  const customSource = { id: "custom", name: "custom" };
+  if (!base) {
+    return { sources: [customSource], domains: new Map([["custom", new Set(custom)]]) };
+  }
+  return {
+    sources: [customSource, ...base.sources],
+    domains: new Map([["custom", new Set(custom)], ...base.domains]),
+  };
 }
 
 /** 上次拉取時間（每日節流依據；與 update-check 共用 `shouldCheck` 語意）。 */

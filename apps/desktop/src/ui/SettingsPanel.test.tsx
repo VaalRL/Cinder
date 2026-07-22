@@ -96,6 +96,30 @@ describe("SettingsPanel 分頁（ADR-0142）", () => {
     expect(render({ initialTab: "about", updateAvailable: null })).not.toContain('data-testid="update-badge"');
   });
 
+  it("隱私分頁：威脅情報防護四項（ADR-0231 P3）——提供 threat 才顯示；停用時收合子項", () => {
+    expect(render({ initialTab: "privacy" })).not.toContain('data-testid="threat-settings"');
+    const threat = {
+      enabled: true,
+      sendWarn: true,
+      strict: false,
+      custom: ["evil.com"],
+      onToggleEnabled: () => {},
+      onToggleSendWarn: () => {},
+      onToggleStrict: () => {},
+      onCustomChange: () => {},
+    };
+    const on = render({ initialTab: "privacy", threat });
+    expect(on).toContain('data-testid="threat-settings"');
+    expect(on).toContain('data-testid="threat-enable"');
+    expect(on).toContain('data-testid="threat-send-warn"');
+    expect(on).toContain('data-testid="threat-strict"');
+    expect(on).toContain('data-testid="threat-custom"');
+    expect(on).toContain("evil.com");
+    const off = render({ initialTab: "privacy", threat: { ...threat, enabled: false } });
+    expect(off).toContain('data-testid="threat-enable"');
+    expect(off).not.toContain('data-testid="threat-send-warn"');
+  });
+
   it("關於分頁：自動檢查更新開關（ADR-0228 P3）——提供 onToggleUpdateCheck 才顯示、反映開關狀態", () => {
     expect(render({ initialTab: "about" })).not.toContain('data-testid="update-check-toggle"');
     const on = render({ initialTab: "about", updateCheck: true, onToggleUpdateCheck: () => {} });

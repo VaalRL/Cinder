@@ -15,6 +15,7 @@ import {
   type OrgGroup,
   type OrgInvite,
   type OrgMember,
+  matchThreat,
   parseBackupCode,
   parseOrgInvite,
   peekBackupRelay,
@@ -22,10 +23,11 @@ import {
   type AssetTombstone,
   type CustomAsset,
   type PubkeyHex,
+  type ThreatDb,
 } from "@cinderous/core";
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { BrowserChatBackend } from "@cinderous/engine";
 import { normalizeRelayUrl, RelayChatBackend, shouldMuteOrgNotification, webSocketConnector } from "@cinderous/engine";
 import { DEFAULT_NOTIFY_PREFS, type NotifyPrefs, shouldNotify } from "@cinderous/engine";
@@ -102,6 +104,20 @@ import {
   shouldCheck,
   updateCheckEnabled,
 } from "./update-check.js";
+import {
+  bootThreatDb,
+  composeThreatDb,
+  loadCustomDomains,
+  normalizeCustomDomains,
+  saveCustomDomains,
+  setThreatIntelEnabled,
+  setThreatSendWarnEnabled,
+  setThreatStrictEnabled,
+  threatIntelEnabled,
+  threatSendWarnEnabled,
+  threatStrictEnabled,
+} from "./threat-db.js";
+import { ThreatProvider } from "./ui/threat-context.js";
 import { autoAcquireEnabled, setAutoAcquireEnabled } from "./ui/sticker-library.js";
 import {
   allLabels,
@@ -477,6 +493,12 @@ export function App(): JSX.Element {
   const [updateAvailable, setUpdateAvailable] = useState<string | null>(
     () => (updateCheckEnabled() ? (loadUpdateState()?.available ?? null) : null),
   );
+  /** 威脅情報（ADR-0231 P3）：snapshot 快取＋設定四項（啟用/送出警示/嚴格/自訂清單）。 */
+  const [threatBase, setThreatBase] = useState<ThreatDb | null>(null);
+  const [threatOn, setThreatOn] = useState<boolean>(() => threatIntelEnabled());
+  const [threatSendWarn, setThreatSendWarn] = useState<boolean>(() => threatSendWarnEnabled());
+  const [threatStrict, setThreatStrict] = useState<boolean>(() => threatStrictEnabled());
+  const [threatCustom, setThreatCustom] = useState<string[]>(() => loadCustomDomains());
   const [blobsNonce, setBlobsNonce] = useState(0); // ADR-0223：backfill 到貨時 bump → 對話窗重讀 blob 快取
   const [groups, setGroups] = useState<Group[]>([]);
   const [groupPrefs, setGroupPrefs] = useState<GroupPrefsMap>(() => loadGroupPrefs());
@@ -516,6 +538,19 @@ export function App(): JSX.Element {
       setUpdateAvailable(v);
     });
   }, []);
+  // 威脅情報（ADR-0231 P2/P3）：開機先回快取；啟用中且滿一日→背景拉新 snapshot。
+  useEffect(() => {
+    setThreatBase(bootThreatDb(setThreatBase));
+  }, []);
+  // 遮罩／送出端共用組態：snapshot＋自訂清單合成 matcher；停用＝null（不比對）。
+  const threatConfig = useMemo(() => {
+    const db = composeThreatDb(threatBase, threatCustom);
+    return {
+      matcher: threatOn && db ? (host: string) => matchThreat(db, host) : null,
+      sendWarn: threatSendWarn,
+      strict: threatStrict,
+    };
+  }, [threatBase, threatCustom, threatOn, threatSendWarn, threatStrict]);
   // ADR-0206：三欄＋Tauri 把身分元件（切換/＋/🔒/🗂）上移標題列的註冊器（實際 bundle 於下方 effect 提供）。
   const registerIdentityControls = useRegisterIdentityControls();
   // 右欄計算機 → 主對話框的單向插入指令（ADR-0097）：nonce 變動即觸發，不接管草稿狀態。
@@ -2170,6 +2205,7 @@ export function App(): JSX.Element {
     : {};
 
   return (
+    <ThreatProvider value={threatConfig}>
     <div
       className={layout === "modern" ? "deck" : "desktop"}
       data-layout={layout}
@@ -2528,6 +2564,29 @@ export function App(): JSX.Element {
             setAutoAcquireEnabled(!autoAcquire);
             setAutoAcquire(!autoAcquire);
           }}
+          threat={{
+            enabled: threatOn,
+            sendWarn: threatSendWarn,
+            strict: threatStrict,
+            custom: threatCustom,
+            onToggleEnabled: () => {
+              setThreatIntelEnabled(!threatOn);
+              setThreatOn(!threatOn);
+            },
+            onToggleSendWarn: () => {
+              setThreatSendWarnEnabled(!threatSendWarn);
+              setThreatSendWarn(!threatSendWarn);
+            },
+            onToggleStrict: () => {
+              setThreatStrictEnabled(!threatStrict);
+              setThreatStrict(!threatStrict);
+            },
+            onCustomChange: (raw) => {
+              const domains = normalizeCustomDomains(raw);
+              saveCustomDomains(domains);
+              setThreatCustom(domains);
+            },
+          }}
           updateAvailable={updateAvailable}
           updateCheck={updateCheckOn}
           onToggleUpdateCheck={() => {
@@ -2827,6 +2886,7 @@ export function App(): JSX.Element {
         />
       ) : null}
     </div>
+    </ThreatProvider>
   );
 }
 

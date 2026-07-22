@@ -2,6 +2,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { I18nProvider } from "../i18n.js";
 import { renderMarkdown } from "./markdown.js";
+import { ThreatProvider } from "./threat-context.js";
 
 const html = (text: string) => renderToStaticMarkup(<>{renderMarkdown(text)}</>);
 // 風險連結（RiskyLink）需要 i18n context。
@@ -127,5 +128,37 @@ describe("引言與 Obsidian 風 callout", () => {
     const evil = `${">".repeat(200)} deep`;
     expect(() => html(evil)).not.toThrow();
     expect(html(evil)).toContain("deep");
+  });
+});
+
+describe("威脅情報遮罩（ADR-0231 P3）", () => {
+  const matcher = (host: string) =>
+    host === "evil.com" || host.endsWith(".evil.com") ? [{ id: "urlhaus", name: "URLhaus" }] : [];
+  const htmlThreat = (text: string, strict = false) =>
+    renderToStaticMarkup(
+      <I18nProvider>
+        <ThreatProvider value={{ matcher, sendWarn: true, strict }}>{renderMarkdown(text)}</ThreatProvider>
+      </I18nProvider>,
+    );
+
+  it("命中連結遮住：不出現網址與顯示文字、標示來源、可展開", () => {
+    const out = htmlThreat("點 [免費領獎](https://evil.com/x)");
+    expect(out).toContain('data-testid="threat-mask"');
+    expect(out).not.toContain("https://evil.com/x");
+    expect(out).not.toContain("免費領獎");
+    expect(out).toContain("URLhaus");
+    expect(out).toContain('data-testid="threat-reveal"');
+  });
+
+  it("嚴格模式：不可展開（無顯示按鈕）", () => {
+    const out = htmlThreat("[x](https://evil.com/x)", true);
+    expect(out).toContain('data-testid="threat-mask"');
+    expect(out).not.toContain('data-testid="threat-reveal"');
+  });
+
+  it("未命中連結照舊；無 provider（預設停用）不遮罩", () => {
+    expect(htmlThreat("[ok](https://safe.example/)")).toContain('href="https://safe.example/"');
+    const noProvider = renderToStaticMarkup(<I18nProvider>{renderMarkdown("[x](https://evil.com/x)")}</I18nProvider>);
+    expect(noProvider).not.toContain('data-testid="threat-mask"');
   });
 });

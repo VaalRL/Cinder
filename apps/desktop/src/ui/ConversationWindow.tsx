@@ -89,7 +89,8 @@ import {
   type TriggerEntry,
   type TriggerMatch,
 } from "./sticker-triggers.js";
-import { cleanOnPasteEnabled, cleanText } from "./url-hygiene.js";
+import { cleanOnPasteEnabled, cleanText, threatHits } from "./url-hygiene.js";
+import { useThreat } from "./threat-context.js";
 import { indentText } from "./composer-indent.js";
 import { ComposerInsert, type InsertTemplate } from "./ComposerInsert.js";
 import { renderMarkdown } from "./markdown.js";
@@ -429,6 +430,20 @@ export function ConversationWindow(props: ConversationProps): JSX.Element {
   const { t } = useI18n();
   const { confirm, alert, prompt } = useDialog(); // 統一自訂對話框（ADR-0139）
   const { self, contact, messages } = props;
+  // 送出端威脅警示（ADR-0231 P3）：命中已知惡意連結→警示（可關）；嚴格模式→阻止送出。
+  const threat = useThreat();
+  const threatSendAllowed = async (body: string): Promise<boolean> => {
+    if (!threat.matcher) return true;
+    const hits = threatHits(body, threat.matcher);
+    if (hits.length === 0) return true;
+    const sources = hits.map((s) => (s.id === "custom" ? t("threat_sourceCustom") : s.name)).join(", ");
+    if (threat.strict) {
+      await alert(t("threatSend_blocked", { sources }));
+      return false;
+    }
+    if (!threat.sendWarn) return true;
+    return confirm(t("threatSend_confirm", { sources }));
+  };
   // 檢視此對話（開窗或新訊息到達）→ 送已讀回條（ADR-0058；App 端另以聚焦把關）。
   const onMarkRead = props.onMarkRead;
   useEffect(() => {
@@ -1112,9 +1127,12 @@ export function ConversationWindow(props: ConversationProps): JSX.Element {
       void alert(t("emoji_manifestTooLarge"));
       return;
     }
-    const mentions = props.mentionCandidates ? parseMentions(body, props.mentionCandidates) : [];
-    props.onSend(content, ttl > 0 ? ttl : undefined, mentions.length > 0 ? mentions : undefined);
-    setText("");
+    void threatSendAllowed(body).then((ok) => {
+      if (!ok) return;
+      const mentions = props.mentionCandidates ? parseMentions(body, props.mentionCandidates) : [];
+      props.onSend(content, ttl > 0 ? ttl : undefined, mentions.length > 0 ? mentions : undefined);
+      setText("");
+    });
   };
 
   // 對話串（ADR-0051）：發送者顯示名稱、串內回覆送出。
@@ -1128,9 +1146,12 @@ export function ConversationWindow(props: ConversationProps): JSX.Element {
       void alert(t("emoji_manifestTooLarge"));
       return;
     }
-    const mentions = props.mentionCandidates ? parseMentions(body, props.mentionCandidates) : [];
-    props.onSend(content, undefined, mentions.length > 0 ? mentions : undefined, threadRoot);
-    setThreadText("");
+    void threatSendAllowed(body).then((ok) => {
+      if (!ok) return;
+      const mentions = props.mentionCandidates ? parseMentions(body, props.mentionCandidates) : [];
+      props.onSend(content, undefined, mentions.length > 0 ? mentions : undefined, threadRoot);
+      setThreadText("");
+    });
   };
   // 串內 @提及自動完成（ADR-0050/0051）。
   const threadMenSuggest =
