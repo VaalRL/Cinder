@@ -153,8 +153,7 @@ const zhHant: Copy = {
   roadmap_p_domain_b: "網頁版目前用 Cloudflare Worker 預設網址，日後綁自訂網域。",
   hero_eyebrow: "取回通訊自主權",
   hero_title: "Cinderous",
-  hero_subtitle:
-    "通訊本該屬於說話的人，而不是中間的平台。Cinderous 讓你在沒有伺服器帳號、沒有守門人的前提下，安全地和你邀來的人說話——像夜裡森林深處的一簇營火，只有圍坐的人聽得見。",
+  hero_subtitle: "你的對話像夜裡森林深處的一簇營火，只有圍坐的人聽得見。",
   hero_ic_windows: "Windows",
   hero_ic_mac: "macOS",
   hero_ic_mobile: "行動版",
@@ -299,8 +298,7 @@ const en: Copy = {
   roadmap_p_domain_b: "The web app currently uses the default Cloudflare Worker URL; a custom domain will be bound later.",
   hero_eyebrow: "Own your conversations",
   hero_title: "Cinderous",
-  hero_subtitle:
-    "Conversations should belong to the people having them — not to the platform in the middle. Cinderous lets you talk safely with the people you invite, with no server account and no gatekeeper — like a campfire deep in a night forest, heard only by those sitting around it.",
+  hero_subtitle: "Your conversations are a campfire deep in a night forest — heard only by those sitting around it.",
   hero_ic_windows: "Windows",
   hero_ic_mac: "macOS",
   hero_ic_mobile: "Mobile",

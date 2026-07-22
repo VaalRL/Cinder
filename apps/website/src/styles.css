@@ -100,6 +100,8 @@ h1, h2, h3 { text-wrap: balance; }
 /* 流式字級（ADR-0230）：手機不再靠斷點硬切，36px～64px 隨視窗寬度縮放。 */
 .hero h1 { font-size: clamp(36px, 9vw, 64px); margin: 0 0 14px; letter-spacing: -2px; line-height: 1; }
 .hero__sub { font-size: 19px; color: var(--muted); max-width: 640px; margin: 0 auto 30px; }
+/* 「看技術原理」列（ADR-0229 修訂）：p＝區塊級→必定自成一列（.cta 為 inline-flex 會與 icon 列擠同行）。 */
+.hero__tech { margin: 0 0 18px; }
 .cta { display: inline-flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
 .btn { display: inline-flex; align-items: center; padding: 12px 22px; border-radius: 12px; font-weight: 700; cursor: pointer; border: 1px solid var(--border); background: var(--panel); color: var(--ink); font-size: 15px; }
 .btn:hover { border-color: color-mix(in srgb, var(--accent) 50%, var(--border)); }

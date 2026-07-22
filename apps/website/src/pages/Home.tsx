@@ -33,6 +33,13 @@ export function Home({
           <p className="eyebrow">{c.hero_eyebrow}</p>
           <h1>{c.hero_title}</h1>
           <p className="hero__sub">{c.hero_subtitle}</p>
+          {/* 「看技術原理」保留文字連結（ADR-0229）：置於 icon 列上方、自成一列（區塊級容器；
+              .cta 是 inline-flex，兩個並排會擠同一行）。 */}
+          <p className="hero__tech">
+            <button type="button" className="btn" onClick={onTech}>
+              {c.hero_tech} →
+            </button>
+          </p>
           {/* hero icon 按鈕列（ADR-0229）：下載分平台（Windows 可用、macOS／行動版即將推出）＋
               網頁版與 GitHub 入口。tooltip hover 顯示；手機（≤640px）改顯示可見標籤。 */}
           <div className="cta cta--icons">
@@ -89,12 +96,6 @@ export function Home({
               <span className="iconbtn__label">{c.hero_ic_github}</span>
               <span className="iconbtn__tip">{c.hero_github}</span>
             </a>
-          </div>
-          {/* 「看技術原理」保留文字連結（ADR-0229）。 */}
-          <div className="cta" style={{ marginTop: 14 }}>
-            <button type="button" className="btn" onClick={onTech}>
-              {c.hero_tech} →
-            </button>
           </div>
         </div>
       </header>
