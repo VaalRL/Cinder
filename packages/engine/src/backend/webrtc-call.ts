@@ -3,6 +3,7 @@ import {
   createCallSignal,
   readCallSignal,
   type CallAction,
+  type CallFailureReason,
   type CallMedia,
   type CallSignal,
   type CallState,
@@ -22,6 +23,11 @@ export interface CallHandlers {
   /** 遠端媒體串流（供播放；null 表示已結束）。 */
   onRemoteStream: (stream: MediaStream | null) => void;
   onError: (reason: string) => void;
+  /**
+   * 通話**連線失敗**（ADR-0243）：與 `onError`（處理例外）不同——這是 P2P 連不通/斷線，
+   * UI 據 `reason` 給可行動提示（`unreachable`＝限制網路可改網路重試；`lost`＝可再撥）。
+   */
+  onFailed: (peer: PubkeyHex, reason: CallFailureReason) => void;
 }
 
 /**
@@ -38,6 +44,8 @@ export class WebRtcCall {
   private hasRemote = false;
   private pendingCandidates: RTCIceCandidateInit[] = [];
   private seq = 0;
+  /** 本通話的 P2P 是否曾經連通（ADR-0243）：區分「從未打通」與「連上後斷線」的失敗提示。 */
+  private everConnected = false;
 
   constructor(
     private readonly ownSk: SecretKey,
@@ -132,6 +140,7 @@ export class WebRtcCall {
   }
 
   private ensurePc(): void {
+    this.everConnected = false; // 每通新通話重置（ADR-0243）
     const pc = new RTCPeerConnection(typeof this.rtcConfig === "function" ? this.rtcConfig() : this.rtcConfig);
     pc.onicecandidate = (ev) => {
       const c = ev.candidate;
@@ -151,11 +160,18 @@ export class WebRtcCall {
       if (stream) this.handlers.onRemoteStream(stream);
     };
     pc.onconnectionstatechange = () => {
-      if (pc.connectionState === "connected") void this.run(this.session.onConnected());
-      else if (pc.connectionState === "failed") {
-        this.handlers.onError("通話連線失敗");
-        this.teardown();
-        this.emitState();
+      if (pc.connectionState === "connected") {
+        this.everConnected = true; // 記錄「曾連通」，供失敗時分辨 unreachable / lost（ADR-0243）
+        void this.run(this.session.onConnected());
+      } else if (pc.connectionState === "failed") {
+        // ADR-0243：P2P 連不通/斷線。給可行動的失敗提示（非靜默、非只顯示「連不上」），並乾淨結束通話：
+        // 從未打通＝多為限制網路無 TURN 退路（unreachable，可改網路重試）；連上後斷＝網路不穩（lost，可再撥）。
+        const peer = this.peer;
+        const reason: CallFailureReason = this.everConnected ? "lost" : "unreachable";
+        if (peer) this.handlers.onFailed(peer, reason);
+        // 走正常掛斷路徑：session→ended、送 hangup 給對端（經中繼、與失敗的 P2P 不同路，能讓對端也乾淨結束）、
+        // close→teardown → UI 收到 onState(ended) 而關閉通話視窗。
+        void this.run(this.session.hangup());
       }
     };
     this.pc = pc;

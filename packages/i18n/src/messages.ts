@@ -683,6 +683,10 @@ export interface Messages {
   call_hangup: string;
   call_mute: string;
   call_unmute: string;
+  /** 通話連不通（限制網路、無 TURN 退路）；ADR-0243。 */
+  call_failed_unreachable: string;
+  /** 通話已連上後中途斷線；ADR-0243。 */
+  call_failed_lost: string;
   group_create: string;
   group_name: string;
   group_members: string;
@@ -1363,6 +1367,8 @@ const zhHant: Messages = {
   call_hangup: "掛斷",
   call_mute: "靜音",
   call_unmute: "取消靜音",
+  call_failed_unreachable: "通話接不通——限制網路（對稱 NAT／嚴格防火牆）下無法建立直連。可改用 Wi-Fi 或其他網路再撥；文字與檔案不受影響。",
+  call_failed_lost: "通話中斷——連線中途斷開（可能網路不穩）。可再撥一次。",
   group_create: "建立群組",
   group_name: "群組名稱",
   group_members: "選擇成員",
@@ -2039,6 +2045,9 @@ const en: Messages = {
   call_hangup: "Hang up",
   call_mute: "Mute",
   call_unmute: "Unmute",
+  call_failed_unreachable:
+    "Call couldn't connect — a restricted network (symmetric NAT / strict firewall) blocked a direct link. Try Wi-Fi or another network; text and files are unaffected.",
+  call_failed_lost: "Call dropped — the connection was lost mid-call (network may be unstable). You can call again.",
   group_create: "New group",
   group_name: "Group name",
   group_members: "Select members",

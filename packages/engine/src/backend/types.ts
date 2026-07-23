@@ -1,4 +1,5 @@
 import type {
+  CallFailureReason,
   CallMedia,
   CallState,
   Group,
@@ -255,6 +256,12 @@ export interface ChatBackendEvents {
   onCallLocalStream?(stream: MediaStream | null): void;
   /** 遠端通話媒體串流（播放；null 表示結束）。 */
   onCallRemoteStream?(stream: MediaStream | null): void;
+  /**
+   * 通話**連線失敗**（ADR-0243）：P2P 連不通/斷線時觸發，UI 據 `reason` 給可行動提示——
+   * `unreachable`＝限制網路（對稱 NAT／嚴格防火牆）下無 TURN 退路，可改 Wi-Fi/其他網路重試；
+   * `lost`＝已連上後斷線，可再撥。與 `onCallState('ended')` 一起發生（視窗關閉＋留下提示）。
+   */
+  onCallFailed?(peer: PubkeyHex, reason: CallFailureReason): void;
 }
 
 /**

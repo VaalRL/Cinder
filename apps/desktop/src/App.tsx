@@ -1246,6 +1246,12 @@ export function App(): JSX.Element {
       },
       onCallLocalStream: setLocalStream,
       onCallRemoteStream: setRemoteStream,
+      // ADR-0243：通話連線失敗 → 在該對話留下可行動提示（非靜默失敗）。與 onCallState('ended') 一起發生。
+      onCallFailed: (peer, reason) => {
+        const key = reason === "unreachable" ? "call_failed_unreachable" : "call_failed_lost";
+        const msg: ChatMessage = { id: uid("cf"), outgoing: false, text: `⚠️ ${tRef.current(key)}`, at: Date.now() };
+        setConvos((prev) => ({ ...prev, [peer]: [...(prev[peer] ?? []), msg] }));
+      },
       onGroups: setGroups,
     });
     // ADR-0164：狀態已於 buildBackend 建構時 seed 進 self（initialStatus），start() 首拍 beat()

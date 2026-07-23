@@ -18,6 +18,13 @@ export type CallMedia = "audio" | "video";
 /** 掛斷/拒接原因。 */
 export type CallEndReason = "declined" | "busy" | "hangup";
 
+/**
+ * 通話**連線失敗**原因（ADR-0243，供 UI 提示）：
+ * - `unreachable`：ICE 從未打通就失敗——多為對稱 NAT／嚴格防火牆下無公共 TURN 退路（可改網路重試）。
+ * - `lost`：已連上後中途斷線——多為網路不穩（可再撥）。
+ */
+export type CallFailureReason = "unreachable" | "lost";
+
 export interface CallInvite {
   type: "call-invite";
   callId: string;
