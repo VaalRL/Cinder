@@ -68,8 +68,8 @@ export function pageMeta(route: Route, c: Copy): PageMeta {
     tech: {
       title: zh ? `技術原理：Nostr ＋ WebRTC 雙軌加密通訊｜${BRAND}` : `How it works: Nostr + WebRTC｜${BRAND}`,
       description: zh
-        ? "Cinderous 如何運作：Nostr 中繼負責離線留言與信令、WebRTC 走 P2P 直連，內容以 NIP-44 加密並用 NIP-17／59 Gift Wrap 隱藏收發雙方，中繼站無法重建社交圖譜。"
-        : "How Cinderous works: Nostr relays carry offline messages and signaling, WebRTC handles P2P; content is NIP-44 encrypted and wrapped with NIP-17/59 Gift Wrap so relays cannot reconstruct the social graph.",
+        ? "Cinderous 如何運作：Nostr 中繼負責離線留言與信令、WebRTC 走 P2P 直連，內容以 NIP-44 加密並用 NIP-17／59 Gift Wrap 隱藏寄件人，中繼站無法從訊息層重建「誰傳給誰」。"
+        : "How Cinderous works: Nostr relays carry offline messages and signaling, WebRTC handles P2P; content is NIP-44 encrypted and wrapped with NIP-17/59 Gift Wrap that hides message senders, so relays cannot reconstruct who messages whom.",
     },
     node: {
       title: zh ? `自架節點：企業與家用中繼站｜${BRAND}` : `Self-hosting: run your own relay｜${BRAND}`,

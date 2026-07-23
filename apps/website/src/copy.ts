@@ -160,7 +160,7 @@ const zhHant: Copy = {
     },
     {
       q: "Cinderous 安全嗎？我的訊息會被誰看到？",
-      a: "只有對話中的人看得到內容。訊息以 NIP-44 端到端加密，並用 NIP-17／59 Gift Wrap 把收發雙方一起封裝起來，因此中繼站連「誰在跟誰講話」都無法重建。明文只存在你自己的裝置上，且經作業系統金鑰庫或本地密碼加密落地。",
+      a: "只有對話中的人看得到內容。訊息以 NIP-44 端到端加密，並用 NIP-17／59 Gift Wrap 封裝——寄件人以一次性金鑰隱藏，中繼站看不到訊息內容、也看不出是誰發的。明文只存在你自己的裝置上，且經作業系統金鑰庫或本地密碼加密落地。（註：接收聯絡人在線狀態時，中繼會知道你的聯絡人清單；若要連這也不外流，可自架中繼。）",
     },
     {
       q: "使用 Cinderous 需要手機號碼或電子郵件嗎？",
@@ -226,7 +226,7 @@ const zhHant: Copy = {
     "身分是一把金鑰，不是平台帳號。沒有人能替你停用、封鎖或販售它；設備全毀即帳號終止，沒有可被接管的中央資料。",
   val_privacy_t: "隱私是預設，不是選項",
   val_privacy_b:
-    "明文永不離開你的裝置，全程端到端加密。連「誰在跟誰說話」中繼站都看不到——沒有可被翻閱的對話，也沒有可被分析的社交圖譜。",
+    "明文永不離開你的裝置，全程端到端加密。訊息的寄件人以一次性金鑰隱藏，中繼站沒有可被翻閱的對話。想連元資料都握在自己手上？自架你自己的中繼。",
   val_decentral_t: "沒有守門人",
   val_decentral_b:
     "沒有中央伺服器、沒有唯一入口。傳遞靠任何人都能自架的中繼與點對點連線；這片森林由許多小小的營火撐起，關掉任何一座都不會熄滅。",
@@ -343,7 +343,7 @@ const en: Copy = {
     },
     {
       q: "Is Cinderous secure? Who can read my messages?",
-      a: "Only the people in the conversation. Messages are end-to-end encrypted with NIP-44 and wrapped with NIP-17/59 Gift Wrap, which hides both sender and recipient — so relays cannot even reconstruct who is talking to whom. Plaintext exists only on your own device, encrypted at rest via the OS keychain or a local password.",
+      a: "Only the people in the conversation. Messages are end-to-end encrypted with NIP-44 and wrapped with NIP-17/59 Gift Wrap — the sender is hidden behind a one-time key, so relays see neither the content nor who sent it. Plaintext exists only on your own device, encrypted at rest via the OS keychain or a local password. (Note: to receive contacts' online status, the relay does learn your contact list; self-host a relay if you want even that kept private.)",
     },
     {
       q: "Do I need a phone number or email to use Cinderous?",
@@ -409,7 +409,7 @@ const en: Copy = {
     "Your identity is a key, not a platform account. No one can suspend, block, or sell it; lose all your devices and the account simply ends — there is no central record to seize.",
   val_privacy_t: "Privacy by default, not by setting",
   val_privacy_b:
-    "Plaintext never leaves your device; everything is end-to-end encrypted. Relays cannot even see who talks to whom — no conversations to browse, no social graph to mine.",
+    "Plaintext never leaves your device; everything is end-to-end encrypted. Message senders are hidden behind one-time keys, so relays have no conversations to browse. Want even the metadata in your own hands? Self-host your own relay.",
   val_decentral_t: "No gatekeeper",
   val_decentral_b:
     "No central server, no single entry point. Delivery rides on relays anyone can host plus peer-to-peer links; this forest is held up by many small fires — put out any one and it stays lit.",

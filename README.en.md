@@ -14,7 +14,7 @@ Cinderous achieves extreme privacy and low latency through a dual-track hybrid n
 
 - **Zero-knowledge identity**: On first launch, a secp256k1 key pair (Nostr/NIP-01) is generated locally. The public key (`npub`) is your unique network-wide ID—no username or password. Multiple identities (work / personal) can coexist on the same device.
 - **Local-first, encryption at rest**: Conversations and private keys stay on the device; data in localStorage / OPFS is **encrypted with a device key (derived from nsec) using AES-256-GCM** (ADR-0112), and the Tauri desktop build additionally entrusts the private key to the OS keychain. Plaintext never leaves for the cloud.
-- **End-to-end encrypted**: Messages are encrypted with Nostr **NIP-17/44/59 Gift Wrap** before they leave the device—the relay cannot see the content, nor the sender, nor the social graph.
+- **End-to-end encrypted**: Messages are encrypted with Nostr **NIP-17/44/59 Gift Wrap** before they leave the device—the relay cannot see the content, and the sender is hidden behind a one-time key (the message-layer social graph stays hidden; presence subscriptions still reveal your contact set to the relay — see the residual in `docs/SECURITY.md`).
 - **A path for switching devices, local-only by default**: Local-only by default (total device loss = end of identity); optional recovery paths are also provided—local password remember (Argon2id), device pairing migration (P2P encrypted end to end), encrypted cloud backup, and a backup code (NIP-49). Throughout, everything remains ciphertext, and plaintext / private keys never leak out.
 
 ## Technical Architecture Summary

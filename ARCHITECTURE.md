@@ -13,7 +13,7 @@
   持久層為 **Durable Object 內建 SQLite**（ADR-0056，非 D1）。Ephemeral 不寫持久層，但仍消耗
   DO 請求數（非零成本）。
 - **端到端加密**：明文不離開裝置；內容以 NIP-44 加密。
-- **元資料隱藏**：私訊以 NIP-17/59 Gift Wrap 包封收發雙方，中繼站無法重建社交圖譜（詳見 PRD §6–§7 與 `docs/adr/0002`）。**typing／nudge 亦已封裝**（ADR-0120，原本以真名廣播指名事件，會反推 Gift Wrap 寄件人）。
+- **元資料隱藏（訊息層——非完整社交圖譜）**：私訊以 NIP-17/59 Gift Wrap 包封——寄件人為一次性臨時金鑰、只有收件人 pubkey 明文供路由，故中繼站無法從**訊息層**重建「誰傳訊息給誰」（詳見 PRD §6–§7 與 `docs/adr/0002`）。**typing／nudge 亦已封裝**（ADR-0120，原本以真名廣播指名事件，會反推 Gift Wrap 寄件人）。**但這不等於社交圖譜完全隱藏**：要接收聯絡人的在線狀態，客戶端須以真名 AUTH 後訂閱 `{kinds:[20000], authors:[聯絡人清單]}`——這個 REQ 會把你的**聯絡人集合**交給你的 home relay（PRD §6 殘餘風險、`docs/relay-metadata-observability.md` M7）。緩解：P2P presence 卸載（ADR-0088e）與自架（洩漏對象＝你自己的節點）；結構性根治（輪替金鑰 presence）列為待決 §9。
 - **靜態落地加密**：私鑰與本機資料不以明文落地。**桌面**以 OS 金鑰庫（ADR-0053）＋AES-256-GCM
   加密 blob（ADR-0054／0110）；**web/mobile**（無 OS 金鑰庫）以 Argon2id 本地密碼包裹 nsec、
   資料以 nsec 導出金鑰加密（ADR-0112／0117／0122）。共用設備可再啟用**本地密碼**（ADR-0067）：
