@@ -79,8 +79,12 @@
   - 仍非因果一致（無版本向量）：極端的「同一欄位在兩台以毫秒級並發改」只能 LWW 取一，會丟另一個
     ——對聯絡人暱稱/設定可接受。
 - 後續行動 / 待辦：
-  1. 階段 1：`cloud-snapshot` 的聯絡人/群組/封鎖改 OR-Set＋墓碑（複用 `mergeAssetLibrary` 模式）；TDD
-     測「刪除傳播、重加復活、解封生效、交換律（合併順序無關）」。
+  1. ✅ **階段 1 完成**：抽出泛用 `mergeOrSet`（core/or-set.ts，一般化 ADR-0224 的 LWW＋墓碑），接進
+     `cloud-snapshot` 的聯絡人/群組/封鎖與 storage。storage 加 `at?`（加入時間）＋泛用
+     `load/saveCrdtTombstones(set)`（加密落地、隨快照匯出）。relay-backend 於**使用者移除操作**寫墓碑
+     （removeContact/unblock/block→聯絡人墓碑、leaveGroup），**內部清理不寫**（免把清理誤傳為刪除）。
+     **舊快照無墓碑欄位＝純補缺、絕不刪本機資料（向後相容）。** TDD：or-set 10 測＋cloud-snapshot +6 測
+     （刪除傳播/復活/離群/解封/封鎖/舊快照相容）；交換律由 or-set 核心測涵蓋。
   2. 階段 2：聯絡人欄位 per-field LWW（暱稱/標籤/hint 帶時間戳）。
   3. 階段 3：設定/偏好逐項納入 LWW 同步（先每對話靜音、狀態文字；排除「該裝置本地」項）。
   4. 墓碑 GC：帶時間、保留窗 ≥ 合理最長離線期，超窗回收。
