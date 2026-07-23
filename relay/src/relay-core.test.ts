@@ -888,3 +888,49 @@ describe("RelayCore — NIP-42 relay tag 驗證（ADR-0235 H2）", () => {
     expect(revived.handle("c1", auth(e))[0]?.message[2]).toBe(false);
   });
 });
+
+// ADR-0235 H1 缺口修補：Gift Wrap 洪水繞過速率限制。
+//
+// 速率限制原本 keyed on `event.pubkey`。但 Gift Wrap（kind 1059）的外層作者是**一次性臨時
+// 金鑰**——每則訊息一把不同的 pubkey——於是 per-author 的速率桶對它們形同虛設：一個認證身分
+// 可以無限灌 gift wrap。必須改以**認證連線的身分**計數（authState.pubkey），那才是真正的寄件人。
+describe("RelayCore — Gift Wrap 洪水須以認證身分限速（ADR-0235 H1 缺口）", () => {
+  const NOW = 1_700_000_000;
+  const wrap = (): NostrEvent =>
+    // 每則一把新的臨時金鑰，模擬真實 Gift Wrap 的外層作者。
+    finalizeEvent({ kind: 1059, created_at: NOW, tags: [["p", "ab"]], content: "x" }, generateSecretKey());
+
+  it("認證身分為速率桶：即使每則事件作者都不同，超過上限仍被擋", () => {
+    const core = new RelayCore({
+      requireAuth: true,
+      now: () => NOW,
+      authChallenge: () => "chal",
+      maxEventsPerMinute: 3,
+      maxFutureSkewSec: 900,
+      maxPastSkewSec: 100_000,
+    });
+    const sk = generateSecretKey();
+    core.connect("c1");
+    core.handle("c1", JSON.stringify(["AUTH", buildAuthEvent("chal", "wss://r", sk)]));
+
+    for (let i = 0; i < 3; i++) {
+      const e = wrap();
+      expect(core.handle("c1", EVENT(e))).toContainEqual({ to: "c1", message: ["OK", e.id, true, ""] });
+    }
+    const over = wrap();
+    expect(core.handle("c1", EVENT(over))).toContainEqual({
+      to: "c1",
+      message: ["OK", over.id, false, "rate-limited: 發送過於頻繁，請稍後再試"],
+    });
+  });
+
+  it("開放中繼（無 requireAuth）退回以事件作者計數（維持原行為）", () => {
+    const core = new RelayCore({ now: () => NOW, maxEventsPerMinute: 1, maxFutureSkewSec: 900, maxPastSkewSec: 100_000 });
+    core.connect("c1");
+    const sk = generateSecretKey();
+    const a = finalizeEvent({ kind: 20000, created_at: NOW, tags: [], content: "" }, sk);
+    expect(core.handle("c1", EVENT(a))).toContainEqual({ to: "c1", message: ["OK", a.id, true, ""] });
+    const b = finalizeEvent({ kind: 20000, created_at: NOW - 1, tags: [], content: "" }, sk);
+    expect(core.handle("c1", EVENT(b))[0]?.message[3]).toContain("rate-limited");
+  });
+});

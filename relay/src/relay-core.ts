@@ -509,10 +509,15 @@ export class RelayCore {
       if (this.seenIds.size > 4096) this.pruneSeen(now - replayWindow);
     }
 
-    // 速率限制（ADR-0235 H1）：以 pubkey 計，換連線繞不過。放在驗簽之後——pubkey 必須
-    // 是**經證明**的，否則任何人都能冒用別人的 pubkey 把對方的配額燒光。
+    // 速率限制（ADR-0235 H1）：以**認證連線的身分**計數，不是事件作者。
+    //
+    // 🔴 為什麼不能用 `event.pubkey`：Gift Wrap（kind 1059）的外層作者是一次性臨時金鑰，
+    // 每則訊息一把不同的 pubkey——per-author 的速率桶對它們形同虛設，一個認證身分可無限灌。
+    // 改用 `authState.pubkey`（requireAuth 時必存在，且是經證明的真實寄件人）→ 換連線也繞不過
+    // （重連須以同身分重新 AUTH，落回同一個桶）。開放中繼（無 AUTH）退回事件作者，維持原行為。
     const perMinute = this.opts.maxEventsPerMinute;
-    if (perMinute !== undefined && !this.allowRate(event.pubkey, now, perMinute)) {
+    const rateKey = this.authState.get(connId)?.pubkey ?? event.pubkey;
+    if (perMinute !== undefined && !this.allowRate(rateKey, now, perMinute)) {
       return [{ to: connId, message: ["OK", event.id, false, "rate-limited: 發送過於頻繁，請稍後再試"] }];
     }
 
