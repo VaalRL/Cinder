@@ -252,6 +252,14 @@ export interface Messages {
   export_empty: string;
   settings_invisible: string;
   settings_invisibleHint: string;
+  /** 前向保密（ADR-0245）。 */
+  fs_title: string;
+  fs_hint: string;
+  fs_enable: string;
+  fs_enabled: string;
+  fs_rotate: string;
+  fs_rotateConfirm: string;
+  fs_downgradeWarning: string;
   ai_stylePolite: string;
   ai_styleConcise: string;
   ai_styleGrammar: string;
@@ -954,6 +962,13 @@ const zhHant: Messages = {
   export_empty: "沒有可導出的對話。",
   settings_invisible: "隱身",
   settings_invisibleHint: "開啟後你對中繼站完全消失——既不廣播自己的在線狀態，也不向中繼查詢聯絡人是否在線。因此你的聯絡人清單不會離開這台裝置（最強的元資料隱私）。代價：你也看不到聯絡人的在線綠點。訊息收發完全正常。",
+  fs_title: "前向保密（進階）",
+  fs_hint: "啟用後，發給聯絡人的訊息會加密到一把「會過期的加密子鑰」。日後你按「立即更換金鑰」並讓舊金鑰過期後，就算你的身分私鑰被竊，被側錄的舊訊息密文也解不開。保護強度取決於你多常更換。本機歷史不受影響、身分不變。",
+  fs_enable: "啟用前向保密",
+  fs_enabled: "前向保密已啟用",
+  fs_rotate: "立即更換加密金鑰",
+  fs_rotateConfirm: "要立即更換加密金鑰嗎？\n\n更換後：\n・還沒學到你新金鑰、或離線中的聯絡人，送到你舊金鑰的在途訊息，過了保留期（約 7 天）可能收不到。\n・你的其他裝置需上線同步新金鑰。\n・你寫下來的備份碼仍可還原身分與本機歷史（不含加密子鑰）。",
+  fs_downgradeWarning: "⚠️ 這位聯絡人啟用了前向保密，但你這端還沒收到他的目前金鑰——這則訊息暫時以一般方式加密（無前向保密）。可能是對方金鑰尚未同步（稍後會自動更新），若持續出現請留意。",
   ai_stylePolite: "更客氣",
   ai_styleConcise: "更精簡",
   ai_styleGrammar: "修正錯字",
@@ -1633,6 +1648,13 @@ const en: Messages = {
   export_empty: "No conversations to export.",
   settings_invisible: "Invisible",
   settings_invisibleHint: "When on, you vanish from the relay entirely — you neither broadcast your own presence nor ask the relay who's online. So your contact list never leaves this device (the strongest metadata privacy). Trade-off: you can't see contacts' online dots either. Messaging works normally.",
+  fs_title: "Forward secrecy (advanced)",
+  fs_hint: "When enabled, messages you send are encrypted to a rotating encryption subkey. After you later \"rotate the key\" and let the old one expire, even a theft of your identity private key can't decrypt previously recorded ciphertext. Strength depends on how often you rotate. Local history is unaffected; your identity doesn't change.",
+  fs_enable: "Enable forward secrecy",
+  fs_enabled: "Forward secrecy is on",
+  fs_rotate: "Rotate encryption key now",
+  fs_rotateConfirm: "Rotate your encryption key now?\n\nAfter rotating:\n• Contacts who haven't learned your new key yet, or who are offline, may not receive in-flight messages sent to your old key after the retention window (~7 days).\n• Your other devices need to come online to sync the new key.\n• Your written-down backup code still restores your identity and local history (it never contains the encryption subkey).",
+  fs_downgradeWarning: "⚠️ This contact has forward secrecy enabled, but you haven't received their current key yet — this message was encrypted the ordinary way (no forward secrecy). Their key may not be synced yet (it'll update automatically); take note if this persists.",
   ai_stylePolite: "More polite",
   ai_styleConcise: "More concise",
   ai_styleGrammar: "Fix grammar",

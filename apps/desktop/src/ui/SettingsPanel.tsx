@@ -99,6 +99,11 @@ export interface SettingsPanelProps {
   /** 隱身（ADR-0088）：停止一切在線廣播（relay＋P2P）；未提供則不顯示該區塊。 */
   invisible?: boolean;
   onToggleInvisible?: () => void;
+  /**
+   * 前向保密（ADR-0245，opt-in）：啟用後加密到會過期的子鑰；`onEnable` 啟用、`onRotate` 立即更換金鑰。
+   * 未提供則不顯示該區塊（如瀏覽器示範）。
+   */
+  fs?: { enabled: boolean; onEnable: () => void; onRotate: () => void };
   /** 本機 AI 改寫設定（ADR-0060）；未提供則不顯示該區塊。 */
   ollama?: OllamaSettingsValue;
   onOllamaChange?: (next: OllamaSettingsValue) => void;
@@ -1382,6 +1387,24 @@ export function SettingsPanel(props: SettingsPanelProps): JSX.Element {
                 <input type="checkbox" checked={props.invisible ?? false} onChange={props.onToggleInvisible} />
                 <span>{t("settings_invisibleHint")}</span>
               </label>
+            </section>
+          ) : null}
+          {tab === "privacy" && props.fs ? (
+            <section className="settings__sec">
+              <h4>{t("fs_title")}</h4>
+              <p className="settings__hint">{t("fs_hint")}</p>
+              {props.fs.enabled ? (
+                <>
+                  <p className="settings__hint">✅ {t("fs_enabled")}</p>
+                  <button className="retention__opt" data-testid="fs-rotate" onClick={props.fs.onRotate}>
+                    {t("fs_rotate")}…
+                  </button>
+                </>
+              ) : (
+                <button className="retention__opt" data-testid="fs-enable" onClick={props.fs.onEnable}>
+                  {t("fs_enable")}
+                </button>
+              )}
             </section>
           ) : null}
           {tab === "advanced" && props.retention ? <RetentionSettings {...props.retention} /> : null}

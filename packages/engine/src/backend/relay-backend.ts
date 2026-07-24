@@ -1029,7 +1029,8 @@ export class RelayChatBackend implements ChatBackend {
     this.fsState = { ...this.fsState, keys: kept };
     this.persistFs();
   }
-  private fsEnabled(): boolean {
+  /** 前向保密是否已啟用（ADR-0245）：供 UI 顯示開關狀態。 */
+  fsEnabled(): boolean {
     return this.fsState.enabled;
   }
   /** 我當前的 EK（最新一把）；未啟用/無金鑰回 undefined。 */

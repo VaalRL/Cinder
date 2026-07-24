@@ -316,6 +316,8 @@ export interface ChatBackend {
   enableFs?(): void;
   /** 手動更換加密金鑰（ADR-0245）：生成新 EK、發新 10040；保留舊 EK 至 grace 供解在途。需先 enableFs。 */
   rotateEncryptionKey?(): void;
+  /** 前向保密是否已啟用（ADR-0245）：供 UI 顯示開關狀態。 */
+  fsEnabled?(): boolean;
   /**
    * 設定/移除自己的**廣播頭像**（ADR-0154）：`avatar` 為 data URI 縮圖（來源端 128px），
    * 空字串或 undefined＝移除（廣播移除記號，聯絡人端清掉舊圖）。設定即比照改名

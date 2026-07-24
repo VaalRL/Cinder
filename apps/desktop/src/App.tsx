@@ -677,6 +677,8 @@ export function App(): JSX.Element {
       return false;
     }
   });
+  // 前向保密（ADR-0245）：opt-in 開關狀態，由後端 fsEnabled() 提供。
+  const [fsEnabled, setFsEnabled] = useState<boolean>(false);
   // 每對話保留上限（ADR-0094）：0＝無上限（預設）。
   const [retentionCap, setRetentionCapState] = useState<number>(() => readRetentionCap());
   const [storageFull, setStorageFull] = useState<boolean>(false);
@@ -1277,6 +1279,11 @@ export function App(): JSX.Element {
         const msg: ChatMessage = { id: uid("cf"), outgoing: false, text: `⚠️ ${tRef.current(key)}`, at: Date.now() };
         setConvos((prev) => ({ ...prev, [peer]: [...(prev[peer] ?? []), msg] }));
       },
+      // ADR-0245：前向保密降級警告——對已釘選 FS 的聯絡人送訊卻無其 EK → 在該對話留下提示（非靜默）。
+      onFsDowngrade: (peer) => {
+        const msg: ChatMessage = { id: uid("fsd"), outgoing: false, text: tRef.current("fs_downgradeWarning"), at: Date.now() };
+        setConvos((prev) => ({ ...prev, [peer]: [...(prev[peer] ?? []), msg] }));
+      },
       // ADR-0242 階段③：引擎同步來的每對話靜音 → 對帳本機 groupPrefs.muted（遠端 LWW 為權威）。
       onMutes: (ids) => {
         const muted = new Set(ids);
@@ -1302,6 +1309,7 @@ export function App(): JSX.Element {
       },
       onGroups: setGroups,
     });
+    setFsEnabled(backend.fsEnabled?.() ?? false); // ADR-0245：讀前向保密開關狀態
     // ADR-0164：狀態已於 buildBackend 建構時 seed 進 self（initialStatus），start() 首拍 beat()
     // 就尊重離線——不再事後 setStatus 補正（那會先漏一拍上線信標，見程式碼審查 CRITICAL 修正）。
     return () => backend.stop();
@@ -2681,6 +2689,25 @@ export function App(): JSX.Element {
           onToggleReadReceipts={toggleReadReceipts}
           invisible={invisible}
           onToggleInvisible={toggleInvisible}
+          {...(activeBackend.enableFs
+            ? {
+                fs: {
+                  enabled: fsEnabled,
+                  onEnable: () => {
+                    activeBackend.enableFs!();
+                    setFsEnabled(true);
+                  },
+                  // ADR-0245：換鑰前確認並提示會斷什麼（非靜默）。
+                  onRotate: () => {
+                    void dialog()
+                      .confirm(tRef.current("fs_rotateConfirm"))
+                      .then((ok) => {
+                        if (ok) activeBackend.rotateEncryptionKey?.();
+                      });
+                  },
+                },
+              }
+            : {})}
           ollama={ollama}
           onOllamaChange={updateOllama}
           {...(storageRef.current

@@ -38,6 +38,23 @@ function render(extra: Partial<SettingsPanelProps> = {}): string {
   );
 }
 
+describe("前向保密設定區（ADR-0245 Phase 2）", () => {
+  const fsProps = (enabled: boolean) => ({ initialTab: "privacy" as const, fs: { enabled, onEnable: () => {}, onRotate: () => {} } });
+  it("未啟用 → 顯示「啟用」按鈕、不顯示「更換金鑰」", () => {
+    const out = render(fsProps(false));
+    expect(out).toContain('data-testid="fs-enable"');
+    expect(out).not.toContain('data-testid="fs-rotate"');
+  });
+  it("已啟用 → 顯示「已啟用」＋「更換金鑰」按鈕", () => {
+    const out = render(fsProps(true));
+    expect(out).toContain('data-testid="fs-rotate"');
+    expect(out).not.toContain('data-testid="fs-enable"');
+  });
+  it("未提供 fs（如瀏覽器示範）→ 不顯示區塊", () => {
+    expect(render({ initialTab: "privacy" })).not.toContain('data-testid="fs-enable"');
+  });
+});
+
 describe("更改顯示名稱（ADR-0144）", () => {
   beforeEach(() => {
     (globalThis as Record<string, unknown>).window = { matchMedia: () => ({ matches: false }) };
