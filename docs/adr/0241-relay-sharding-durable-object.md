@@ -122,6 +122,10 @@
        層分支（一條連線訂 `authors:[全部聯絡人]`）、訊息片不再訂心跳；`beat` 只發到 presence 層；`resubscribe`
        另連該層。TDD：不同分片的 Alice/Bob 仍互看在線（只靠 presence 層）。隱私不變（ADR-0237：`authors:[聯絡人]`
        送 presence 層＝與送單一 DO 同級；真隱身照樣不問）。
-     - ⏳ **剩（上線流程，低風險）**：App 建構點接線（傳 `shardingBase`＋`connectorFor`）；遷移期雙讀（自己片
-       ＋全域）＋最低版本閘。訊息路由、跨分片投遞、presence 層核心皆已實作＋端到端測。
+     - ✅ **App 建構點接線**：`buildBackend` 非企業路徑於 `shardingEnabled()` 時傳 `shardingBase=p.relayUrl`
+       （`connectorFor` 已提供）。**預設關**——遷移雙讀/最低版本閘未上前開了會讀不到切換前的全域 DO 離線留言；
+       開發/測試用 `localStorage nb.sharding=1` 啟用（空機可用）。
+     - ⏳ **剩（上線流程）**：遷移期雙讀（新客戶端同時讀「自己片＋全域 DO」收切換前離線留言）＋最低版本閘
+       （舊客戶端仍走全域）＋過渡期滿全域 DO 退役。**server 路由、分片計算 SSOT、客戶端訊息路由、跨分片
+       投遞、presence 獨立層、App 接線皆已實作＋端到端測**；只差這個「平滑切換」上線步驟即可預設開。
   5. **（未來、非現在）** 一人一片（選項 1b）prototype＋量測 AUTH churn／冷 DO 喚醒/計費；數字好再評估切過去。
