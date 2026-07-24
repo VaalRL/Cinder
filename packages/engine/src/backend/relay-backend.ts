@@ -113,6 +113,7 @@ import {
   type RelayListDoc,
   type Rumor,
   type SecretKey,
+  shardPath,
 } from "@cinderous/core";
 import { buildRtcConfig } from "./rtc-config.js";
 import { fetchTurnServers, turnEndpointFromRelay } from "./turn-fetch.js";
@@ -307,6 +308,15 @@ export interface RelayPoolOptions {
   relayUrl?: string;
   /** 依 URL 建立外部 relay 連線的工廠。 */
   connectorFor?: (url: string) => RelayConnector;
+  /**
+   * 中繼分片模式（ADR-0241）：設為基底 host（如 `wss://relay`）即啟用。啟用後：
+   *  - home（收件匣）連自己的訊息片 `<base>/s/<自己pubkey前綴>`；
+   *  - 發給 B 路由到 `<base>/s/<shard(B)>`（由 pubkey **直接算**、免 hint，重用 outbox）；
+   *  - 收件匣天然同片、跨分片路由沿用既有 pool 機制。
+   * 需一併提供 `connectorFor`（home 連線也改由它建到自己的片）。未設＝單一 relay（現況、向後相容）。
+   * 註：presence 目前沿用「每分片訂閱該片聯絡人心跳」（正確但連線較多）；presence 獨立層為後續優化。
+   */
+  shardingBase?: string;
   /** 硬編碼錨點 relay（ADR-0039）：恆連保底 + 引導清單來源。 */
   anchors?: string[];
   /** 維護者公鑰：驗證帶內 relay 清單事件（ADR-0039）；未設則不學清單。 */
@@ -408,6 +418,8 @@ export class RelayChatBackend implements ChatBackend {
   /** 目前 effective home（ADR-0039 可自動遞補）。 */
   private homeUrl: string | undefined;
   private readonly connectorFor: ((url: string) => RelayConnector) | undefined;
+  /** 分片基底 host（ADR-0241）；設定＝分片模式，路由 URL 由 pubkey 直接算（免 hint）。 */
+  private readonly shardingBase: string | undefined;
   /** 搬家排水的舊 home（ADR-0066 H3）：只多訂閱其收件匣，不參與發送路由。 */
   private readonly drainUrl: string | undefined;
   /** 加密雲端快照設定（ADR-0071）；undefined＝不發佈（接收合併恆開）。 */
@@ -564,6 +576,7 @@ export class RelayChatBackend implements ChatBackend {
     this.homeDeadMs = pool?.homeDeadMs ?? 24 * 3600_000;
     this.retireDelayFn = pool?.retireDelayMs;
     this.connectorFor = pool?.connectorFor;
+    this.shardingBase = normalizeRelayUrl(pool?.shardingBase); // ADR-0241：設定＝分片模式
     this.maintainerPubkey = pool?.maintainerPubkey;
     this.orgAdminPubkey = pool?.orgAdminPubkey;
     this.orgJoinToken = pool?.orgJoinToken; // ADR-0156
@@ -606,6 +619,12 @@ export class RelayChatBackend implements ChatBackend {
     this.sk = nsecDecode(identity.nsec);
     const pubkey = getPublicKey(this.sk);
     if (pool?.expectPubkey && pubkey !== pool.expectPubkey) throw new Error(IDENTITY_MISMATCH);
+    // ADR-0241：分片模式下 home＝自己的訊息片（`<base>/s/<自己前綴>`）。pubkey 到此才知 → 此處才定 homeUrl，
+    // 解「AUTH 早於選 DO」的雞生蛋（客戶端知道自己的 npub）。home 連線改由 connectorFor 建到自己的片（見下）。
+    if (this.shardingBase) {
+      this.homeUrl = this.shardUrlOf(pubkey);
+      this.originalHomeUrl = this.homeUrl;
+    }
     // ADR-0164：以本機記住的狀態 seed（尤其離線須從第一拍就靜默）；未提供＝預設 online/空。
     this.self = { pubkey, name: identity.name, status: pool?.initialStatus ?? "online", statusMessage: pool?.initialStatusMessage ?? "" };
     this.invisible = pool?.initialInvisible ?? false; // ADR-0180：建構即隱身 → 首拍 beat() 直接靜默（離職接管不洩漏上線）
@@ -627,7 +646,10 @@ export class RelayChatBackend implements ChatBackend {
         this.markFailed(evt.id);
       },
     });
-    this.client = connector(
+    // ADR-0241：分片模式下 home 連線改由 connectorFor 建到「自己的訊息片」（注入的 connector 是給
+    // 單一 relay 的舊路徑）；仍用同一組 handlers/auth（auth 綁自己的片 URL）。
+    const homeConnector = this.shardingBase && this.homeUrl && this.connectorFor ? this.connectorFor(this.homeUrl) : connector;
+    this.client = homeConnector(
       {
         onEvent: (_sub, event) => this.onEvent(event, this.homeUrl),
         onOk: (id, accepted, message) => {
@@ -749,8 +771,21 @@ export class RelayChatBackend implements ChatBackend {
     this.emitUnread();
   }
 
-  /** 聯絡人某 relay hint 是否屬於外部 relay（非 home）。 */
-  private foreignUrlOf(contact: { relayUrl?: string }): string | undefined {
+  /** 某 pubkey 的訊息片 URL（ADR-0241）：`<base>/s/<prefix>`。僅分片模式有意義。 */
+  private shardUrlOf(pubkey: string): string {
+    return `${this.shardingBase}${shardPath(pubkey)}`;
+  }
+
+  /**
+   * 路由到聯絡人的目標 relay（非 home 時回 URL、home 時回 undefined）。
+   * - 分片模式（ADR-0241）：由 **pubkey 直接算** `shard(對方)`，免 hint（收件匣天然同片）。
+   * - 單一 relay 模式：用聯絡人的 relay hint（ADR-0034/0035）。
+   */
+  private foreignUrlOf(contact: { pubkey: string; relayUrl?: string }): string | undefined {
+    if (this.shardingBase) {
+      const url = this.shardUrlOf(contact.pubkey);
+      return url !== this.homeUrl ? url : undefined; // 同片＝home
+    }
     const url = normalizeRelayUrl(contact.relayUrl);
     return url && url !== this.homeUrl ? url : undefined;
   }
@@ -803,8 +838,10 @@ export class RelayChatBackend implements ChatBackend {
 
   private publishAddressed(evt: NostrEvent): void {
     const to = evt.tags.find((t) => t[0] === "p")?.[1];
+    // ADR-0241：分片模式下**非聯絡人**（陌生人/群成員）也要路由到 `shard(對方)`，故用 pubkey 算，
+    // 不只看聯絡人 hint。聯絡人給完整物件（帶 hint）供單一 relay 模式沿用。
     const contact = to ? this.contacts.find((c) => c.pubkey === to) : undefined;
-    const url = contact ? this.foreignUrlOf(contact) : undefined;
+    const url = to ? this.foreignUrlOf(contact ?? { pubkey: to }) : undefined;
     const primaryUrl = url ?? this.homeUrl;
     const primary = url ? this.poolClient(url) : this.homeClient();
     (primary ?? this.client).publish(evt); // 一律投入主路由（離線則入其重連佇列）

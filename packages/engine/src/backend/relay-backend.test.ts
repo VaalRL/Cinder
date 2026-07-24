@@ -1,5 +1,5 @@
-import { ASSET_CHUNK_CHARS, contentHash, KIND, RelayClient, applyRosterRotations, generateSecretKey, getPublicKey, npubEncode, nsecDecode, nsecEncode, signOrgRoster, type NostrEvent, type RelayClientHandlers, wrapGroupControl, wrapGroupMessage, wrapMessage, wrapReceipt } from "@cinderous/core";
-import { createInMemoryRelayNetwork, MessageStore } from "@cinderous/relay";
+import { ASSET_CHUNK_CHARS, contentHash, KIND, RelayClient, applyRosterRotations, generateSecretKey, getPublicKey, npubEncode, nsecDecode, nsecEncode, shardPrefix, signOrgRoster, type NostrEvent, type RelayClientHandlers, wrapGroupControl, wrapGroupMessage, wrapMessage, wrapReceipt } from "@cinderous/core";
+import { createInMemoryRelayNetwork, createShardedRelayNetwork, MessageStore } from "@cinderous/relay";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryStorage } from "../storage/memory.js";
 import type { ChatBackendEvents, ChatMessage } from "./types.js";
@@ -3055,6 +3055,74 @@ describe("真隱身：隱身時也停止訂閱聯絡人心跳（ADR-0240）", ()
 
     a.setInvisible(true); // 清 presence ＋ emitContacts → b 立即變離線
     expect(statusOf(b.self.pubkey)).toBe("offline");
+    a.stop();
+    b.stop();
+  });
+});
+
+describe("中繼分片客戶端（ADR-0241）", () => {
+  const base = "wss://relay";
+  // 分片模式應走 connectorFor 建自己的片；若誤用注入的 connector 就大聲失敗。
+  const noConnector = (() => {
+    throw new Error("分片模式不應使用注入的 connector（應走 connectorFor 建自己的片）");
+  }) as unknown as (h: RelayClientHandlers) => RelayClient;
+  const connFor = (id: string, net: ReturnType<typeof createShardedRelayNetwork>) => (url: string) => (h: RelayClientHandlers) =>
+    net.connect(url, id, h);
+
+  /** 生成兩把**不同分片前綴**的金鑰，保證測到跨分片路由（非同片巧合）。 */
+  function crossShardKeys(): { skA: Uint8Array; skB: Uint8Array } {
+    let skA = generateSecretKey();
+    let skB = generateSecretKey();
+    let guard = 0;
+    while (shardPrefix(getPublicKey(skA)) === shardPrefix(getPublicKey(skB)) && guard++ < 200) skB = generateSecretKey();
+    return { skA, skB };
+  }
+
+  it("發給 B 落在 shard(B)、B 收得到——跨分片路由由 pubkey 直接算（免 hint）", () => {
+    const net = createShardedRelayNetwork();
+    const { skA, skB } = crossShardKeys();
+    const storeA = new MemoryStorage();
+    const storeB = new MemoryStorage();
+    storeA.saveIdentity({ nsec: nsecEncode(skA), name: "Alice" });
+    storeB.saveIdentity({ nsec: nsecEncode(skB), name: "Bob" });
+    const a = new RelayChatBackend(storeA, noConnector, "Alice", { shardingBase: base, connectorFor: connFor("a", net) });
+    const b = new RelayChatBackend(storeB, noConnector, "Bob", { shardingBase: base, connectorFor: connFor("b", net) });
+
+    // 前提：A、B 真的在不同分片（否則測不到跨分片）。
+    expect(shardPrefix(a.self.pubkey)).not.toBe(shardPrefix(b.self.pubkey));
+
+    const bIncoming: ChatMessage[] = [];
+    a.start(noop);
+    b.start({ ...noop, onMessage: (_pk, m) => bIncoming.push(m) });
+
+    a.addContact(b.selfNpub);
+    a.sendMessage(b.self.pubkey, "嗨 Bob 分片");
+
+    // B 的**收件匣連線只在 shard(B)**（home＝自己的片）。B 收得到 → 訊息確實落在 shard(B)：
+    // 若 A 誤把它送到 shard(A)，只訂 shard(B) 的 B 永遠收不到。故此即「跨分片路由到 shard(B)」的證明。
+    expect(bIncoming.map((m) => m.text)).toContain("嗨 Bob 分片");
+    // 回程亦然：B 加 A 後回一則 → 落在 shard(A)、A 收得到（雙向跨分片）。
+    const aIncoming: ChatMessage[] = [];
+    a.stop();
+    a.start({ ...noop, onMessage: (_pk, m) => aIncoming.push(m) });
+    b.addContact(a.selfNpub);
+    b.sendMessage(a.self.pubkey, "回你 Alice");
+    expect(aIncoming.map((m) => m.text)).toContain("回你 Alice");
+
+    a.stop();
+    b.stop();
+  });
+
+  it("分片模式仍向後相容：未設 shardingBase → 走單一 relay（現況不變）", () => {
+    const net = createInMemoryRelayNetwork();
+    const a = new RelayChatBackend(new MemoryStorage(), (h) => net.connect("a", h), "Alice");
+    const b = new RelayChatBackend(new MemoryStorage(), (h) => net.connect("b", h), "Bob");
+    const bIncoming: ChatMessage[] = [];
+    a.start(noop);
+    b.start({ ...noop, onMessage: (_pk, m) => bIncoming.push(m) });
+    a.addContact(b.selfNpub);
+    a.sendMessage(b.self.pubkey, "單 relay 照舊");
+    expect(bIncoming.map((m) => m.text)).toContain("單 relay 照舊");
     a.stop();
     b.stop();
   });
