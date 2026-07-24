@@ -5,6 +5,7 @@ import type { NostrEvent } from "./event.js";
 import { getPublicKey, type PubkeyHex, type SecretKey } from "./keys.js";
 import { mentionTags } from "./mention.js";
 import { openWrap, sealAndWrap, type Rumor, type RumorInput } from "./nip59.js";
+import { withEkHint } from "./subkey.js";
 import { alsoMainTag, replyTag } from "./thread.js";
 
 const KIND_CHAT = 14;
@@ -56,11 +57,15 @@ export function wrapForBoth(
    */
   recipients: PubkeyHex | PubkeyHex[],
   outerExpiration: number,
+  /** ADR-0245：把某身分要**加密到的 pk**（其 EK）；省略＝加密到身分本身（現況/向後相容）。 */
+  opts: { encryptToFor?: (identityPk: PubkeyHex) => PubkeyHex } = {},
 ): WrappedMessage {
   const senderPk = getPublicKey(senderSk);
   const id = getEventHash({ ...input, pubkey: senderPk });
+  const encryptTo = opts.encryptToFor ?? ((pk) => pk);
   const wrapFor = (pk: PubkeyHex): NostrEvent =>
-    sealAndWrap(input, senderSk, pk, {
+    // 外層 `#p` 仍為身分 pk（供路由/收件匣）；加密對象為其 EK（FS）或身分（退回）。
+    sealAndWrap(input, senderSk, encryptTo(pk), {
       kind: KIND.OFFLINE_DM_GIFT_WRAP,
       tags: [
         ["p", pk],
@@ -99,6 +104,12 @@ export interface WrapOptions {
   replyTo?: string;
   /** 串回覆同時顯示於主對話（ADR-0232，仿 Slack）：僅與 replyTo 併用時寫入旗標 tag。 */
   alsoMain?: boolean;
+  /**
+   * 前向保密（ADR-0245）：啟用後**加密到收件人當前 EK**（而非身分金鑰），並在 rumor 內嵌自己的
+   * 當前 EK（`myEk`，供對方即時學到）。`encryptToFor(身分pk)` 回該身分要加密到的 pk——收件人的 EK
+   * （不知時退回身分 pk＝向後相容）、自我副本的自己 EK。外層 `#p` 仍為身分（供路由）。
+   */
+  fs?: { encryptToFor: (identityPk: PubkeyHex) => PubkeyHex; myEk: PubkeyHex };
 }
 
 /**
@@ -113,7 +124,7 @@ export function wrapMessage(
 ): WrappedMessage {
   const nowSec = opts.now ?? Math.floor(Date.now() / 1000);
   const outerExpiration = opts.expiration ?? opts.disappearAt ?? nowSec + DEFAULT_TTL_SECONDS;
-  const rumorTags: string[][] = [
+  let rumorTags: string[][] = [
     [TO_TAG, recipientPk],
     ...(opts.disappearAt !== undefined ? [["expiration", String(opts.disappearAt)]] : []),
     ...(opts.relayHint ? [["relay", opts.relayHint]] : []),
@@ -121,11 +132,14 @@ export function wrapMessage(
     ...(opts.replyTo ? [replyTag(opts.replyTo)] : []),
     ...(opts.replyTo && opts.alsoMain ? [alsoMainTag()] : []),
   ];
+  // ADR-0245：FS 時在 rumor 內嵌自己的當前 EK（對方解開即學到）。
+  if (opts.fs) rumorTags = withEkHint(rumorTags, opts.fs.myEk);
   return wrapForBoth(
     { kind: KIND_CHAT, created_at: nowSec, tags: rumorTags, content },
     senderSk,
     recipientPk,
     outerExpiration,
+    opts.fs ? { encryptToFor: opts.fs.encryptToFor } : {},
   );
 }
 
